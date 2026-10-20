@@ -1,6 +1,6 @@
 # Incremental grabber
 
-File: `garmin_grab.py` — `login`, `with_retry`, `list_new_activities`, `download_gpx`, `update_rhr`, `main`.
+Files: `src/garmin_grab/garmin.py` — `login`, `with_retry`, `list_new_activities`, `download_gpx`; `src/garmin_grab/rhr.py` — `update_rhr`; `src/garmin_grab/cli.py` — `main`.
 
 After the GPX downloads, `update_rhr` fetches daily resting heart rate; see [resting heart rate](resting-heart-rate.md).
 

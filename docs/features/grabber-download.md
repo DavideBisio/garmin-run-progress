@@ -10,9 +10,13 @@ The script lives inside the page:
 <script type="text/plain" id="grabber-src">…garmin_grab.py…</script>
 ```
 
-`type="text/plain"` means the browser never executes it. The page reads it with `textContent` and shows it in the "View the script" panel. The only forbidden sequence is `</script`, which `tools/embed_grabber.py` checks for.
+`type="text/plain"` means the browser never executes it. The page reads it with `textContent` and shows it in the "View the script" panel. The only forbidden sequence is `</script`, which `tools/build.py` checks for.
 
-Keep it in sync after editing the script — see [Deploy → Releasing a change](../deploy.md#releasing-a-change).
+`tools/build.py` (`make build`) fills the block with the bundled `garmin_grab.py` when it builds `index.html`. In the unbuilt `src/page/index.html` (`make dev`) the block is empty, so "View the script" and "Copy script" have nothing to show.
+
+## Download link
+
+"Download garmin_grab.py" links to `https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py`, the asset of the newest [release](../deploy.md#releasing-a-change). It works on any host, but returns 404 until the first release exists.
 
 ## Copy buttons
 
@@ -22,7 +26,7 @@ Keep it in sync after editing the script — see [Deploy → Releasing a change]
 
 The "Download grabber (.zip)" button produces `garmin_grabber.zip` containing `garmin_grab.py` and a `README.txt`.
 
-`makeZip` is a ~40-line ZIP writer using the **stored** method (no compression; the files are small):
+`makeZip` (`src/page/js/zip.js`) is a ~40-line ZIP writer using the **stored** method (no compression; the files are small):
 
 - local file header (`0x04034b50`) + name + data for each file
 - central directory entry (`0x02014b50`) for each file, with the local header offset
@@ -34,6 +38,6 @@ The "Download grabber (.zip)" button produces `garmin_grabber.zip` containing `g
 
 The button is hidden by default. It appears only when the page runs inside a claude.ai artifact viewer that grants the `downloads` capability (`await window.claude.use("downloads")`). There, the viewer shows a save confirmation and the page calls `downloads.save({filename, data})`. The platform does not allow `.py` files, which is why the script ships inside a zip.
 
-On GitHub Pages or a local file, `window.claude` doesn't exist, so the button stays hidden. People use "Copy script" or the "View on GitHub" link instead.
+On GitHub Pages or a local file, `window.claude` doesn't exist, so the button stays hidden. People use "Download garmin_grab.py" or "Copy script" instead.
 
 Errors: `declined` is silent, `rate_limited` shows a short message, anything else hides the button and points to "Copy script".

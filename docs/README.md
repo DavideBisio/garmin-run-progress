@@ -5,6 +5,7 @@
 | [Architecture](architecture.md) | The two components, how data flows between them, design choices |
 | [runs.json format](runs-json-format.md) | The file contract between the grabber and the page |
 | [Deploy](deploy.md) | Running locally, GitHub Pages, scheduling the grabber, releasing changes |
+| [Source layout and build](architecture.md#source-layout-and-build) | `src/`, `tools/build.py`, tests, Makefile |
 
 ## Features
 
