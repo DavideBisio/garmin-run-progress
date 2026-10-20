@@ -66,6 +66,10 @@ garmin_export/
 
 The page also accepts raw `.gpx` files directly (select many at once), but without Garmin's summaries those runs have no VO2max values.
 
+## Documentation
+
+Implementation details for every feature and deploy instructions (local, GitHub Pages, scheduled updates) are in [`docs/`](docs/README.md).
+
 ## Privacy
 
 - `garmin_export/` contains your GPS tracks and health data, and is listed in `.gitignore`. Don't commit it.

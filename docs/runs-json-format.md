@@ -1,0 +1,73 @@
+# runs.json format
+
+`runs.json` is the only interface between the grabber and the page. Format id: `garmin-runs/1`.
+
+```json
+{
+  "format": "garmin-runs/1",
+  "generated": "2026-10-20T11:00:00",
+  "sampleEvery": 10,
+  "runs": [
+    {
+      "id": 17345678901,
+      "date": "2024-05-01 07:30:12",
+      "name": "Morning Run",
+      "type": "running",
+      "dist": 10012.4,
+      "dur": 3050.0,
+      "moving": 3001.0,
+      "elev": 84.0,
+      "avgHr": 146.0,
+      "maxHr": 171.0,
+      "vo2": 52.0,
+      "cad": 172.0,
+      "t":  [0, 10, 20],
+      "d":  [0, 31, 62],
+      "hr": [118, 124, 129],
+      "e":  [1203, 1204, 1206]
+    }
+  ]
+}
+```
+
+The file is written compact (no whitespace). Runs are sorted by start time.
+
+## Summary fields
+
+From Garmin's activity list. Any of them can be `null`.
+
+| Field | Unit | Garmin source |
+|---|---|---|
+| `id` | – | `activityId` |
+| `date` | local time, `YYYY-MM-DD HH:MM:SS` | `startTimeLocal` |
+| `name` | – | `activityName` |
+| `type` | – | `activityType.typeKey` (`running`, `trail_running`, `treadmill_running`, …) |
+| `dist` | m | `distance` |
+| `dur` | s, elapsed | `duration` |
+| `moving` | s | `movingDuration` |
+| `elev` | m gained | `elevationGain` |
+| `avgHr`, `maxHr` | bpm | `averageHR`, `maxHR` |
+| `vo2` | ml/kg/min | `vO2MaxValue` |
+| `cad` | steps/min | `averageRunningCadenceInStepsPerMinute` |
+
+Numbers are rounded to 2 decimals.
+
+## Stream fields
+
+Present only when the run had a usable GPX track (absent for treadmill/indoor runs). Four parallel integer arrays, one entry per sample, roughly every `sampleEvery` seconds:
+
+| Field | Unit | Notes |
+|---|---|---|
+| `t` | s since first point | Includes pauses (elapsed time) |
+| `d` | m, cumulative | Scaled to Garmin's summary distance when within ±15% |
+| `hr` | bpm | `0` = no reading |
+| `e` | decimetres | Elevation × 10; `0` = no reading |
+
+Integers keep the file small: about 6 MB per 1,000 runs.
+
+## Compatibility rules for the page
+
+- Required: a top-level `runs` array; each run needs `date`.
+- Runs without streams still count for volume and VO2max.
+- Unknown fields are ignored, so new fields can be added without breaking older pages.
+- A breaking change should bump `format` to `garmin-runs/2`.
