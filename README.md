@@ -29,11 +29,11 @@ Chest-strap heart-rate data gives the most reliable results.
 
 ## Quick start
 
-Requires Python 3.12+.
+Requires Python 3.12+. Download `garmin_grab.py` from the [latest release](https://github.com/DavideBisio/garmin-run-progress/releases/latest) into a folder of its own:
 
 ```bash
-git clone https://github.com/DavideBisio/garmin-run-progress
-cd garmin-run-progress
+mkdir garmin-run-progress && cd garmin-run-progress
+curl -LO https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install --upgrade garminconnect curl_cffi ua-generator
@@ -43,7 +43,9 @@ python garmin_grab.py
 
 The first run asks for your Garmin email, password and MFA code. Tokens are saved in `~/.garminconnect`, so later runs need nothing.
 
-Then open `index.html` in a browser and drop in `garmin_export/runs.json`.
+Then open the analysis page at https://davidebisio.github.io/garmin-run-progress/ (or the release's `index.html`, saved locally) and drop in `garmin_export/runs.json`.
+
+From a clone, `make install` and `make grab` do the same (see [Development](#development)).
 
 ### Options
 
@@ -73,6 +75,23 @@ garmin_export/
 `runs.json` stores each run's summary plus a time, distance, heart-rate and elevation stream sampled every 10 seconds, and your daily resting heart rate. It is about 6 MB per 1,000 runs.
 
 The page also accepts raw `.gpx` files directly (select many at once), but without Garmin's summaries those runs have no VO2max, cadence, stride, Training Effect or resting heart rate.
+
+## Development
+
+The code lives in `src/`: the grabber package in `src/garmin_grab/` and the page's HTML, CSS and per-section scripts in `src/page/`. `tools/build.py` bundles them into `dist/garmin_grab.py` and `dist/index.html`, which are not committed: CI deploys them to GitHub Pages from `main` and attaches them to each release. Building and testing need only Python and Node 20.11+.
+
+```text
+make install   create .venv and install the Garmin library
+make grab      fetch new runs, running src/ directly (options: ARGS="--since 2016-01-01")
+make rebuild   rebuild runs.json from local files, no network
+make dev       serve the unbuilt page on localhost:8000
+make build     build dist/garmin_grab.py and dist/index.html
+make test      build, then run the grabber and page tests
+make deploy    test, git push (CI deploys main to Pages)
+make release   VERSION=v1.2.0: tag and push (CI publishes the release)
+```
+
+`make help` lists every target. On Windows, install GNU make with `choco install make`.
 
 ## Documentation
 

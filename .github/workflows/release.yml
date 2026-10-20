@@ -1,0 +1,26 @@
+# Pushing a v* tag (make release VERSION=v1.0.0) builds, tests and publishes a
+# GitHub Release with garmin_grab.py and index.html attached.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: make test
+      - run: gh release create "$GITHUB_REF_NAME" dist/garmin_grab.py dist/index.html --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

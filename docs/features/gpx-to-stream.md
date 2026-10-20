@@ -1,6 +1,6 @@
 # GPX parsing and streams
 
-File: `garmin_grab.py` — `parse_gpx`, `to_stream`, `haversine`, `summary_fields`, `build_runs`. The page has a JavaScript twin, `parseGpxText`, for loading raw GPX files.
+Files: `src/garmin_grab/gpx.py` — `parse_gpx`, `to_stream`, `haversine`; `src/garmin_grab/export.py` — `summary_fields`, `build_runs`. The page has a JavaScript twin, `parseGpxText` in `src/page/js/gpx-import.js`, for loading raw GPX files.
 
 ## Parsing
 
@@ -40,7 +40,7 @@ Pauses remain as larger gaps in `t`; the page treats gaps over 30 s as stops.
 
 ## The browser version
 
-`parseGpxText` in `index.html` does the same with `DOMParser` and `getElementsByTagNameNS("*", "trkpt")`, with two differences:
+`parseGpxText` does the same with `DOMParser` and `getElementsByTagNameNS("*", "trkpt")`, with two differences:
 
 - no summary is available, so distance is not scaled and VO2max is missing;
 - `type` is `trail_running` if the word "trail" appears in the first 3,000 characters of the file (Garmin puts the activity type and name near the top), else `running`.

@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Run Progress Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+
+<div class="wrap">
+<header>
+  <h1>Run Progress Lab</h1>
+  <p class="lede">Measure how your running fitness changed across the years: pace at the same heart rate, best efforts converted to VDOT, endurance, resting heart rate and form. Then see how hard you're training right now. Everything runs in your browser; your data never leaves this page.</p>
+  <span class="status" id="status"><i></i><span id="status-t">Showing example data</span></span>
+</header>
+
+<section class="step" aria-labelledby="s1">
+  <div class="num">1</div>
+  <div class="step-body">
+    <h2 id="s1">Get the grabber</h2>
+    <div class="panel">
+      <p>A Python script that logs into Garmin Connect, fetches only runs it hasn't seen before, keeps the original GPX files, and writes one <span class="chip">runs.json</span> for step 2.</p>
+      <div class="row">
+        <button class="primary" id="dl-zip" hidden>Download grabber (.zip)</button>
+        <a class="btn" id="dl-py" href="https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py">Download garmin_grab.py</a>
+        <button id="copy-script">Copy script</button>
+        <a class="btn" href="https://github.com/DavideBisio/garmin-run-progress" target="_blank" rel="noopener">View on GitHub</a>
+        <span class="msg" id="dl-msg" role="status"></span>
+      </div>
+      <h3>Set up once</h3>
+      <div class="code" id="cmd-setup"><button class="small copy" data-copy="cmd-setup">Copy</button>python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install --upgrade garminconnect curl_cffi ua-generator</div>
+      <h3>Run whenever you want an update</h3>
+      <div class="code" id="cmd-run"><button class="small copy" data-copy="cmd-run">Copy</button>python garmin_grab.py</div>
+      <ul class="notes">
+        <li>Needs Python 3.12 or later. First run asks for your Garmin email, password and MFA code; tokens are then saved in <span class="chip">~/.garminconnect</span>.</li>
+        <li>The first pass over ten years takes roughly 1–2 hours because it pauses between downloads. Ctrl-C is safe; the next run resumes.</li>
+        <li>Later runs stop as soon as they reach activities they already know, so they take seconds.</li>
+        <li>Options: <span class="chip">--since 2016-01-01</span> <span class="chip">--rebuild</span> (no network) <span class="chip">--full</span> (rescan everything).</li>
+      </ul>
+      <details><summary>View the script</summary><pre class="code" id="script-view"></pre></details>
+    </div>
+  </div>
+</section>
+
+<section class="step" aria-labelledby="s2">
+  <div class="num">2</div>
+  <div class="step-body">
+    <h2 id="s2">Load your runs</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose runs.json or GPX files">
+      <strong>Drop runs.json here</strong>
+      <span class="muted small-t">or click to choose it. Raw .gpx files from the gpx folder work too (select many at once).</span>
+      <input type="file" id="file" accept=".json,.gpx,application/json,application/gpx+xml" multiple hidden>
+    </div>
+    <div class="progress" id="prog" hidden><div></div></div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="remember" checked> Remember in this browser</label>
+      <button class="small" id="clear" hidden>Forget my data</button>
+      <span class="msg" id="load-msg" role="status"></span>
+    </div>
+  </div>
+</section>
+
+<section class="step" aria-labelledby="s3">
+  <div class="num">3</div>
+  <div class="step-body">
+    <h2 id="s3">Analysis</h2>
+    <div class="panel">
+      <div class="controls">
+        <div class="field">Heart-rate band
+          <span class="band"><input type="number" id="hr-lo" min="80" max="200" value="140" aria-label="Lower bpm"> – <input type="number" id="hr-hi" min="90" max="210" value="150" aria-label="Upper bpm"> bpm</span>
+        </div>
+        <div class="field"><label for="season">Months</label>
+          <select id="season">
+            <option value="all">All year</option>
+            <option value="3,4,5">Spring (Mar–May)</option>
+            <option value="6,7,8">Summer (Jun–Aug)</option>
+            <option value="9,10,11">Autumn (Sep–Nov)</option>
+            <option value="12,1,2">Winter (Dec–Feb)</option>
+            <option value="1,2,3,4,5,9,10,11,12">All but summer heat</option>
+          </select>
+        </div>
+        <label class="chk"><input type="checkbox" id="no-trail" checked> Exclude trail runs</label>
+      </div>
+      <p class="muted small-t" id="band-hint"></p>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="panel">
+      <div class="chart-head">
+        <h3>Pace at the same heart rate</h3>
+        <p class="muted small-t">Grade-adjusted pace of the time you spent in the band (after a 10-minute warm-up). Higher on the chart is faster. Each dot is a run; the line is the yearly median.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-eff" aria-label="Pace at heart-rate band over time"></canvas></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Best efforts as VDOT</h3>
+          <p class="muted small-t">Fastest stretch of each distance found inside any run that year, converted to Daniels' VDOT so distances compare.</p>
+          <div class="legend"><span style="--c:var(--accent)">5 km</span><span style="--c:var(--accent-2)">10 km</span><span style="--c:var(--accent-3)">Half</span></div>
+        </div>
+        <div class="chart-box"><canvas id="c-vdot" aria-label="Best effort VDOT per year"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Volume</h3>
+          <p class="muted small-t">Kilometres per year in the current month filter.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-vol" aria-label="Kilometres per year"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" id="vo2-panel">
+      <div class="chart-head">
+        <h3>Garmin VO2max estimate</h3>
+        <p class="muted small-t">As recorded by your watch after each run. Changes of watch model can shift it.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-vo2" aria-label="Garmin VO2max over time"></canvas></div>
+    </div>
+
+    <div class="panel" id="rhr-panel">
+      <div class="chart-head">
+        <h3>Resting heart rate</h3>
+        <p class="muted small-t">Daily value from your watch, with the 30-day median. A falling resting heart rate usually means rising aerobic fitness. A sudden rise of 5 bpm or more often means fatigue, illness or poor sleep. The filters don't apply here.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-rhr" aria-label="Resting heart rate over time"></canvas></div>
+    </div>
+
+    <div class="panel" id="dec-panel">
+      <div class="chart-head">
+        <h3>Aerobic decoupling</h3>
+        <p class="muted small-t">How much your hill-adjusted pace per heartbeat drops from the first half to the second half of a steady run of 40 minutes or more (after a 10-minute warm-up). Under 5% (dashed line) means your endurance holds at that duration. Each dot is a run; the line is the yearly median.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-dec" aria-label="Aerobic decoupling per run over time"></canvas></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel" id="cad-panel">
+        <div class="chart-head">
+          <h3>Cadence</h3>
+          <p class="muted small-t">Average steps per minute of each run. Speed is cadence × stride length, so read it together with the stride chart.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-cad" aria-label="Cadence per run over time"></canvas></div>
+      </div>
+      <div class="panel" id="stride-panel">
+        <div class="chart-head">
+          <h3>Stride length</h3>
+          <p class="muted small-t">Average metres per step. A longer stride at the same cadence means more speed from each step.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-stride" aria-label="Stride length per run over time"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" id="te-panel">
+      <div class="chart-head">
+        <h3>Garmin Training Effect</h3>
+        <p class="muted small-t">Garmin's 0–5 score for how much each run trained your aerobic base and your anaerobic (high-intensity) capacity. Mostly 2–3.5 aerobic with a few anaerobic peaks is a typical balanced pattern.</p>
+        <div class="legend"><span style="--c:var(--accent)">Aerobic</span><span style="--c:var(--accent-2)">Anaerobic</span></div>
+      </div>
+      <div class="chart-box"><canvas id="c-te" aria-label="Aerobic and anaerobic Training Effect over time"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h3>Year by year</h3>
+      <div class="tbl-wrap"><table id="tbl"></table></div>
+    </div>
+
+    <div class="group">
+      <h3>Training</h3>
+      <p class="muted small-t">The 52 weeks up to your last run<span id="tr-end"></span>. Uses every run: the month and trail filters above don't apply. Only runs are in the grabber, so cross-training isn't counted.</p>
+    </div>
+    <div class="panel">
+      <div class="controls">
+        <div class="field">Max / resting heart rate
+          <span class="band"><input type="number" id="hr-max" min="140" max="230" value="190" aria-label="Maximum heart rate"> / <input type="number" id="hr-rest" min="30" max="90" value="50" aria-label="Resting heart rate"> bpm</span>
+        </div>
+      </div>
+      <p class="muted small-t" id="lim-hint"></p>
+    </div>
+
+    <div class="kpis" id="kpis2"></div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Weekly training load</h3>
+          <p class="muted small-t">TRIMP: minutes of running weighted by how high your heart rate was, so a hard hour counts much more than an easy one.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-load" aria-label="Weekly training load"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Load ratio</h3>
+          <p class="muted small-t">Load of the last 7 days ÷ your average week over the last 28 days, at the end of each week. Between 0.8 and 1.3 (dashed lines) is the usual safe range; above 1.5 is a common injury warning sign.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-acwr" aria-label="Acute to chronic load ratio per week"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Heart-rate zones per week</h3>
+          <p class="muted small-t">Minutes in each zone, as a share of your max heart rate. Zones 1–3 count as easy.</p>
+          <div class="legend"><span style="--c:var(--z1)">Z1 &lt;60%</span><span style="--c:var(--z2)">Z2 60–70%</span><span style="--c:var(--z3)">Z3 70–80%</span><span style="--c:var(--z4)">Z4 80–90%</span><span style="--c:var(--z5)">Z5 90%+</span></div>
+        </div>
+        <div class="chart-box"><canvas id="c-zones" aria-label="Minutes per heart-rate zone per week"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Weekly distance</h3>
+          <p class="muted small-t">Kilometres per week, split into the week's longest run and everything else.</p>
+          <div class="legend"><span style="--c:var(--accent-2)">Longest run</span><span style="--c:var(--accent)">Other runs</span></div>
+        </div>
+        <div class="chart-box"><canvas id="c-week" aria-label="Kilometres per week"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Consistency by year</h3>
+      <div class="tbl-wrap"><table id="tbl2"></table></div>
+    </div>
+
+    <div class="panel method">
+      <h3>How to read this</h3>
+      <p><b>Pace at the same heart rate</b> is the most reliable fitness signal for steady running. A chest strap makes it trustworthy; wrist readings are noisier. Pick a band you hit on most easy runs.</p>
+      <p><b>Best efforts</b> come from any stretch of any run, so a year without races shows training efforts and understates your real level. Races give the cleanest points.</p>
+      <p><b>Hills</b> are corrected with Minetti's energy-cost curve over 100 m windows. <b>Heat</b> raises heart rate at a given pace; use the month filter to compare like with like.</p>
+      <p><b>Trend</b> is the Theil–Sen slope of the yearly medians, which ignores single odd years. Years with fewer than 5 qualifying runs are left out of it.</p>
+      <p><b>Aerobic decoupling</b> only uses steady runs: the hill-adjusted pace of 5-minute blocks must stay within 10% of their average, so interval sessions drop out. Heat and dehydration raise it, so compare similar seasons.</p>
+      <p><b>Training load</b> is Banister's TRIMP. Treadmill runs without a heart-rate stream use their average heart rate. Runs with no heart rate at all add nothing, which understates the load. <b>Max and resting heart rate</b> set the zones and the load; a wrong max shifts every zone, so enter a measured one if you have it.</p>
+      <p><b>Zones</b> come from the heart-rate stream. Runs without one fall back to Garmin's own zone times, which use the zones set in Garmin Connect.</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<script type="text/plain" id="grabber-src"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="js/dom.js"></script>
+<script src="js/copy.js"></script>
+<script src="js/zip.js"></script>
+<script src="js/metrics.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/example-data.js"></script>
+<script src="js/gpx-import.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/state.js"></script>
+<script src="js/loading.js"></script>
+<script src="js/render.js"></script>
+<script src="js/training.js"></script>
+<script src="js/boot.js"></script>
+
+</body>
+</html>

@@ -5,6 +5,9 @@ garmin_tokens.json
 *.gpx
 runs.json
 
+# Build output (tools/build.py)
+dist/
+
 # Python
 .venv/
 __pycache__/
