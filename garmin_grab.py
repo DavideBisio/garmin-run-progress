@@ -6,7 +6,8 @@ Each run:
   1. logs in (saved tokens in ~/.garminconnect, so credentials/MFA only the first time)
   2. lists your activities newest-first and stops as soon as it reaches ones it already has
   3. downloads the GPX of every new run (originals kept in garmin_export/gpx/)
-  4. rebuilds garmin_export/runs.json, the single file you upload to the analysis page
+  4. fetches your daily resting heart rate (kept in garmin_export/rhr.json)
+  5. rebuilds garmin_export/runs.json, the single file you upload to the analysis page
 
 Setup (Python 3.12+):
     python3 -m venv .venv
@@ -32,13 +33,15 @@ import os
 import sys
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 TOKENSTORE = os.path.expanduser(os.getenv("GARMINTOKENS", "~/.garminconnect"))
 PAGE = 100
 SAMPLE_EVERY_S = 10          # stream resolution stored in runs.json
 NO_GPS_TYPES = ("treadmill", "indoor", "virtual")
+RHR_CHUNK_DAYS = 364         # get_rhr_daily returns up to ~1 year per request
+RHR_REFRESH_DAYS = 7         # re-fetch the last week: today's value settles later
 
 
 # ---------------------------------------------------------------- helpers
@@ -148,6 +151,35 @@ def download_gpx(g, aid):
     return with_retry(g.download_activity, int(aid), dl_fmt=Garmin.ActivityDownloadFormat.GPX)
 
 
+def update_rhr(g, path, first_day):
+    """Fetch daily resting heart rate from first_day (or the last known day) to today."""
+    rhr = load_json(path, {})
+    if not hasattr(g, "get_rhr_daily"):
+        print("  resting HR skipped: needs a newer library (pip install --upgrade garminconnect)")
+        return
+    if rhr:
+        start = date.fromisoformat(max(rhr)) - timedelta(days=RHR_REFRESH_DAYS)
+    elif first_day:
+        start = date.fromisoformat(first_day)
+    else:
+        return
+    end = date.today()
+    while start <= end:
+        stop = min(start + timedelta(days=RHR_CHUNK_DAYS - 1), end)
+        try:
+            rows = with_retry(g.get_rhr_daily, start.isoformat(), stop.isoformat())
+        except Exception as e:  # noqa: BLE001
+            print(f"  resting HR {start} to {stop} skipped: {str(e)[:100]}")
+            rows = []
+        for row in rows:
+            if row.get("calendarDate") and isinstance(row.get("value"), (int, float)):
+                rhr[row["calendarDate"]] = round(row["value"])
+        start = stop + timedelta(days=1)
+        time.sleep(0.5)
+    save_json(path, rhr)
+    print(f"  resting HR: {len(rhr)} days")
+
+
 # ---------------------------------------------------------------- GPX -> stream
 def _tag(el):
     return el.tag.rsplit("}", 1)[-1]
@@ -231,6 +263,7 @@ def summary_fields(act):
         v = act.get(k)
         return round(v, 2) if isinstance(v, (int, float)) else None
 
+    zones = [round(act.get(f"hrTimeInZone_{z}") or 0) for z in range(1, 6)]
     return {
         "id": act.get("activityId"),
         "date": act.get("startTimeLocal"),
@@ -244,6 +277,10 @@ def summary_fields(act):
         "maxHr": num("maxHR"),
         "vo2": num("vO2MaxValue"),
         "cad": num("averageRunningCadenceInStepsPerMinute"),
+        "stride": num("avgStrideLength"),
+        "te": num("aerobicTrainingEffect"),
+        "teAn": num("anaerobicTrainingEffect"),
+        "hrz": zones if any(zones) else None,
     }
 
 
@@ -273,11 +310,13 @@ def build_runs(out, acts):
         "generated": datetime.now().isoformat(timespec="seconds"),
         "sampleEvery": SAMPLE_EVERY_S,
         "runs": runs,
+        "rhr": sorted(load_json(out / "rhr.json", {}).items()),
     }
     save_json(out / "runs.json", payload)
     with_stream = sum(1 for r in runs if "t" in r)
     size = (out / "runs.json").stat().st_size / 1e6
-    print(f"runs.json: {len(runs)} runs ({with_stream} with GPS/HR stream), {size:.1f} MB")
+    print(f"runs.json: {len(runs)} runs ({with_stream} with GPS/HR stream), "
+          f"{len(payload['rhr'])} resting HR days, {size:.1f} MB")
 
 
 # ---------------------------------------------------------------- main
@@ -323,6 +362,14 @@ def main():
                 time.sleep(args.delay)
         except KeyboardInterrupt:
             print("\nStopped. Run again to continue where you left off.")
+
+        print("Fetching resting heart rate...")
+        days = [(a.get("startTimeLocal") or "")[:10] for a in acts.values()]
+        first_day = args.since or min((d for d in days if d), default=None)
+        try:
+            update_rhr(g, out / "rhr.json", first_day)
+        except KeyboardInterrupt:
+            print("\nStopped. Resting HR will be fetched on the next run.")
 
     build_runs(out, acts)
     print(f"Done. Upload {out / 'runs.json'} to the analysis page.")

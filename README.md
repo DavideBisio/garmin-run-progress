@@ -4,7 +4,7 @@ Measure how your running fitness changed over the years using your own Garmin Co
 
 It has two parts:
 
-- **`garmin_grab.py`** is an incremental exporter. It logs into Garmin Connect, downloads the GPX of every run it hasn't seen before, and writes one compact `runs.json`.
+- **`garmin_grab.py`** is an incremental exporter. It logs into Garmin Connect, downloads the GPX of every run it hasn't seen before, fetches your daily resting heart rate, and writes one compact `runs.json`.
 - **`index.html`** is the analysis page. Open it in a browser, drop in `runs.json`, and get the trends. Everything runs locally, and nothing is uploaded.
 
 ## What the analysis shows
@@ -15,8 +15,15 @@ It has two parts:
 | **Best efforts → VDOT** | Fastest 1 km, 5 km, 10 km and half found inside any run each year, converted with Daniels' VDOT formula so different distances compare. |
 | **Volume** | Kilometres and runs per year. |
 | **Garmin VO2max** | The watch's own estimate, as a cross-check. |
+| **Resting heart rate** | Daily value from your watch with a 30-day median. Falling over months = fitter; a sudden rise = fatigue or illness. |
+| **Aerobic decoupling** | How much pace per heartbeat drops from the first to the second half of steady 50+ minute runs. Under 5% means your endurance holds. |
+| **Cadence and stride length** | Whether you got faster through quicker steps or longer ones. |
+| **Garmin Training Effect** | Aerobic and anaerobic 0–5 scores per run, to see the balance of easy and hard running. |
+| **Training load** | Weekly TRIMP and the 7-day : 28-day load ratio, with the 0.8–1.3 safe range. |
+| **Heart-rate zones** | Minutes per zone per week and your easy share (80/20). |
+| **Consistency** | Runs per week, weekly streaks, breaks of 7+ days, and how much of each week the long run makes up. |
 
-Filters let you compare the same months across years (to remove summer heat) and exclude trail runs. Hills are corrected with Minetti's energy-cost curve over 100 m windows.
+Filters let you compare the same months across years (to remove summer heat) and exclude trail runs. The training section always uses every run. Hills are corrected with Minetti's energy-cost curve over 100 m windows.
 
 Chest-strap heart-rate data gives the most reliable results.
 
@@ -57,14 +64,15 @@ The first pass over ~10 years takes about 1–2 hours because it pauses between 
 garmin_export/
   activities.json   summaries of every run (distance, duration, HR, VO2max, ...)
   seen_ids.json     every activity id already listed (for incremental runs)
+  rhr.json          daily resting heart rate
   gpx/<id>.gpx      original GPX files
   cache/<id>.json   parsed streams, so rebuilds are fast
   runs.json         the file to load in index.html
 ```
 
-`runs.json` stores each run's summary plus a time, distance, heart-rate and elevation stream sampled every 10 seconds. It is about 6 MB per 1,000 runs.
+`runs.json` stores each run's summary plus a time, distance, heart-rate and elevation stream sampled every 10 seconds, and your daily resting heart rate. It is about 6 MB per 1,000 runs.
 
-The page also accepts raw `.gpx` files directly (select many at once), but without Garmin's summaries those runs have no VO2max values.
+The page also accepts raw `.gpx` files directly (select many at once), but without Garmin's summaries those runs have no VO2max, cadence, stride, Training Effect or resting heart rate.
 
 ## Documentation
 
