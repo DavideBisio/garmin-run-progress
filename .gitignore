@@ -1,0 +1,15 @@
+# Your data and credentials: never commit
+garmin_export/
+.garminconnect/
+garmin_tokens.json
+*.gpx
+runs.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Run Progress Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow working column; three numbered steps, then a scan-first analysis panel (KPIs → charts → year table). */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#131923; --muted:#5A6576; --line:#DAE0E8; --soft:#E9EDF3;
+  --accent:#2347C5; --accent-ink:#FFFFFF; --accent-2:#C9731F; --accent-3:#2F8F6B;
+  --good:#23855C; --bad:#B8402F;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1219; --surface:#141B25; --ink:#E6EBF2; --muted:#93A0B2; --line:#253041; --soft:#1B2431;
+  --accent:#7E9CFF; --accent-ink:#0D1219; --accent-2:#EFA35C; --accent-3:#5CC69C;
+  --good:#5CC69C; --bad:#F08A78; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1219; --surface:#141B25; --ink:#E6EBF2; --muted:#93A0B2; --line:#253041; --soft:#1B2431;
+  --accent:#7E9CFF; --accent-ink:#0D1219; --accent-2:#EFA35C; --accent-3:#5CC69C;
+  --good:#5CC69C; --bad:#F08A78; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(40px,7vw,64px);font-weight:700;text-transform:uppercase}
+h2{font-size:30px;text-transform:uppercase}
+h3{font-size:21px}
+p{margin:0}
+.lede{color:var(--muted);max-width:62ch}
+header{display:flex;flex-direction:column;gap:12px}
+.status{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;font:500 13px var(--f-mono);
+  padding:5px 10px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--accent-2)}
+.status.real i{background:var(--good)}
+section.step{display:grid;grid-template-columns:56px 1fr;gap:4px 18px}
+.num{font:700 52px/1 var(--f-display);color:var(--accent);grid-row:span 2}
+.step-body{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button,.btn{text-decoration:none;font:600 14px var(--f-body);border-radius:8px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button:hover{filter:brightness(1.06)}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,.drop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.small{padding:5px 10px;font-size:12.5px}
+.code{position:relative;background:var(--soft);border-radius:8px;padding:12px 14px;font:13px/1.6 var(--f-mono);overflow-x:auto;white-space:pre;color:var(--ink)}
+.code .copy{position:absolute;top:8px;right:8px}
+.muted{color:var(--muted)}
+.small-t{font-size:13px}
+ul.notes{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:14px}
+details summary{cursor:pointer;font-weight:600}
+details pre{max-height:360px;overflow:auto;margin:10px 0 0}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:28px 18px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center;cursor:pointer;background:var(--surface)}
+.drop.over{border-color:var(--accent);background:var(--soft)}
+.drop strong{font:600 22px var(--f-display);letter-spacing:.02em}
+.msg{font-size:14px}
+.msg.err{color:var(--bad)}
+.msg.ok{color:var(--good)}
+label.chk{display:inline-flex;gap:8px;align-items:center;font-size:14px;cursor:pointer}
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.field input,.field select{font:500 15px var(--f-body);padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);text-transform:none;letter-spacing:0}
+.field input[type=number]{width:80px}
+.band{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:15px;text-transform:none;letter-spacing:0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi .lab{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.kpi .val{font:600 31px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:13px;color:var(--muted)}
+.chip{display:inline-block;font:600 12px var(--f-mono);padding:2px 7px;border-radius:5px;background:var(--soft)}
+.chip.good{color:var(--good)} .chip.bad{color:var(--bad)}
+.chart-box{position:relative;height:290px}
+.chart-head{display:flex;flex-direction:column;gap:3px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td.best{color:var(--accent);font-weight:600}
+.method{color:var(--muted);font-size:14px}
+.method p{max-width:72ch}
+.method b{color:var(--ink)}
+.progress{height:4px;background:var(--soft);border-radius:4px;overflow:hidden}
+.progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
+@media (max-width:560px){section.step{grid-template-columns:1fr}.num{font-size:40px;grid-row:auto}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Run Progress Lab</h1>
+  <p class="lede">Measure how your running fitness changed across the years: pace at the same heart rate, best efforts converted to VDOT, and volume. Everything runs in your browser; your data never leaves this page.</p>
+  <span class="status" id="status"><i></i><span id="status-t">Showing example data</span></span>
+</header>
+
+<section class="step" aria-labelledby="s1">
+  <div class="num">1</div>
+  <div class="step-body">
+    <h2 id="s1">Get the grabber</h2>
+    <div class="panel">
+      <p>A Python script that logs into Garmin Connect, fetches only runs it hasn't seen before, keeps the original GPX files, and writes one <span class="chip">runs.json</span> for step 2.</p>
+      <div class="row">
+        <button class="primary" id="dl-zip" hidden>Download grabber (.zip)</button>
+        <button id="copy-script">Copy script</button>
+        <a class="btn" href="https://github.com/DavideBisio/garmin-run-progress" target="_blank" rel="noopener">View on GitHub</a>
+        <span class="msg" id="dl-msg" role="status"></span>
+      </div>
+      <h3>Set up once</h3>
+      <div class="code" id="cmd-setup"><button class="small copy" data-copy="cmd-setup">Copy</button>python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install --upgrade garminconnect curl_cffi ua-generator</div>
+      <h3>Run whenever you want an update</h3>
+      <div class="code" id="cmd-run"><button class="small copy" data-copy="cmd-run">Copy</button>python garmin_grab.py</div>
+      <ul class="notes">
+        <li>Needs Python 3.12 or later. First run asks for your Garmin email, password and MFA code; tokens are then saved in <span class="chip">~/.garminconnect</span>.</li>
+        <li>The first pass over ten years takes roughly 1–2 hours because it pauses between downloads. Ctrl-C is safe; the next run resumes.</li>
+        <li>Later runs stop as soon as they reach activities they already know, so they take seconds.</li>
+        <li>Options: <span class="chip">--since 2016-01-01</span> <span class="chip">--rebuild</span> (no network) <span class="chip">--full</span> (rescan everything).</li>
+      </ul>
+      <details><summary>View the script</summary><pre class="code" id="script-view"></pre></details>
+    </div>
+  </div>
+</section>
+
+<section class="step" aria-labelledby="s2">
+  <div class="num">2</div>
+  <div class="step-body">
+    <h2 id="s2">Load your runs</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose runs.json or GPX files">
+      <strong>Drop runs.json here</strong>
+      <span class="muted small-t">or click to choose it. Raw .gpx files from the gpx folder work too (select many at once).</span>
+      <input type="file" id="file" accept=".json,.gpx,application/json,application/gpx+xml" multiple hidden>
+    </div>
+    <div class="progress" id="prog" hidden><div></div></div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="remember" checked> Remember in this browser</label>
+      <button class="small" id="clear" hidden>Forget my data</button>
+      <span class="msg" id="load-msg" role="status"></span>
+    </div>
+  </div>
+</section>
+
+<section class="step" aria-labelledby="s3">
+  <div class="num">3</div>
+  <div class="step-body">
+    <h2 id="s3">Analysis</h2>
+    <div class="panel">
+      <div class="controls">
+        <div class="field">Heart-rate band
+          <span class="band"><input type="number" id="hr-lo" min="80" max="200" value="140" aria-label="Lower bpm"> – <input type="number" id="hr-hi" min="90" max="210" value="150" aria-label="Upper bpm"> bpm</span>
+        </div>
+        <div class="field"><label for="season">Months</label>
+          <select id="season">
+            <option value="all">All year</option>
+            <option value="3,4,5">Spring (Mar–May)</option>
+            <option value="6,7,8">Summer (Jun–Aug)</option>
+            <option value="9,10,11">Autumn (Sep–Nov)</option>
+            <option value="12,1,2">Winter (Dec–Feb)</option>
+            <option value="1,2,3,4,5,9,10,11,12">All but summer heat</option>
+          </select>
+        </div>
+        <label class="chk"><input type="checkbox" id="no-trail" checked> Exclude trail runs</label>
+      </div>
+      <p class="muted small-t" id="band-hint"></p>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="panel">
+      <div class="chart-head">
+        <h3>Pace at the same heart rate</h3>
+        <p class="muted small-t">Grade-adjusted pace of the time you spent in the band (after a 10-minute warm-up). Higher on the chart is faster. Each dot is a run; the line is the yearly median.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-eff" aria-label="Pace at heart-rate band over time"></canvas></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Best efforts as VDOT</h3>
+          <p class="muted small-t">Fastest stretch of each distance found inside any run that year, converted to Daniels' VDOT so distances compare.</p>
+          <div class="legend"><span style="--c:var(--accent)">5 km</span><span style="--c:var(--accent-2)">10 km</span><span style="--c:var(--accent-3)">Half</span></div>
+        </div>
+        <div class="chart-box"><canvas id="c-vdot" aria-label="Best effort VDOT per year"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Volume</h3>
+          <p class="muted small-t">Kilometres per year in the current month filter.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-vol" aria-label="Kilometres per year"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" id="vo2-panel">
+      <div class="chart-head">
+        <h3>Garmin VO2max estimate</h3>
+        <p class="muted small-t">As recorded by your watch after each run. Changes of watch model can shift it.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-vo2" aria-label="Garmin VO2max over time"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h3>Year by year</h3>
+      <div class="tbl-wrap"><table id="tbl"></table></div>
+    </div>
+
+    <div class="panel method">
+      <h3>How to read this</h3>
+      <p><b>Pace at the same heart rate</b> is the most reliable fitness signal for steady running. A chest strap makes it trustworthy; wrist readings are noisier. Pick a band you hit on most easy runs.</p>
+      <p><b>Best efforts</b> come from any stretch of any run, so a year without races shows training efforts and understates your real level. Races give the cleanest points.</p>
+      <p><b>Hills</b> are corrected with Minetti's energy-cost curve over 100 m windows. <b>Heat</b> raises heart rate at a given pace; use the month filter to compare like with like.</p>
+      <p><b>Trend</b> is the Theil–Sen slope of the yearly medians, which ignores single odd years. Years with fewer than 5 qualifying runs are left out of it.</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<script type="text/plain" id="grabber-src">#!/usr/bin/env python3
+"""
+garmin_grab.py - incremental Garmin Connect running exporter.
+
+Each run:
+  1. logs in (saved tokens in ~/.garminconnect, so credentials/MFA only the first time)
+  2. lists your activities newest-first and stops as soon as it reaches ones it already has
+  3. downloads the GPX of every new run (originals kept in garmin_export/gpx/)
+  4. rebuilds garmin_export/runs.json, the single file you upload to the analysis page
+
+Setup (Python 3.12+):
+    python3 -m venv .venv
+    source .venv/bin/activate          # Windows: .venv\\Scripts\\activate
+    pip install --upgrade garminconnect curl_cffi ua-generator
+
+Usage:
+    python garmin_grab.py                  # fetch new runs, rebuild runs.json
+    python garmin_grab.py --since 2016-01-01
+    python garmin_grab.py --rebuild        # only rebuild runs.json from local files
+    python garmin_grab.py --full           # re-scan the whole activity list
+
+The first run on ~10 years of data takes 1-2 hours (it pauses between
+downloads to stay polite). It is safe to stop with Ctrl-C and run again:
+finished files are kept and only missing ones are fetched.
+"""
+
+import argparse
+import getpass
+import json
+import math
+import os
+import sys
+import time
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from pathlib import Path
+
+TOKENSTORE = os.path.expanduser(os.getenv("GARMINTOKENS", "~/.garminconnect"))
+PAGE = 100
+SAMPLE_EVERY_S = 10          # stream resolution stored in runs.json
+NO_GPS_TYPES = ("treadmill", "indoor", "virtual")
+
+
+# ---------------------------------------------------------------- helpers
+def is_run(act):
+    key = ((act.get("activityType") or {}).get("typeKey") or "").lower()
+    return "run" in key
+
+
+def type_key(act):
+    return ((act.get("activityType") or {}).get("typeKey") or "").lower()
+
+
+def has_gps(act):
+    k = type_key(act)
+    if any(t in k for t in NO_GPS_TYPES):
+        return False
+    if act.get("hasPolyline") is False:
+        return False
+    return True
+
+
+def load_json(path, default):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return default
+
+
+def save_json(path, data):
+    tmp = Path(str(path) + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, separators=(",", ":"))
+    tmp.replace(path)
+
+
+# ---------------------------------------------------------------- garmin
+def login():
+    try:
+        from garminconnect import Garmin
+    except ImportError:
+        sys.exit("Missing library. Run:  pip install --upgrade garminconnect curl_cffi ua-generator")
+
+    try:
+        g = Garmin()
+        g.login(TOKENSTORE)
+        print("Logged in with saved tokens.")
+        return g
+    except Exception:
+        pass
+
+    print("First login (tokens will be saved to %s)" % TOKENSTORE)
+    email = os.getenv("GARMIN_EMAIL") or input("Garmin email: ").strip()
+    password = getpass.getpass("Garmin password: ")
+    g = Garmin(email, password, prompt_mfa=lambda: input("MFA code: ").strip())
+    g.login(TOKENSTORE)
+    print("Logged in.")
+    return g
+
+
+def with_retry(fn, *args, tries=4, **kwargs):
+    for attempt in range(tries):
+        try:
+            return fn(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:  # noqa: BLE001
+            msg = str(e)
+            wait = 60 if ("429" in msg or "Too Many" in msg) else 5 * (attempt + 1)
+            if attempt == tries - 1:
+                raise
+            print(f"  ! {msg[:120]} - retrying in {wait}s")
+            time.sleep(wait)
+
+
+def list_new_activities(g, known, since, full):
+    """Walk the activity list newest-first; stop at the first page that is all known."""
+    found, seen = {}, set()
+    start = 0
+    while True:
+        page = with_retry(g.get_activities, start, PAGE)
+        if not page:
+            break
+        page_all_known = True
+        reached_since = False
+        for act in page:
+            day = (act.get("startTimeLocal") or "")[:10]
+            if since and day and day < since:
+                reached_since = True
+                continue
+            aid = str(act.get("activityId"))
+            seen.add(aid)
+            if aid not in known:
+                page_all_known = False
+            if is_run(act):
+                found[aid] = act
+        print(f"  scanned {start + len(page)} activities, {len(found)} runs in this scan")
+        if reached_since or (page_all_known and not full):
+            break
+        start += PAGE
+        time.sleep(0.5)
+    return found, seen
+
+
+def download_gpx(g, aid):
+    from garminconnect import Garmin
+    return with_retry(g.download_activity, int(aid), dl_fmt=Garmin.ActivityDownloadFormat.GPX)
+
+
+# ---------------------------------------------------------------- GPX -> stream
+def _tag(el):
+    return el.tag.rsplit("}", 1)[-1]
+
+
+def _parse_time(s):
+    s = s.strip().replace("Z", "+00:00")
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def haversine(lat1, lon1, lat2, lon2):
+    r = 6371008.8
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = p2 - p1
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def parse_gpx(data):
+    """Return list of (t_epoch, lat, lon, ele|None, hr|None)."""
+    root = ET.fromstring(data)
+    pts = []
+    for el in root.iter():
+        if _tag(el) != "trkpt":
+            continue
+        try:
+            lat, lon = float(el.get("lat")), float(el.get("lon"))
+        except (TypeError, ValueError):
+            continue
+        t = ele = hr = None
+        for c in el.iter():
+            name = _tag(c)
+            if not c.text:
+                continue
+            if name == "time":
+                t = _parse_time(c.text)
+            elif name == "ele":
+                ele = float(c.text)
+            elif name == "hr":
+                hr = int(float(c.text))
+        if t is not None:
+            pts.append((t, lat, lon, ele, hr))
+    pts.sort(key=lambda p: p[0])
+    return pts
+
+
+def to_stream(pts, summary_distance=None):
+    """Cumulative distance on all points, then sample every SAMPLE_EVERY_S seconds."""
+    if len(pts) < 2:
+        return None
+    cum = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        cum.append(cum[-1] + haversine(a[1], a[2], b[1], b[2]))
+    total = cum[-1]
+    scale = 1.0
+    if summary_distance and total > 0:
+        ratio = summary_distance / total
+        if 0.85 < ratio < 1.15:          # align with Garmin's own distance
+            scale = ratio
+    t0 = pts[0][0]
+    T, D, H, E = [], [], [], []
+    last_t = None
+    for i, p in enumerate(pts):
+        if last_t is not None and p[0] - last_t < SAMPLE_EVERY_S and i != len(pts) - 1:
+            continue
+        last_t = p[0]
+        T.append(int(round(p[0] - t0)))
+        D.append(int(round(cum[i] * scale)))
+        H.append(p[4] or 0)
+        E.append(int(round(p[3] * 10)) if p[3] is not None else 0)
+    return {"t": T, "d": D, "hr": H, "e": E}
+
+
+# ---------------------------------------------------------------- build runs.json
+def summary_fields(act):
+    def num(k):
+        v = act.get(k)
+        return round(v, 2) if isinstance(v, (int, float)) else None
+
+    return {
+        "id": act.get("activityId"),
+        "date": act.get("startTimeLocal"),
+        "name": act.get("activityName"),
+        "type": type_key(act),
+        "dist": num("distance"),
+        "dur": num("duration"),
+        "moving": num("movingDuration"),
+        "elev": num("elevationGain"),
+        "avgHr": num("averageHR"),
+        "maxHr": num("maxHR"),
+        "vo2": num("vO2MaxValue"),
+        "cad": num("averageRunningCadenceInStepsPerMinute"),
+    }
+
+
+def build_runs(out, acts):
+    gpx_dir = out / "gpx"
+    cache_dir = out / "cache"
+    cache_dir.mkdir(exist_ok=True)
+    runs = []
+    for aid, act in sorted(acts.items(), key=lambda kv: kv[1].get("startTimeLocal") or ""):
+        rec = summary_fields(act)
+        gpx = gpx_dir / f"{aid}.gpx"
+        cache = cache_dir / f"{aid}.json"
+        stream = None
+        if cache.exists() and gpx.exists() and cache.stat().st_mtime >= gpx.stat().st_mtime:
+            stream = load_json(cache, None)
+        elif gpx.exists() and gpx.stat().st_size > 0:
+            try:
+                stream = to_stream(parse_gpx(gpx.read_bytes()), rec["dist"])
+            except ET.ParseError:
+                stream = None
+            save_json(cache, stream)
+        if stream:
+            rec.update(stream)
+        runs.append(rec)
+    payload = {
+        "format": "garmin-runs/1",
+        "generated": datetime.now().isoformat(timespec="seconds"),
+        "sampleEvery": SAMPLE_EVERY_S,
+        "runs": runs,
+    }
+    save_json(out / "runs.json", payload)
+    with_stream = sum(1 for r in runs if "t" in r)
+    size = (out / "runs.json").stat().st_size / 1e6
+    print(f"runs.json: {len(runs)} runs ({with_stream} with GPS/HR stream), {size:.1f} MB")
+
+
+# ---------------------------------------------------------------- main
+def main():
+    ap = argparse.ArgumentParser(description="Incremental Garmin Connect running exporter")
+    ap.add_argument("--out", default="garmin_export", help="output folder (default: garmin_export)")
+    ap.add_argument("--since", help="ignore activities before YYYY-MM-DD")
+    ap.add_argument("--full", action="store_true", help="re-scan the full activity list")
+    ap.add_argument("--rebuild", action="store_true", help="no network: rebuild runs.json only")
+    ap.add_argument("--delay", type=float, default=1.0, help="seconds between downloads")
+    args = ap.parse_args()
+
+    out = Path(args.out)
+    (out / "gpx").mkdir(parents=True, exist_ok=True)
+    acts_path = out / "activities.json"
+    known_path = out / "seen_ids.json"
+    acts = load_json(acts_path, {})
+    known = set(load_json(known_path, []))
+
+    if not args.rebuild:
+        g = login()
+        print("Scanning activity list...")
+        new, seen = list_new_activities(g, known, args.since, args.full or not known)
+        acts.update(new)
+        save_json(acts_path, acts)
+        # every listed id (runs and other sports) feeds the "stop at known page" rule
+        known |= seen | set(acts.keys())
+        save_json(known_path, sorted(known))
+
+        todo = [aid for aid, a in acts.items()
+                if has_gps(a) and not (out / "gpx" / f"{aid}.gpx").exists()]
+        print(f"{len(todo)} GPX files to download")
+        try:
+            for n, aid in enumerate(todo, 1):
+                try:
+                    data = download_gpx(g, aid)
+                except Exception as e:  # noqa: BLE001
+                    print(f"  skip {aid}: {str(e)[:100]}")
+                    continue
+                (out / "gpx" / f"{aid}.gpx").write_bytes(data or b"")
+                if n % 25 == 0 or n == len(todo):
+                    print(f"  {n}/{len(todo)}")
+                time.sleep(args.delay)
+        except KeyboardInterrupt:
+            print("\nStopped. Run again to continue where you left off.")
+
+    build_runs(out, acts)
+    print(f"Done. Upload {out / 'runs.json'} to the analysis page.")
+
+
+if __name__ == "__main__":
+    main()
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const SRC = $("grabber-src").textContent.replace(/^\n/, "");
+$("script-view").textContent = SRC;
+
+/* ---------------- copy helpers ---------------- */
+async function copyText(text, btn){
+  const old = btn.textContent;
+  try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch(_){}
+    ta.remove(); btn.textContent = ok ? "Copied" : "Select and copy manually";
+  }
+  setTimeout(() => btn.textContent = old, 1800);
+}
+document.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", () => {
+  const el = $(b.dataset.copy); copyText(el.textContent.replace(b.textContent, "").trim(), b);
+}));
+$("copy-script").addEventListener("click", e => copyText(SRC, e.currentTarget));
+
+/* ---------------- zip (stored) ---------------- */
+const CRC = (() => { const t = new Uint32Array(256); for (let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;} return t; })();
+function crc32(b){ let c=0xFFFFFFFF; for (let i=0;i<b.length;i++) c=CRC[(c^b[i])&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function makeZip(files){
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const now = new Date();
+  const dt = ((now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1)) & 0xFFFF;
+  const dd = (((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate()) & 0xFFFF;
+  for (const f of files){
+    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true);
+    h.setUint16(10,dt,true); h.setUint16(12,dd,true); h.setUint32(14,crc,true);
+    h.setUint32(18,data.length,true); h.setUint32(22,data.length,true); h.setUint16(26,name.length,true); h.setUint16(28,0,true);
+    parts.push(new Uint8Array(h.buffer), name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true); c.setUint16(8,0x0800,true); c.setUint16(10,0,true);
+    c.setUint16(12,dt,true); c.setUint16(14,dd,true); c.setUint32(16,crc,true); c.setUint32(20,data.length,true); c.setUint32(24,data.length,true);
+    c.setUint16(28,name.length,true); c.setUint32(42,off,true);
+    central.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + data.length;
+  }
+  const csize = central.reduce((s,p)=>s+p.length,0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true);
+  e.setUint32(12,csize,true); e.setUint32(16,off,true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], {type:"application/zip"});
+}
+const README = `Garmin grabber for Run Progress Lab
+====================================
+
+1. Install Python 3.12+ and, in this folder:
+     python3 -m venv .venv
+     source .venv/bin/activate        (Windows: .venv\\Scripts\\activate)
+     pip install --upgrade garminconnect curl_cffi ua-generator
+
+2. Run:
+     python garmin_grab.py
+
+   First run: asks for Garmin email, password, MFA code. Tokens are saved
+   in ~/.garminconnect so later runs need nothing.
+
+3. Upload garmin_export/runs.json to the Run Progress Lab page.
+
+Run it again any time; it only downloads runs it has not seen yet.
+Original GPX files stay in garmin_export/gpx/.
+`;
+(async () => {
+  let dl = null;
+  try { dl = window.claude && await window.claude.use("downloads"); } catch(e){ dl = null; }
+  if (!dl) return;
+  const btn = $("dl-zip"); btn.hidden = false;
+  btn.addEventListener("click", async () => {
+    $("dl-msg").textContent = ""; $("dl-msg").className = "msg";
+    try {
+      await dl.save({filename:"garmin_grabber.zip", data: makeZip([{name:"garmin_grab.py",text:SRC},{name:"README.txt",text:README}])});
+      $("dl-msg").textContent = "Saved. Unzip it and follow the setup below."; $("dl-msg").className = "msg ok";
+    } catch(err){
+      if (err && err.code === "declined") return;
+      if (err && err.code === "rate_limited"){ $("dl-msg").textContent = "A save prompt is already open."; return; }
+      btn.hidden = true; $("dl-msg").textContent = "Downloads aren't available here. Use Copy script and save it as garmin_grab.py.";
+    }
+  });
+})();
+
+/* ---------------- geometry & metrics ---------------- */
+const SAMPLE = 10;
+function hav(a1,o1,a2,o2){ const r=6371008.8, p1=a1*Math.PI/180, p2=a2*Math.PI/180, dp=p2-p1, dl=(o2-o1)*Math.PI/180;
+  const a=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2; return 2*r*Math.asin(Math.sqrt(a)); }
+function minetti(i){ i=Math.max(-0.3,Math.min(0.3,i)); return 155.4*i**5-30.4*i**4-43.3*i**3+46.3*i**2+19.5*i+3.6; }
+const gapFactor = g => minetti(g)/3.6;
+function vdot(m, s){ const t=s/60, v=m/t;
+  const vo2=-4.6+0.182258*v+0.000104*v*v;
+  const pct=0.8+0.1894393*Math.exp(-0.012778*t)+0.2989558*Math.exp(-0.1932605*t);
+  return vo2/pct; }
+function decYear(dateStr){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr||""); if(!m) return null;
+  const y=+m[1], start=Date.UTC(y,0,1), end=Date.UTC(y+1,0,1), d=Date.UTC(y,+m[2]-1,+m[3]);
+  return {y, month:+m[2], x: y+(d-start)/(end-start)}; }
+const DISTS = [{k:"1k",m:1000},{k:"5k",m:5000},{k:"10k",m:10000},{k:"hm",m:21097.5}];
+
+function bestEffort(t, d, D){
+  if (!t || d[d.length-1] < D) return null;
+  let best = Infinity, i = 0;
+  for (let j=1;j<d.length;j++){
+    if (d[j]-d[0] < D) continue;
+    while (i+1 < j && d[j]-d[i+1] >= D) i++;
+    const target = d[j]-D, span = d[i+1]-d[i];
+    const ts = span>0 ? t[i]+(t[i+1]-t[i])*(target-d[i])/span : t[i];
+    const dur = t[j]-ts;
+    if (dur > 0 && dur < best) best = dur;
+  }
+  if (!isFinite(best) || D/best > 6.4) return null;
+  return best;
+}
+function prepare(r){
+  const p = decYear(r.date); if (!p) return null;
+  r._x = p.x; r._y = p.y; r._m = p.month;
+  r._trail = /trail/.test(r.type||"");
+  if (r.t && r.t.length > 5){
+    r._km = (r.dist || r.d[r.d.length-1]) / 1000;
+    const n=r.t.length, g=new Float32Array(n); let k=0;
+    for (let i=0;i<n;i++){
+      while (k<i && r.d[i]-r.d[k+1] >= 100) k++;
+      const dd=r.d[i]-r.d[k]; g[i] = dd>=60 && r.e[i] && r.e[k] ? (r.e[i]-r.e[k])/10/dd : 0;
+    }
+    r._g = g;
+    r._hrOk = r.hr.filter(h=>h>0).length > n*0.6;
+    r._best = {}; for (const D of DISTS) r._best[D.k] = bestEffort(r.t, r.d, D.m);
+  } else { r._km = (r.dist||0)/1000; r._best = {}; }
+  return r;
+}
+function bandPace(r, lo, hi){
+  if (!r._g || !r._hrOk) return null;
+  let tt=0, adj=0; const t=r.t, d=r.d, h=r.hr;
+  for (let i=1;i<t.length;i++){
+    if (t[i] < 600) continue;
+    const dt=t[i]-t[i-1], dd=d[i]-d[i-1]; if (dt<=0 || dt>30) continue;
+    const v=dd/dt; if (v<1.6 || v>6.5) continue;
+    const hr=h[i]; if (hr<lo || hr>hi) continue;
+    tt+=dt; adj+=dd*gapFactor(r._g[i]);
+  }
+  return tt>=600 && adj>0 ? tt/adj*1000 : null;
+}
+
+/* ---------------- stats helpers ---------------- */
+const median = a => { if(!a.length) return null; const s=[...a].sort((x,y)=>x-y), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+function theilSen(pts){ const sl=[]; for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const dx=pts[j][0]-pts[i][0]; if(dx) sl.push((pts[j][1]-pts[i][1])/dx);} return median(sl); }
+const fmtPace = s => { if (s==null||!isFinite(s)) return "–"; s=Math.round(s); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; };
+const fmtTime = s => { if (s==null) return "–"; s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return h?`${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}`:`${m}:${String(x).padStart(2,"0")}`; };
+const nf = new Intl.NumberFormat(undefined,{maximumFractionDigits:0});
+
+/* ---------------- example data ---------------- */
+function exampleData(){
+  let seed = 7; const rnd = () => (seed = (seed*16807)%2147483647)/2147483647;
+  const gauss = () => Math.sqrt(-2*Math.log(rnd()+1e-9))*Math.cos(2*Math.PI*rnd());
+  const runs = []; const start = Date.UTC(2016,2,1);
+  for (let day=0; day<3650; day+= 3 + Math.floor(rnd()*4)){
+    const dt = new Date(start + day*864e5), yrs = day/365, month = dt.getUTCMonth()+1;
+    const heat = (month>=6 && month<=8) ? 4 : 0;
+    const fit = 2.95 + 0.055*yrs - 0.02*Math.max(0,yrs-6.5)**2 + 0.05*Math.sin(yrs*2*Math.PI)*0.3;
+    const dur = 1800 + Math.floor(rnd()*3600), hard = rnd() < 0.15;
+    const t=[],d=[],hr=[],e=[]; let dist=0, h=118;
+    for (let s=0; s<=dur; s+=SAMPLE){
+      const target = (hard ? 168 : 143) + heat + gauss()*1.5;
+      h += (target-h)*Math.min(1,s/700)*0.25;
+      const v = fit*(1+(h-heat-143)/95)*(1+gauss()*0.02);
+      dist += v*SAMPLE;
+      t.push(s); d.push(Math.round(dist)); hr.push(Math.round(h)); e.push(Math.round((120+25*Math.sin(dist/900))*10));
+    }
+    const ds = dt.toISOString().slice(0,10)+" 07:00:00";
+    runs.push({date:ds,type:"running",dist,dur,avgHr:Math.round(hr.reduce((a,b)=>a+b,0)/hr.length),vo2:Math.round(44+yrs*0.55+gauss()*0.6),t,d,hr,e});
+  }
+  return {format:"garmin-runs/1", example:true, runs};
+}
+
+/* ---------------- GPX import ---------------- */
+function parseGpxText(txt, name){
+  const doc = new DOMParser().parseFromString(txt, "application/xml");
+  const pts = [];
+  for (const el of doc.getElementsByTagNameNS("*","trkpt")){
+    const lat=+el.getAttribute("lat"), lon=+el.getAttribute("lon"); let tm=null, ele=null, hr=0;
+    for (const c of el.getElementsByTagName("*")){
+      const n=c.localName;
+      if (n==="time") tm=Date.parse(c.textContent); else if (n==="ele") ele=+c.textContent; else if (n==="hr") hr=Math.round(+c.textContent);
+    }
+    if (tm && isFinite(lat)) pts.push([tm,lat,lon,ele,hr]);
+  }
+  if (pts.length < 2) return null;
+  pts.sort((a,b)=>a[0]-b[0]);
+  const cum=[0]; for (let i=1;i<pts.length;i++) cum.push(cum[i-1]+hav(pts[i-1][1],pts[i-1][2],pts[i][1],pts[i][2]));
+  const t0=pts[0][0], t=[],d=[],hr=[],e=[]; let last=-1e9;
+  pts.forEach((p,i)=>{ if ((p[0]-last)/1000 < SAMPLE && i!==pts.length-1) return; last=p[0];
+    t.push(Math.round((p[0]-t0)/1000)); d.push(Math.round(cum[i])); hr.push(p[4]); e.push(p[3]==null?0:Math.round(p[3]*10)); });
+  const local = new Date(t0 - new Date(t0).getTimezoneOffset()*60000).toISOString().replace("T"," ").slice(0,19);
+  const type = /trail/i.test(txt.slice(0,3000)) ? "trail_running" : "running";
+  return {date:local, name, type, dist:cum[cum.length-1], dur:t[t.length-1], t, d, hr, e};
+}
+
+/* ---------------- storage (IndexedDB) ---------------- */
+function idb(){ return new Promise((res,rej)=>{ try{ const q=indexedDB.open("run-progress-lab",1);
+  q.onupgradeneeded=()=>q.result.createObjectStore("kv"); q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error);}catch(e){rej(e);} }); }
+async function idbSet(v){ try{ const db=await idb(); await new Promise((res,rej)=>{const tx=db.transaction("kv","readwrite"); v===undefined?tx.objectStore("kv").delete("data"):tx.objectStore("kv").put(v,"data"); tx.oncomplete=res; tx.onerror=()=>rej(tx.error);}); }catch(e){} }
+async function idbGet(){ try{ const db=await idb(); return await new Promise((res)=>{const q=db.transaction("kv").objectStore("kv").get("data"); q.onsuccess=()=>res(q.result); q.onerror=()=>res(null);}); }catch(e){ return null; } }
+
+/* ---------------- state ---------------- */
+let DATA = null, RUNS = [];
+function setData(payload, isExample){
+  DATA = payload;
+  RUNS = (payload.runs||[]).map(r=>prepare({...r})).filter(Boolean).sort((a,b)=>a._x-b._x);
+  const yrs = RUNS.length ? `${RUNS[0]._y}–${RUNS[RUNS.length-1]._y}` : "";
+  $("status").classList.toggle("real", !isExample);
+  $("status-t").textContent = isExample ? "Showing example data · load yours in step 2" : `Your data · ${nf.format(RUNS.length)} runs · ${yrs}`;
+  $("clear").hidden = isExample;
+  suggestBand();
+  render();
+}
+function suggestBand(){
+  const hrs = RUNS.filter(r=>r._hrOk).map(r=>{ const h=r.hr.filter(x=>x>0).sort((a,b)=>a-b); return h[h.length>>1]; });
+  if (!hrs.length){ $("band-hint").textContent = "No heart-rate data found, so the efficiency chart stays empty."; return; }
+  const sorted=[...hrs].sort((a,b)=>a-b), q=p=>sorted[Math.floor(p*(sorted.length-1))];
+  const easy = q(0.35);
+  $("band-hint").textContent = `Your easy runs typically sit around ${easy} bpm (median of all runs ${q(0.5)} bpm). A 10 bpm band around your easy heart rate works well.`;
+}
+
+/* ---------------- loading ---------------- */
+const drop = $("drop"), fileIn = $("file");
+drop.addEventListener("click", ()=>fileIn.click());
+drop.addEventListener("keydown", e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); fileIn.click(); } });
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop", e=>handleFiles([...e.dataTransfer.files]));
+fileIn.addEventListener("change", ()=>{ handleFiles([...fileIn.files]); fileIn.value=""; });
+function say(t, cls){ const m=$("load-msg"); m.textContent=t; m.className="msg "+(cls||""); }
+async function handleFiles(files){
+  if (!files.length) return;
+  const json = files.find(f=>/\.json$/i.test(f.name));
+  const gpx = files.filter(f=>/\.gpx$/i.test(f.name));
+  try {
+    let payload;
+    if (json){
+      say("Reading "+json.name+"…");
+      payload = JSON.parse(await json.text());
+      if (!payload || !Array.isArray(payload.runs)) throw new Error("This JSON isn't a runs.json from the grabber (no \"runs\" list).");
+    } else if (gpx.length){
+      const bar=$("prog"); bar.hidden=false; const runs=[];
+      for (let i=0;i<gpx.length;i++){
+        const r = parseGpxText(await gpx[i].text(), gpx[i].name); if (r) runs.push(r);
+        if (i%20===0){ bar.firstElementChild.style.width=(100*i/gpx.length)+"%"; say(`Parsing GPX ${i+1}/${gpx.length}…`); await new Promise(r=>setTimeout(r)); }
+      }
+      bar.hidden=true;
+      if (!runs.length) throw new Error("None of the GPX files had a usable track.");
+      payload = {format:"garmin-runs/1", runs};
+    } else throw new Error("Choose runs.json or .gpx files.");
+    setData(payload, false);
+    const withStream = RUNS.filter(r=>r._g).length;
+    say(`Loaded ${nf.format(RUNS.length)} runs (${nf.format(withStream)} with GPS track).`, "ok");
+    if ($("remember").checked) idbSet(payload);
+  } catch(err){ $("prog").hidden=true; say(err.message || "Couldn't read that file.", "err"); }
+}
+$("clear").addEventListener("click", async ()=>{ await idbSet(undefined); setData(exampleData(), true); say("Your data was removed from this browser."); });
+$("remember").addEventListener("change", e=>{ if (!e.target.checked) idbSet(undefined); else if (DATA && !DATA.example) idbSet(DATA); });
+
+/* ---------------- render ---------------- */
+["hr-lo","hr-hi","season","no-trail"].forEach(id=>$(id).addEventListener("change", render));
+const charts = {};
+function tok(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function chart(id, cfg){ if (charts[id]) charts[id].destroy(); if (!window.Chart) return; charts[id] = new Chart($(id), cfg); }
+function baseOpts(c){
+  return { responsive:true, maintainAspectRatio:false, animation:false, interaction:{mode:"nearest",intersect:false},
+    plugins:{legend:{display:false}, tooltip:{backgroundColor:c.surface, titleColor:c.ink, bodyColor:c.ink, borderColor:c.line, borderWidth:1}},
+    scales:{ x:{grid:{color:c.grid}, ticks:{color:c.muted, font:{family:"IBM Plex Mono"}}, border:{color:c.line}},
+             y:{grid:{color:c.grid}, ticks:{color:c.muted, font:{family:"IBM Plex Mono"}}, border:{color:c.line}} } };
+}
+function alpha(hex, a){ const m=/^#([0-9a-f]{6})$/i.exec(hex); if(!m) return hex; const n=parseInt(m[1],16); return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`; }
+
+function render(){
+  let lo=+$("hr-lo").value, hi=+$("hr-hi").value; if (hi<lo) [lo,hi]=[hi,lo];
+  const season=$("season").value, months = season==="all"?null:new Set(season.split(",").map(Number));
+  const noTrail=$("no-trail").checked;
+  const runs = RUNS.filter(r => (!months || months.has(r._m)) && !(noTrail && r._trail));
+  const c = {accent:tok("--accent"),a2:tok("--accent-2"),a3:tok("--accent-3"),ink:tok("--ink"),muted:tok("--muted"),line:tok("--line"),surface:tok("--surface"),grid:alpha(tok("--line"),.6)};
+
+  // per-year aggregates
+  const years = {};
+  const effPts = [];
+  for (const r of runs){
+    const Y = years[r._y] ||= {y:r._y, n:0, km:0, eff:[], best:{}, vo2:[]};
+    Y.n++; Y.km += r._km||0;
+    if (r.vo2) Y.vo2.push(r.vo2);
+    const p = bandPace(r, lo, hi);
+    if (p){ Y.eff.push(p); effPts.push({x:r._x, y:p}); }
+    for (const D of DISTS){ const b=r._best[D.k]; if (b && (!Y.best[D.k] || b<Y.best[D.k])) Y.best[D.k]=b; }
+  }
+  const ys = Object.values(years).sort((a,b)=>a.y-b.y);
+  ys.forEach(Y=>{ Y.effMed = Y.eff.length>=5 ? median(Y.eff) : null; Y.vo2Med = median(Y.vo2);
+    Y.vdot = {}; for (const D of DISTS) if (Y.best[D.k]) Y.vdot[D.k] = vdot(D.m, Y.best[D.k]);
+    const v = Object.entries(Y.vdot).filter(([k])=>k!=="1k").map(([,v])=>v); Y.vdotMax = v.length?Math.max(...v):null; });
+
+  // KPIs
+  const effYears = ys.filter(Y=>Y.effMed!=null);
+  const slope = effYears.length>=2 ? theilSen(effYears.map(Y=>[Y.y, Y.effMed])) : null;
+  const first = effYears[0], last = effYears[effYears.length-1];
+  const vYears = ys.filter(Y=>Y.vdotMax);
+  const vFirst = vYears[0], vPeak = vYears.reduce((a,b)=>!a||b.vdotMax>a.vdotMax?b:a, null), vLast = vYears[vYears.length-1];
+  const totKm = ys.reduce((s,Y)=>s+Y.km,0);
+  const chip = (v, goodWhenNeg, txt) => v==null?"":`<span class="chip ${ (goodWhenNeg? v<0 : v>0) ? "good":"bad"}">${txt}</span>`;
+  const k = [];
+  k.push(`<div class="kpi"><span class="lab">Trend at ${lo}–${hi} bpm</span><span class="val">${slope==null?"–":(slope<0?"−":"+")+Math.abs(slope).toFixed(1)+" s/km"}</span><span class="sub">${slope==null?"Not enough heart-rate runs":"per year · "+(slope<0?"getting faster":"getting slower")+" at the same effort"}</span></div>`);
+  k.push(`<div class="kpi"><span class="lab">Pace at same HR</span><span class="val">${first?fmtPace(first.effMed):"–"} → ${last?fmtPace(last.effMed):"–"}</span><span class="sub">${first&&last?`/km, ${first.y} → ${last.y} `+chip(last.effMed-first.effMed,true,((last.effMed-first.effMed)<0?"−":"+")+Math.abs(Math.round(last.effMed-first.effMed))+" s"):"min/km, grade-adjusted"}</span></div>`);
+  k.push(`<div class="kpi"><span class="lab">Best-effort VDOT</span><span class="val">${vFirst?vFirst.vdotMax.toFixed(1):"–"} → ${vLast?vLast.vdotMax.toFixed(1):"–"}</span><span class="sub">${vFirst&&vLast?`${vFirst.y} → ${vLast.y} · peak ${vPeak.vdotMax.toFixed(1)} in ${vPeak.y}`:"needs GPS tracks"}</span></div>`);
+  k.push(`<div class="kpi"><span class="lab">Volume</span><span class="val">${nf.format(totKm)} km</span><span class="sub">${nf.format(runs.length)} runs over ${ys.length} years</span></div>`);
+  $("kpis").innerHTML = k.join("");
+
+  // efficiency chart
+  const xTicks = {stepSize:1, callback:v=>Number.isInteger(v)?v:""};
+  const xMin = ys.length?ys[0].y:2016, xMax = ys.length?ys[ys.length-1].y+1:2026;
+  let o = baseOpts(c);
+  o.scales.x = {...o.scales.x, type:"linear", min:xMin, max:xMax, ticks:{...o.scales.x.ticks, ...xTicks}};
+  o.scales.y = {...o.scales.y, reverse:true, ticks:{...o.scales.y.ticks, callback:v=>fmtPace(v)}, title:{display:true,text:"min/km",color:c.muted}};
+  o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${fmtPace(ctx.parsed.y)} /km`, title:items=>items.length?String(Math.floor(items[0].parsed.x)):""};
+  chart("c-eff", {type:"scatter", data:{datasets:[
+    {label:"Run", data:effPts, pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.accent,.28), borderColor:"transparent"},
+    {label:"Yearly median", type:"line", data:effYears.map(Y=>({x:Y.y+.5,y:Y.effMed})), borderColor:c.ink, backgroundColor:c.ink, borderWidth:2.5, pointRadius:4, tension:.25}
+  ]}, options:o});
+
+  // VDOT chart
+  o = baseOpts(c);
+  o.scales.y.title = {display:true,text:"VDOT",color:c.muted};
+  o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} (${fmtTime(ctx.dataset.times[ctx.dataIndex])})`};
+  const lab = ys.map(Y=>String(Y.y));
+  const ds = [["5k","5 km",c.accent],["10k","10 km",c.a2],["hm","Half",c.a3]].map(([kk,l,col])=>({label:l, data:ys.map(Y=>Y.vdot[kk]??null), times:ys.map(Y=>Y.best[kk]), borderColor:col, backgroundColor:col, spanGaps:true, pointRadius:3.5, borderWidth:2, tension:.2}));
+  chart("c-vdot", {type:"line", data:{labels:lab, datasets:ds}, options:o});
+
+  // volume
+  o = baseOpts(c);
+  o.scales.y.title = {display:true,text:"km",color:c.muted};
+  o.plugins.tooltip.callbacks = {label:ctx=>`${nf.format(ctx.parsed.y)} km`};
+  chart("c-vol", {type:"bar", data:{labels:lab, datasets:[{data:ys.map(Y=>Math.round(Y.km)), backgroundColor:alpha(c.accent,.75), borderRadius:3}]}, options:o});
+
+  // VO2max
+  const vo2Pts = runs.filter(r=>r.vo2).map(r=>({x:r._x,y:r.vo2}));
+  $("vo2-panel").hidden = !vo2Pts.length;
+  if (vo2Pts.length){
+    o = baseOpts(c);
+    o.scales.x = {...o.scales.x, type:"linear", min:xMin, max:xMax, ticks:{...o.scales.x.ticks, ...xTicks}};
+    o.scales.y.title = {display:true,text:"ml/kg/min",color:c.muted};
+    o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)}`, title:items=>items.length?String(Math.floor(items[0].parsed.x)):""};
+    chart("c-vo2", {type:"scatter", data:{datasets:[
+      {label:"Run", data:vo2Pts, pointRadius:2, backgroundColor:alpha(c.a2,.35), borderColor:"transparent"},
+      {label:"Yearly median", type:"line", data:ys.filter(Y=>Y.vo2Med).map(Y=>({x:Y.y+.5,y:Y.vo2Med})), borderColor:c.ink, backgroundColor:c.ink, borderWidth:2.5, pointRadius:4, tension:.25}
+    ]}, options:o});
+  }
+
+  // table
+  const bestOf = key => { let b=null; ys.forEach(Y=>{ const v=Y[key]; if (v!=null && (b==null || v<b)) b=v; }); return b; };
+  const bestEff = bestOf("effMed");
+  const best5 = Math.min(...ys.map(Y=>Y.best["5k"]||Infinity)), best10 = Math.min(...ys.map(Y=>Y.best["10k"]||Infinity));
+  const bestV = Math.max(...ys.map(Y=>Y.vdotMax||0));
+  let h = `<thead><tr><th>Year</th><th>Runs</th><th>km</th><th>Pace @ ${lo}–${hi}</th><th>Best 1 km</th><th>Best 5 km</th><th>Best 10 km</th><th>Best half</th><th>VDOT</th><th>Garmin VO2max</th></tr></thead><tbody>`;
+  for (const Y of [...ys].reverse()){
+    h += `<tr><td>${Y.y}</td><td>${Y.n}</td><td>${nf.format(Y.km)}</td>
+      <td class="${Y.effMed!=null&&Y.effMed===bestEff?"best":""}">${fmtPace(Y.effMed)}</td>
+      <td>${fmtTime(Y.best["1k"])}</td>
+      <td class="${Y.best["5k"]===best5?"best":""}">${fmtTime(Y.best["5k"])}</td>
+      <td class="${Y.best["10k"]===best10?"best":""}">${fmtTime(Y.best["10k"])}</td>
+      <td>${fmtTime(Y.best["hm"])}</td>
+      <td class="${Y.vdotMax&&Y.vdotMax===bestV?"best":""}">${Y.vdotMax?Y.vdotMax.toFixed(1):"–"}</td>
+      <td>${Y.vo2Med?Y.vo2Med.toFixed(0):"–"}</td></tr>`;
+  }
+  $("tbl").innerHTML = h + "</tbody>";
+}
+
+// re-render charts when the theme changes
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render); } catch(e){}
+new MutationObserver(render).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+
+/* ---------------- boot ---------------- */
+setData(exampleData(), true);
+idbGet().then(saved => { if (saved && Array.isArray(saved.runs)) { setData(saved, false); say(`Loaded ${nf.format(RUNS.length)} runs saved in this browser.`, "ok"); } });
+})();
+</script>
+
+</body>
+</html>
