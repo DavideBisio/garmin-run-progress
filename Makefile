@@ -17,6 +17,13 @@ DEPS := garminconnect curl_cffi ua-generator
 # run the grabber package straight from src/ (python -m garmin_grab)
 export PYTHONPATH := src
 
+# fail before the tests run, not after
+ifneq ($(filter release,$(MAKECMDGOALS)),)
+  ifeq ($(VERSION),)
+    $(error usage: make release VERSION=v1.0.0)
+  endif
+endif
+
 .DEFAULT_GOAL := help
 .PHONY: help install upgrade grab rebuild build dev serve test test-py test-js deploy release clean
 
@@ -56,14 +63,13 @@ test: build test-py test-js ## build, then run all tests
 test-py: ## grabber unit tests
 	$(PY) -m unittest discover -s tests
 
-test-js: ## page smoke tests on dist/ (Node 20.11+)
+test-js: build ## page smoke tests on dist/ (Node 20.11+)
 	$(NODE) --test tests/page.test.mjs
 
 deploy: test ## test, then push; CI deploys main to GitHub Pages
 	git push
 
 release: test ## tag and push VERSION (e.g. make release VERSION=v1.0.0); CI publishes the release
-	$(if $(VERSION),,$(error usage: make release VERSION=v1.0.0))
 	git tag -a $(VERSION) -m "$(VERSION)"
 	git push origin $(VERSION)
 

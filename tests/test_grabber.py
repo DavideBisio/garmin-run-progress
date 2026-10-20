@@ -203,5 +203,42 @@ class Bundle(unittest.TestCase):
         self.assertIn("--rebuild", r.stdout)
 
 
+class BuildChecks(unittest.TestCase):
+    """tools/build.py refuses packages that would break once flattened into one namespace."""
+
+    def bundle(self, **modules):
+        build = load("build", ROOT / "tools" / "build.py")
+        with tempfile.TemporaryDirectory() as d:
+            build.PKG, build.MODULES = Path(d), list(modules)
+            (build.PKG / "__init__.py").write_text('"""doc"""\n')
+            for name, src in modules.items():
+                (build.PKG / f"{name}.py").write_text(src)
+            return build.bundle_grabber()
+
+    def assertFails(self, **modules):
+        with self.assertRaises(SystemExit):
+            self.bundle(**modules)
+
+    def test_keeps_aliases(self):
+        out = self.bundle(a="from datetime import date as d\nX = d.today\n")
+        self.assertIn("from datetime import date as d\n", out)
+
+    def test_nested_relative_import(self):
+        self.assertFails(a="X = 1\n", b="def f():\n    from .a import X\n    return X\n")
+
+    def test_import_from_a_later_module(self):
+        self.assertFails(a="from .b import X\n", b="X = 1\n")
+
+    def test_duplicate_definitions(self):
+        self.assertFails(a="X: int = 1\n", b="X, Y = 1, 2\n")
+
+    def test_definition_shadows_an_import(self):
+        self.assertFails(a="import time\n", b="def time():\n    pass\n")
+
+    def test_same_name_imported_from_two_places(self):
+        self.assertFails(a="import time\n", b="from datetime import time\n")
+        self.bundle(a="import time\n", b="import time\n")
+
+
 if __name__ == "__main__":
     unittest.main()

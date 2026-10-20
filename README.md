@@ -33,7 +33,7 @@ Requires Python 3.12+. Download `garmin_grab.py` from the [latest release](https
 
 ```bash
 mkdir garmin-run-progress && cd garmin-run-progress
-curl -LO https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py
+curl -fLO https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install --upgrade garminconnect curl_cffi ua-generator

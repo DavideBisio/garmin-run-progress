@@ -56,7 +56,11 @@ Makefile                dev, test and deploy tasks
 
 `tools/build.py` writes the two shipped files into `dist/`:
 
-- **`garmin_grab.py`:** the `__init__.py` docstring, then every module's imports merged at the top, then each module's body in dependency order (`MODULES` in the build script). Package-internal imports (`from .x import y`) are dropped. The build fails if a module imports from one listed after it, or if two modules define the same top-level name, because the bundle has a single namespace.
+- **`garmin_grab.py`:** the `__init__.py` docstring, then every module's imports merged at the top, then each module's body in dependency order (`MODULES` in the build script). Package-internal imports (`from .x import y`) are dropped. Because the bundle has a single namespace, the build fails in four cases:
+  - a module imports from one listed after it
+  - a relative import sits inside a function
+  - two modules define the same top-level name
+  - one module defines a name that another module imports, or two modules import the same name from different places
 - **`index.html`:** `src/page/index.html` with `styles.css` inlined into `<style>`, the block of `<script src="js/…">` tags replaced by one inline IIFE holding the files in tag order, and the bundled grabber in `#grabber-src`.
 
 `dist/` is gitignored. GitHub Actions builds it on every push: `main` is deployed to GitHub Pages, and a `v*` tag publishes both files as release assets, so people still get a single script to run without installing a package (see [Deploy → Releasing a change](deploy.md#releasing-a-change)).

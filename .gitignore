@@ -4,6 +4,7 @@ garmin_export/
 garmin_tokens.json
 *.gpx
 runs.json
+grab.log
 
 # Build output (tools/build.py)
 dist/

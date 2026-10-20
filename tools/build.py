@@ -35,13 +35,27 @@ def fail(msg):
 
 # ---------------------------------------------------------------- grabber
 def top_level_names(tree):
-    names = set()
+    """The names a module defines, and the names its absolute imports bind (name -> what it binds)."""
+    defs, imports = set(), {}
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            names.add(node.name)
-        elif isinstance(node, ast.Assign):
-            names.update(t.id for t in node.targets if isinstance(t, ast.Name))
-    return names
+            defs.add(node.name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            defs.update(n.id for t in targets for n in ast.walk(t) if isinstance(n, ast.Name))
+        elif isinstance(node, ast.Import):
+            for a in node.names:
+                imports[a.asname or a.name.split(".")[0]] = a.name if a.asname else a.name.split(".")[0]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            for a in node.names:
+                imports[a.asname or a.name] = f"{node.module}.{a.name}"
+    return defs, imports
+
+
+def clashes(defs, imports, other_defs, other_imports):
+    """Names two modules can't both bind once they share the bundle's single namespace."""
+    found = defs & other_defs | defs & other_imports.keys() | other_defs & imports.keys()
+    return found | {n for n in imports.keys() & other_imports.keys() if imports[n] != other_imports[n]}
 
 
 def bundle_grabber():
@@ -53,6 +67,10 @@ def bundle_grabber():
     for name in MODULES:
         src = (PKG / f"{name}.py").read_text(encoding="utf-8")
         tree = ast.parse(src)
+        top = {id(node) for node in tree.body}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level and id(node) not in top:
+                fail(f"{name}.py line {node.lineno}: 'from .{node.module or ''} import' must be at the top level")
         drop = set()
         for node in tree.body:
             is_doc = (node is tree.body[0] and isinstance(node, ast.Expr)
@@ -60,20 +78,21 @@ def bundle_grabber():
             if isinstance(node, ast.Import):
                 plain.add(ast.get_source_segment(src, node))
             elif isinstance(node, ast.ImportFrom) and node.level == 0:
-                froms.setdefault(node.module, set()).update(a.name for a in node.names)
+                froms.setdefault(node.module, set()).update(
+                    f"{a.name} as {a.asname}" if a.asname else a.name for a in node.names)
             elif isinstance(node, ast.ImportFrom):
                 if node.level != 1 or node.module not in defined:
                     fail(f"{name}.py: 'from .{node.module or ''} import' must name a module listed before it")
                 for a in node.names:
-                    if a.asname or a.name not in defined[node.module]:
+                    if a.asname or a.name not in defined[node.module][0]:
                         fail(f"{name}.py: cannot import {a.name} from .{node.module}")
             elif not is_doc:
                 continue
             drop.update(range(node.lineno, node.end_lineno + 1))
         names = top_level_names(tree)
         for other, theirs in defined.items():
-            if names & theirs:
-                fail(f"{name}.py and {other}.py both define {', '.join(sorted(names & theirs))}")
+            if both := clashes(*names, *theirs):
+                fail(f"{name}.py and {other}.py both bind {', '.join(sorted(both))}")
         defined[name] = names
         lines = [l for i, l in enumerate(src.splitlines(), 1) if i not in drop]
         body = "\n".join(lines).strip("\n")

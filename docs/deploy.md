@@ -18,7 +18,7 @@ Python 3.12 or later is required. Put `garmin_grab.py` in a folder of its own (y
 
 ```bash
 mkdir garmin-run-progress && cd garmin-run-progress
-curl -LO https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py
+curl -fLO https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install --upgrade garminconnect curl_cffi ua-generator
@@ -40,7 +40,9 @@ To avoid typing the email each time, set `GARMIN_EMAIL`. The password is always 
 
 ### Scheduling updates
 
-Once tokens exist, later runs are non-interactive and take seconds. Schedule a daily run if you like. The examples use the folder where you saved `garmin_grab.py`. In a clone, run `make build` and use `dist/garmin_grab.py` instead (`garmin_export/` is created in the working directory).
+Once tokens exist, later runs are non-interactive and take seconds. Schedule a daily run if you like. The examples use the folder where you saved `garmin_grab.py`.
+
+In a clone, schedule `make grab` instead: it runs the grabber straight from `src/`, so `git pull` keeps it up to date. For example, `17 6 * * * cd /path/to/clone && make grab >> grab.log 2>&1`. For launchd and Task Scheduler, run `make` with the argument `grab`. Don't schedule `dist/garmin_grab.py`: `make clean` deletes it and it goes stale after a pull. Jobs set up in a clone before the code moved to `src/` ran `garmin_grab.py` from the repo root. That file is gone, so switch them to `make grab`.
 
 **Linux / macOS (cron)** — `crontab -e`:
 
@@ -129,7 +131,7 @@ Edit the sources in `src/` (see [Source layout and build](architecture.md#source
 ```bash
 make dev                          # serve src/page on localhost:8000 while you edit the page
 make test                         # build dist/, run all tests
-git add -A
+git add src tools tests docs      # name paths: never `git add -A` in a folder with your data
 git commit -m "..."
 make deploy                       # test, git push; CI tests again and deploys main to Pages
 make release VERSION=v1.2.0       # tag and push; CI publishes the release
