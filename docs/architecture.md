@@ -18,7 +18,8 @@ Runs on your machine because Garmin's login needs TLS impersonation (`curl_cffi`
 1. Log in with saved tokens, or with credentials and MFA the first time.
 2. Walk the activity list newest-first and stop at the first page with nothing new.
 3. Download the GPX of each new outdoor run.
-4. Parse every GPX into a compact stream and write `runs.json`.
+4. Fetch daily resting heart rate since the first run (or the last known day).
+5. Parse every GPX into a compact stream and write `runs.json`.
 
 It depends on [python-garminconnect](https://github.com/cyberjunky/python-garminconnect); everything else is standard library.
 
@@ -46,14 +47,15 @@ The inline script in `index.html` is one IIFE organised in sections (search for 
 |---|---|
 | copy helpers | Clipboard with `execCommand` fallback |
 | zip (stored) | Minimal ZIP writer for the grabber download |
-| geometry & metrics | `hav`, `minetti`, `gapFactor`, `vdot`, `decYear`, `bestEffort`, `prepare`, `bandPace` |
+| geometry & metrics | `hav`, `minetti`, `gapFactor`, `vdot`, `decYear`, `weekOf`, `bestEffort`, `prepare`, `bandPace`, `decoupling`, `zoneTime`, `trimp` |
 | stats helpers | `median`, `theilSen`, pace and time formatters |
 | example data | Seeded synthetic 10-year dataset shown before you load yours |
 | GPX import | `parseGpxText` for loading raw GPX files |
 | storage (IndexedDB) | Remember loaded data in this browser |
-| state | `setData`, heart-rate band suggestion |
+| state | `setData` (runs and resting HR), heart-rate band and max/resting HR suggestions |
 | loading | Drop zone, file input, JSON/GPX dispatch |
-| render | Filters → yearly aggregates → KPIs, four charts, table |
+| render | Filters → yearly aggregates → KPIs, fitness charts, year table |
+| training | `renderTraining`: last 52 weeks of all runs → load, load ratio, zones, weekly distance, consistency table |
 | boot | Load example data, then saved data if any |
 
-Run objects keep the original fields from `runs.json`; derived values are stored on underscore-prefixed properties (`_x`, `_y`, `_m`, `_g`, `_best`, `_hrOk`, `_km`, `_trail`).
+Run objects keep the original fields from `runs.json`; derived values are stored on underscore-prefixed properties (`_x`, `_y`, `_m`, `_day`, `_g`, `_best`, `_hrOk`, `_hrPeak`, `_dec`, `_decMin`, `_km`, `_trail`).

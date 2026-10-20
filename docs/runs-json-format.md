@@ -21,12 +21,17 @@
       "maxHr": 171.0,
       "vo2": 52.0,
       "cad": 172.0,
+      "stride": 108.4,
+      "te": 3.1,
+      "teAn": 0.4,
+      "hrz": [120, 840, 1510, 560, 20],
       "t":  [0, 10, 20],
       "d":  [0, 31, 62],
       "hr": [118, 124, 129],
       "e":  [1203, 1204, 1206]
     }
-  ]
+  ],
+  "rhr": [["2024-04-30", 49], ["2024-05-01", 48]]
 }
 ```
 
@@ -49,6 +54,9 @@ From Garmin's activity list. Any of them can be `null`.
 | `avgHr`, `maxHr` | bpm | `averageHR`, `maxHR` |
 | `vo2` | ml/kg/min | `vO2MaxValue` |
 | `cad` | steps/min | `averageRunningCadenceInStepsPerMinute` |
+| `stride` | cm per step | `avgStrideLength` |
+| `te`, `teAn` | 0–5 | `aerobicTrainingEffect`, `anaerobicTrainingEffect` |
+| `hrz` | s in zones 1–5 (Garmin's zones) | `hrTimeInZone_1` … `hrTimeInZone_5`; `null` when Garmin has none |
 
 Numbers are rounded to 2 decimals.
 
@@ -65,9 +73,14 @@ Present only when the run had a usable GPX track (absent for treadmill/indoor ru
 
 Integers keep the file small: about 6 MB per 1,000 runs.
 
+## Resting heart rate
+
+Top-level `rhr`: daily resting heart rate as `[date, bpm]` pairs, sorted by date, from Garmin's wellness data (see [resting heart rate](features/resting-heart-rate.md)). Days without a value are absent. About 15 bytes per day.
+
 ## Compatibility rules for the page
 
 - Required: a top-level `runs` array; each run needs `date`.
-- Runs without streams still count for volume and VO2max.
+- Runs without streams still count for volume, VO2max, cadence, stride, Training Effect and training load (from `avgHr`).
+- `rhr` and the summary fields added later (`stride`, `te`, `teAn`, `hrz`) are optional; panels without data are hidden. Run `garmin_grab.py --rebuild` to add them to an older export.
 - Unknown fields are ignored, so new fields can be added without breaking older pages.
 - A breaking change should bump `format` to `garmin-runs/2`.

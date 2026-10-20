@@ -14,6 +14,7 @@
 |---|---|
 | Login, incremental listing, GPX download, retries | [features/incremental-grabber.md](features/incremental-grabber.md) |
 | GPX parsing and 10-second streams | [features/gpx-to-stream.md](features/gpx-to-stream.md) |
+| Daily resting heart rate | [features/resting-heart-rate.md](features/resting-heart-rate.md) |
 
 **Analysis page (`index.html`)**
 
@@ -25,3 +26,7 @@
 | Pace at a fixed heart-rate band | [features/pace-at-heart-rate.md](features/pace-at-heart-rate.md) |
 | Best efforts and VDOT | [features/best-efforts-and-vdot.md](features/best-efforts-and-vdot.md) |
 | Yearly aggregates, trend, filters, charts, table | [features/yearly-trends.md](features/yearly-trends.md) |
+| Resting heart rate chart and KPI | [features/resting-heart-rate.md](features/resting-heart-rate.md#page) |
+| Aerobic decoupling | [features/aerobic-decoupling.md](features/aerobic-decoupling.md) |
+| Cadence, stride length, Training Effect | [features/form-and-training-effect.md](features/form-and-training-effect.md) |
+| Training load, load ratio, zones, consistency | [features/training-load-zones-consistency.md](features/training-load-zones-consistency.md) |

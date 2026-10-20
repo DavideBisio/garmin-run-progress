@@ -15,6 +15,7 @@
   --bg:#F2F4F7; --surface:#FFFFFF; --ink:#131923; --muted:#5A6576; --line:#DAE0E8; --soft:#E9EDF3;
   --accent:#2347C5; --accent-ink:#FFFFFF; --accent-2:#C9731F; --accent-3:#2F8F6B;
   --good:#23855C; --bad:#B8402F;
+  --z1:#9DB2EC; --z2:#7891E2; --z3:#5272D4; --z4:#3156BE; --z5:#1C398A;
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
@@ -23,12 +24,15 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0D1219; --surface:#141B25; --ink:#E6EBF2; --muted:#93A0B2; --line:#253041; --soft:#1B2431;
   --accent:#7E9CFF; --accent-ink:#0D1219; --accent-2:#EFA35C; --accent-3:#5CC69C;
-  --good:#5CC69C; --bad:#F08A78; color-scheme:dark}}
+  --good:#5CC69C; --bad:#F08A78; color-scheme:dark;
+  --z1:#344D8C; --z2:#4766AA; --z3:#5F84DA; --z4:#8FA9F3; --z5:#C6D3FB}}
 :root[data-theme="dark"]{
   --bg:#0D1219; --surface:#141B25; --ink:#E6EBF2; --muted:#93A0B2; --line:#253041; --soft:#1B2431;
   --accent:#7E9CFF; --accent-ink:#0D1219; --accent-2:#EFA35C; --accent-3:#5CC69C;
-  --good:#5CC69C; --bad:#F08A78; color-scheme:dark}
+  --good:#5CC69C; --bad:#F08A78; color-scheme:dark;
+  --z1:#344D8C; --z2:#4766AA; --z3:#5F84DA; --z4:#8FA9F3; --z5:#C6D3FB}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
 .wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
@@ -93,6 +97,8 @@ td.best{color:var(--accent);font-weight:600}
 .method{color:var(--muted);font-size:14px}
 .method p{max-width:72ch}
 .method b{color:var(--ink)}
+.group{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.group h3{font-size:28px;text-transform:uppercase}
 .progress{height:4px;background:var(--soft);border-radius:4px;overflow:hidden}
 .progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
 @media (max-width:560px){section.step{grid-template-columns:1fr}.num{font-size:40px;grid-row:auto}}
@@ -102,7 +108,7 @@ td.best{color:var(--accent);font-weight:600}
 <div class="wrap">
 <header>
   <h1>Run Progress Lab</h1>
-  <p class="lede">Measure how your running fitness changed across the years: pace at the same heart rate, best efforts converted to VDOT, and volume. Everything runs in your browser; your data never leaves this page.</p>
+  <p class="lede">Measure how your running fitness changed across the years: pace at the same heart rate, best efforts converted to VDOT, endurance, resting heart rate and form. Then see how hard you're training right now. Everything runs in your browser; your data never leaves this page.</p>
   <span class="status" id="status"><i></i><span id="status-t">Showing example data</span></span>
 </header>
 
@@ -213,9 +219,107 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <div class="chart-box"><canvas id="c-vo2" aria-label="Garmin VO2max over time"></canvas></div>
     </div>
 
+    <div class="panel" id="rhr-panel">
+      <div class="chart-head">
+        <h3>Resting heart rate</h3>
+        <p class="muted small-t">Daily value from your watch, with the 30-day median. A falling resting heart rate usually means rising aerobic fitness. A sudden rise of 5 bpm or more often means fatigue, illness or poor sleep. The filters don't apply here.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-rhr" aria-label="Resting heart rate over time"></canvas></div>
+    </div>
+
+    <div class="panel" id="dec-panel">
+      <div class="chart-head">
+        <h3>Aerobic decoupling</h3>
+        <p class="muted small-t">How much your hill-adjusted pace per heartbeat drops from the first half to the second half of a steady run of 40 minutes or more (after a 10-minute warm-up). Under 5% (dashed line) means your endurance holds at that duration. Each dot is a run; the line is the yearly median.</p>
+      </div>
+      <div class="chart-box"><canvas id="c-dec" aria-label="Aerobic decoupling per run over time"></canvas></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel" id="cad-panel">
+        <div class="chart-head">
+          <h3>Cadence</h3>
+          <p class="muted small-t">Average steps per minute of each run. Speed is cadence × stride length, so read it together with the stride chart.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-cad" aria-label="Cadence per run over time"></canvas></div>
+      </div>
+      <div class="panel" id="stride-panel">
+        <div class="chart-head">
+          <h3>Stride length</h3>
+          <p class="muted small-t">Average metres per step. A longer stride at the same cadence means more speed from each step.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-stride" aria-label="Stride length per run over time"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel" id="te-panel">
+      <div class="chart-head">
+        <h3>Garmin Training Effect</h3>
+        <p class="muted small-t">Garmin's 0–5 score for how much each run trained your aerobic base and your anaerobic (high-intensity) capacity. Mostly 2–3.5 aerobic with a few anaerobic peaks is a typical balanced pattern.</p>
+        <div class="legend"><span style="--c:var(--accent)">Aerobic</span><span style="--c:var(--accent-2)">Anaerobic</span></div>
+      </div>
+      <div class="chart-box"><canvas id="c-te" aria-label="Aerobic and anaerobic Training Effect over time"></canvas></div>
+    </div>
+
     <div class="panel">
       <h3>Year by year</h3>
       <div class="tbl-wrap"><table id="tbl"></table></div>
+    </div>
+
+    <div class="group">
+      <h3>Training</h3>
+      <p class="muted small-t">The 52 weeks up to your last run<span id="tr-end"></span>. Uses every run: the month and trail filters above don't apply. Only runs are in the grabber, so cross-training isn't counted.</p>
+    </div>
+    <div class="panel">
+      <div class="controls">
+        <div class="field">Max / resting heart rate
+          <span class="band"><input type="number" id="hr-max" min="140" max="230" value="190" aria-label="Maximum heart rate"> / <input type="number" id="hr-rest" min="30" max="90" value="50" aria-label="Resting heart rate"> bpm</span>
+        </div>
+      </div>
+      <p class="muted small-t" id="lim-hint"></p>
+    </div>
+
+    <div class="kpis" id="kpis2"></div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Weekly training load</h3>
+          <p class="muted small-t">TRIMP: minutes of running weighted by how high your heart rate was, so a hard hour counts much more than an easy one.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-load" aria-label="Weekly training load"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Load ratio</h3>
+          <p class="muted small-t">Load of the last 7 days ÷ your average week over the last 28 days, at the end of each week. Between 0.8 and 1.3 (dashed lines) is the usual safe range; above 1.5 is a common injury warning sign.</p>
+        </div>
+        <div class="chart-box"><canvas id="c-acwr" aria-label="Acute to chronic load ratio per week"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Heart-rate zones per week</h3>
+          <p class="muted small-t">Minutes in each zone, as a share of your max heart rate. Zones 1–3 count as easy.</p>
+          <div class="legend"><span style="--c:var(--z1)">Z1 &lt;60%</span><span style="--c:var(--z2)">Z2 60–70%</span><span style="--c:var(--z3)">Z3 70–80%</span><span style="--c:var(--z4)">Z4 80–90%</span><span style="--c:var(--z5)">Z5 90%+</span></div>
+        </div>
+        <div class="chart-box"><canvas id="c-zones" aria-label="Minutes per heart-rate zone per week"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="chart-head">
+          <h3>Weekly distance</h3>
+          <p class="muted small-t">Kilometres per week, split into the week's longest run and everything else.</p>
+          <div class="legend"><span style="--c:var(--accent-2)">Longest run</span><span style="--c:var(--accent)">Other runs</span></div>
+        </div>
+        <div class="chart-box"><canvas id="c-week" aria-label="Kilometres per week"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Consistency by year</h3>
+      <div class="tbl-wrap"><table id="tbl2"></table></div>
     </div>
 
     <div class="panel method">
@@ -224,6 +328,9 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <p><b>Best efforts</b> come from any stretch of any run, so a year without races shows training efforts and understates your real level. Races give the cleanest points.</p>
       <p><b>Hills</b> are corrected with Minetti's energy-cost curve over 100 m windows. <b>Heat</b> raises heart rate at a given pace; use the month filter to compare like with like.</p>
       <p><b>Trend</b> is the Theil–Sen slope of the yearly medians, which ignores single odd years. Years with fewer than 5 qualifying runs are left out of it.</p>
+      <p><b>Aerobic decoupling</b> only uses steady runs: the hill-adjusted pace of 5-minute blocks must stay within 10% of their average, so interval sessions drop out. Heat and dehydration raise it, so compare similar seasons.</p>
+      <p><b>Training load</b> is Banister's TRIMP. Treadmill runs without a heart-rate stream use their average heart rate. Runs with no heart rate at all add nothing, which understates the load. <b>Max and resting heart rate</b> set the zones and the load; a wrong max shifts every zone, so enter a measured one if you have it.</p>
+      <p><b>Zones</b> come from the heart-rate stream. Runs without one fall back to Garmin's own zone times, which use the zones set in Garmin Connect.</p>
     </div>
   </div>
 </section>
@@ -237,7 +344,8 @@ Each run:
   1. logs in (saved tokens in ~/.garminconnect, so credentials/MFA only the first time)
   2. lists your activities newest-first and stops as soon as it reaches ones it already has
   3. downloads the GPX of every new run (originals kept in garmin_export/gpx/)
-  4. rebuilds garmin_export/runs.json, the single file you upload to the analysis page
+  4. fetches your daily resting heart rate (kept in garmin_export/rhr.json)
+  5. rebuilds garmin_export/runs.json, the single file you upload to the analysis page
 
 Setup (Python 3.12+):
     python3 -m venv .venv
@@ -263,13 +371,15 @@ import os
 import sys
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 TOKENSTORE = os.path.expanduser(os.getenv("GARMINTOKENS", "~/.garminconnect"))
 PAGE = 100
 SAMPLE_EVERY_S = 10          # stream resolution stored in runs.json
 NO_GPS_TYPES = ("treadmill", "indoor", "virtual")
+RHR_CHUNK_DAYS = 364         # get_rhr_daily returns up to ~1 year per request
+RHR_REFRESH_DAYS = 7         # re-fetch the last week: today's value settles later
 
 
 # ---------------------------------------------------------------- helpers
@@ -379,6 +489,35 @@ def download_gpx(g, aid):
     return with_retry(g.download_activity, int(aid), dl_fmt=Garmin.ActivityDownloadFormat.GPX)
 
 
+def update_rhr(g, path, first_day):
+    """Fetch daily resting heart rate from first_day (or the last known day) to today."""
+    rhr = load_json(path, {})
+    if not hasattr(g, "get_rhr_daily"):
+        print("  resting HR skipped: needs a newer library (pip install --upgrade garminconnect)")
+        return
+    if rhr:
+        start = date.fromisoformat(max(rhr)) - timedelta(days=RHR_REFRESH_DAYS)
+    elif first_day:
+        start = date.fromisoformat(first_day)
+    else:
+        return
+    end = date.today()
+    while start <= end:
+        stop = min(start + timedelta(days=RHR_CHUNK_DAYS - 1), end)
+        try:
+            rows = with_retry(g.get_rhr_daily, start.isoformat(), stop.isoformat())
+        except Exception as e:  # noqa: BLE001
+            print(f"  resting HR {start} to {stop} skipped: {str(e)[:100]}")
+            rows = []
+        for row in rows:
+            if row.get("calendarDate") and isinstance(row.get("value"), (int, float)):
+                rhr[row["calendarDate"]] = round(row["value"])
+        start = stop + timedelta(days=1)
+        time.sleep(0.5)
+    save_json(path, rhr)
+    print(f"  resting HR: {len(rhr)} days")
+
+
 # ---------------------------------------------------------------- GPX -> stream
 def _tag(el):
     return el.tag.rsplit("}", 1)[-1]
@@ -462,6 +601,7 @@ def summary_fields(act):
         v = act.get(k)
         return round(v, 2) if isinstance(v, (int, float)) else None
 
+    zones = [round(act.get(f"hrTimeInZone_{z}") or 0) for z in range(1, 6)]
     return {
         "id": act.get("activityId"),
         "date": act.get("startTimeLocal"),
@@ -475,6 +615,10 @@ def summary_fields(act):
         "maxHr": num("maxHR"),
         "vo2": num("vO2MaxValue"),
         "cad": num("averageRunningCadenceInStepsPerMinute"),
+        "stride": num("avgStrideLength"),
+        "te": num("aerobicTrainingEffect"),
+        "teAn": num("anaerobicTrainingEffect"),
+        "hrz": zones if any(zones) else None,
     }
 
 
@@ -504,11 +648,13 @@ def build_runs(out, acts):
         "generated": datetime.now().isoformat(timespec="seconds"),
         "sampleEvery": SAMPLE_EVERY_S,
         "runs": runs,
+        "rhr": sorted(load_json(out / "rhr.json", {}).items()),
     }
     save_json(out / "runs.json", payload)
     with_stream = sum(1 for r in runs if "t" in r)
     size = (out / "runs.json").stat().st_size / 1e6
-    print(f"runs.json: {len(runs)} runs ({with_stream} with GPS/HR stream), {size:.1f} MB")
+    print(f"runs.json: {len(runs)} runs ({with_stream} with GPS/HR stream), "
+          f"{len(payload['rhr'])} resting HR days, {size:.1f} MB")
 
 
 # ---------------------------------------------------------------- main
@@ -554,6 +700,14 @@ def main():
                 time.sleep(args.delay)
         except KeyboardInterrupt:
             print("\nStopped. Run again to continue where you left off.")
+
+        print("Fetching resting heart rate...")
+        days = [(a.get("startTimeLocal") or "")[:10] for a in acts.values()]
+        first_day = args.since or min((d for d in days if d), default=None)
+        try:
+            update_rhr(g, out / "rhr.json", first_day)
+        except KeyboardInterrupt:
+            print("\nStopped. Resting HR will be fetched on the next run.")
 
     build_runs(out, acts)
     print(f"Done. Upload {out / 'runs.json'} to the analysis page.")
@@ -663,7 +817,9 @@ function vdot(m, s){ const t=s/60, v=m/t;
   return vo2/pct; }
 function decYear(dateStr){ const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr||""); if(!m) return null;
   const y=+m[1], start=Date.UTC(y,0,1), end=Date.UTC(y+1,0,1), d=Date.UTC(y,+m[2]-1,+m[3]);
-  return {y, month:+m[2], x: y+(d-start)/(end-start)}; }
+  return {y, month:+m[2], x: y+(d-start)/(end-start), day: Math.round(d/864e5)}; }
+const weekOf = day => Math.floor((day+3)/7);            // Monday-based week index (day 0 = Thu 1970-01-01)
+const weekStart = w => w*7-3;
 const DISTS = [{k:"1k",m:1000},{k:"5k",m:5000},{k:"10k",m:10000},{k:"hm",m:21097.5}];
 
 function bestEffort(t, d, D){
@@ -682,8 +838,9 @@ function bestEffort(t, d, D){
 }
 function prepare(r){
   const p = decYear(r.date); if (!p) return null;
-  r._x = p.x; r._y = p.y; r._m = p.month;
+  r._x = p.x; r._y = p.y; r._m = p.month; r._day = p.day;
   r._trail = /trail/.test(r.type||"");
+  r._dec = null;
   if (r.t && r.t.length > 5){
     r._km = (r.dist || r.d[r.d.length-1]) / 1000;
     const n=r.t.length, g=new Float32Array(n); let k=0;
@@ -692,8 +849,11 @@ function prepare(r){
       const dd=r.d[i]-r.d[k]; g[i] = dd>=60 && r.e[i] && r.e[k] ? (r.e[i]-r.e[k])/10/dd : 0;
     }
     r._g = g;
-    r._hrOk = r.hr.filter(h=>h>0).length > n*0.6;
+    const hs = r.hr.filter(h=>h>0);
+    r._hrOk = hs.length > n*0.6;
+    if (r._hrOk){ hs.sort((a,b)=>a-b); r._hrPeak = hs[Math.floor(hs.length*0.99)]; }   // 99th percentile ignores optical spikes
     r._best = {}; for (const D of DISTS) r._best[D.k] = bestEffort(r.t, r.d, D.m);
+    const dc = decoupling(r); if (dc){ r._dec = dc.pct; r._decMin = dc.min; }
   } else { r._km = (r.dist||0)/1000; r._best = {}; }
   return r;
 }
@@ -708,6 +868,44 @@ function bandPace(r, lo, hi){
     tt+=dt; adj+=dd*gapFactor(r._g[i]);
   }
   return tt>=600 && adj>0 ? tt/adj*1000 : null;
+}
+function decoupling(r){
+  if (!r._g || !r._hrOk) return null;
+  const t=r.t, d=r.d, h=r.hr, seg=[];
+  for (let i=1;i<t.length;i++){
+    if (t[i] < 600) continue;
+    const dt=t[i]-t[i-1], dd=d[i]-d[i-1]; if (dt<=0 || dt>30 || !h[i]) continue;
+    const v=dd/dt; if (v<1.6 || v>6.5) continue;
+    seg.push([dt, dd*gapFactor(r._g[i]), h[i]*dt]);
+  }
+  const total = seg.reduce((s,x)=>s+x[0],0);
+  if (total < 2400) return null;
+  // steady runs only: 5-minute blocks of grade-adjusted speed within 10% of their mean
+  const blocks=[]; let bt=0, bd=0;
+  for (const [dt,ad] of seg){ bt+=dt; bd+=ad; if (bt>=300){ blocks.push(bd/bt); bt=bd=0; } }
+  const mean = blocks.reduce((s,v)=>s+v,0)/blocks.length;
+  const sd = Math.sqrt(blocks.reduce((s,v)=>s+(v-mean)**2,0)/blocks.length);
+  if (sd/mean > 0.10) return null;
+  const half=[[0,0],[0,0]]; let acc=0;
+  for (const [dt,ad,hb] of seg){ const k = acc < total/2 ? 0 : 1; half[k][0]+=ad; half[k][1]+=hb; acc+=dt; }
+  const ef1=half[0][0]/half[0][1], ef2=half[1][0]/half[1][1];
+  return {pct:(ef1-ef2)/ef1*100, min:total/60};
+}
+function zoneTime(r, max){       // seconds in zones 1–5 (share of max HR)
+  if (r._hrOk){
+    const z=[0,0,0,0,0], t=r.t, h=r.hr;
+    for (let i=1;i<t.length;i++){ const dt=t[i]-t[i-1]; if (dt<=0 || dt>30 || !h[i]) continue;
+      const f=h[i]/max; z[f<.6?0:f<.7?1:f<.8?2:f<.9?3:4]+=dt; }
+    return z;
+  }
+  return Array.isArray(r.hrz) ? r.hrz.slice(0,5) : null;
+}
+function trimp(r, max, rest){    // Banister TRIMP: minutes × HRr × 0.64·e^(1.92·HRr)
+  const f = hr => { const x=Math.max(0,Math.min(1,(hr-rest)/(max-rest))); return x*0.64*Math.exp(1.92*x)/60; };
+  if (r._hrOk){ let s=0; const t=r.t, h=r.hr;
+    for (let i=1;i<t.length;i++){ const dt=t[i]-t[i-1]; if (dt>0 && dt<=30 && h[i]) s+=dt*f(h[i]); }
+    return s; }
+  return r.avgHr ? (r.moving||r.dur||0)*f(r.avgHr) : 0;
 }
 
 /* ---------------- stats helpers ---------------- */
@@ -728,17 +926,29 @@ function exampleData(){
     const fit = 2.95 + 0.055*yrs - 0.02*Math.max(0,yrs-6.5)**2 + 0.05*Math.sin(yrs*2*Math.PI)*0.3;
     const dur = 1800 + Math.floor(rnd()*3600), hard = rnd() < 0.15;
     const t=[],d=[],hr=[],e=[]; let dist=0, h=118;
+    const driftPerH = Math.max(2, 12 - yrs);                 // cardiac drift shrinks as endurance grows
     for (let s=0; s<=dur; s+=SAMPLE){
-      const target = (hard ? 168 : 143) + heat + gauss()*1.5;
+      const drift = driftPerH*s/3600;
+      const target = (hard ? 168 : 143) + heat + drift + gauss()*1.5;
       h += (target-h)*Math.min(1,s/700)*0.25;
-      const v = fit*(1+(h-heat-143)/95)*(1+gauss()*0.02);
+      const v = fit*(1+(h-heat-drift-143)/95)*(1+gauss()*0.02);
       dist += v*SAMPLE;
       t.push(s); d.push(Math.round(dist)); hr.push(Math.round(h)); e.push(Math.round((120+25*Math.sin(dist/900))*10));
     }
     const ds = dt.toISOString().slice(0,10)+" 07:00:00";
-    runs.push({date:ds,type:"running",dist,dur,avgHr:Math.round(hr.reduce((a,b)=>a+b,0)/hr.length),vo2:Math.round(44+yrs*0.55+gauss()*0.6),t,d,hr,e});
+    const cad = 163 + yrs*0.8 + (hard?8:0) + gauss()*2;
+    const r1 = x => Math.round(x*10)/10, clamp5 = x => Math.max(0, Math.min(5, x));
+    runs.push({date:ds,type:"running",dist,dur,avgHr:Math.round(hr.reduce((a,b)=>a+b,0)/hr.length),vo2:Math.round(44+yrs*0.55+gauss()*0.6),
+      cad:r1(cad), stride:r1(dist/dur/(cad/60)*100),
+      te:r1(clamp5(hard ? 3.8+gauss()*0.3 : 2.4+dur/3600*0.6+gauss()*0.2)), teAn:r1(clamp5(hard ? 2.5+gauss()*0.5 : 0.4+gauss()*0.3)),
+      t,d,hr,e});
   }
-  return {format:"garmin-runs/1", example:true, runs};
+  const rhr = [];
+  for (let day=0; day<3650; day++){
+    const dt = new Date(start + day*864e5), yrs = day/365;
+    rhr.push([dt.toISOString().slice(0,10), Math.round(57 - 0.7*yrs + 0.2*Math.max(0,yrs-6.5)**2 + gauss()*1.5)]);
+  }
+  return {format:"garmin-runs/1", example:true, runs, rhr};
 }
 
 /* ---------------- GPX import ---------------- */
@@ -771,16 +981,28 @@ async function idbSet(v){ try{ const db=await idb(); await new Promise((res,rej)
 async function idbGet(){ try{ const db=await idb(); return await new Promise((res)=>{const q=db.transaction("kv").objectStore("kv").get("data"); q.onsuccess=()=>res(q.result); q.onerror=()=>res(null);}); }catch(e){ return null; } }
 
 /* ---------------- state ---------------- */
-let DATA = null, RUNS = [];
+let DATA = null, RUNS = [], RHR = [];
 function setData(payload, isExample){
   DATA = payload;
   RUNS = (payload.runs||[]).map(r=>prepare({...r})).filter(Boolean).sort((a,b)=>a._x-b._x);
+  RHR = (Array.isArray(payload.rhr) ? payload.rhr : []).map(([ds,v])=>{ const p=decYear(ds); return p && v>0 ? {x:p.x, y:p.y, day:p.day, v} : null; })
+    .filter(Boolean).sort((a,b)=>a.day-b.day);
   const yrs = RUNS.length ? `${RUNS[0]._y}–${RUNS[RUNS.length-1]._y}` : "";
   $("status").classList.toggle("real", !isExample);
   $("status-t").textContent = isExample ? "Showing example data · load yours in step 2" : `Your data · ${nf.format(RUNS.length)} runs · ${yrs}`;
   $("clear").hidden = isExample;
   suggestBand();
+  suggestLimits();
   render();
+}
+function suggestLimits(){
+  const peaks = RUNS.map(r=>r._hrPeak || r.maxHr || 0).filter(v=>v>120 && v<230).sort((a,b)=>b-a);
+  const max = peaks.length ? Math.round(peaks[Math.min(1, peaks.length-1)]) : 190;
+  const lastR = RHR.length ? RHR[RHR.length-1].day : 0;
+  const restMed = median(RHR.filter(p=>p.day>lastR-365).map(p=>p.v));
+  const rest = restMed ? Math.round(restMed) : 50;
+  $("hr-max").value = max; $("hr-rest").value = rest;
+  $("lim-hint").textContent = `Filled in from your data: ${peaks.length ? `${max} bpm is the second-highest sustained heart rate in any run` : "no heart rate found, so 190 bpm is a placeholder"}; ${restMed ? `${rest} bpm is your median resting heart rate over the last year` : "no resting heart rate in this file, so 50 bpm is a placeholder"}. Change them if you know better values.`;
 }
 function suggestBand(){
   const hrs = RUNS.filter(r=>r._hrOk).map(r=>{ const h=r.hr.filter(x=>x>0).sort((a,b)=>a-b); return h[h.length>>1]; });
@@ -829,7 +1051,7 @@ $("clear").addEventListener("click", async ()=>{ await idbSet(undefined); setDat
 $("remember").addEventListener("change", e=>{ if (!e.target.checked) idbSet(undefined); else if (DATA && !DATA.example) idbSet(DATA); });
 
 /* ---------------- render ---------------- */
-["hr-lo","hr-hi","season","no-trail"].forEach(id=>$(id).addEventListener("change", render));
+["hr-lo","hr-hi","season","no-trail","hr-max","hr-rest"].forEach(id=>$(id).addEventListener("change", render));
 const charts = {};
 function tok(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function chart(id, cfg){ if (charts[id]) charts[id].destroy(); if (!window.Chart) return; charts[id] = new Chart($(id), cfg); }
@@ -852,15 +1074,21 @@ function render(){
   const years = {};
   const effPts = [];
   for (const r of runs){
-    const Y = years[r._y] ||= {y:r._y, n:0, km:0, eff:[], best:{}, vo2:[]};
+    const Y = years[r._y] ||= {y:r._y, n:0, km:0, eff:[], best:{}, vo2:[], dec:[], cad:[], stride:[]};
     Y.n++; Y.km += r._km||0;
     if (r.vo2) Y.vo2.push(r.vo2);
+    if (r._dec != null) Y.dec.push(r._dec);
+    if (r.cad > 100) Y.cad.push(r.cad);
+    if (r.stride > 0) Y.stride.push(r.stride/100);
     const p = bandPace(r, lo, hi);
     if (p){ Y.eff.push(p); effPts.push({x:r._x, y:p}); }
     for (const D of DISTS){ const b=r._best[D.k]; if (b && (!Y.best[D.k] || b<Y.best[D.k])) Y.best[D.k]=b; }
   }
   const ys = Object.values(years).sort((a,b)=>a.y-b.y);
+  const rhrYear = {}; for (const p of RHR) (rhrYear[p.y] ||= []).push(p.v);
   ys.forEach(Y=>{ Y.effMed = Y.eff.length>=5 ? median(Y.eff) : null; Y.vo2Med = median(Y.vo2);
+    Y.decMed = Y.dec.length>=3 ? median(Y.dec) : null; Y.cadMed = median(Y.cad); Y.strideMed = median(Y.stride);
+    Y.rhrMed = median(rhrYear[Y.y] || []);
     Y.vdot = {}; for (const D of DISTS) if (Y.best[D.k]) Y.vdot[D.k] = vdot(D.m, Y.best[D.k]);
     const v = Object.entries(Y.vdot).filter(([k])=>k!=="1k").map(([,v])=>v); Y.vdotMax = v.length?Math.max(...v):null; });
 
@@ -877,6 +1105,15 @@ function render(){
   k.push(`<div class="kpi"><span class="lab">Pace at same HR</span><span class="val">${first?fmtPace(first.effMed):"–"} → ${last?fmtPace(last.effMed):"–"}</span><span class="sub">${first&&last?`/km, ${first.y} → ${last.y} `+chip(last.effMed-first.effMed,true,((last.effMed-first.effMed)<0?"−":"+")+Math.abs(Math.round(last.effMed-first.effMed))+" s"):"min/km, grade-adjusted"}</span></div>`);
   k.push(`<div class="kpi"><span class="lab">Best-effort VDOT</span><span class="val">${vFirst?vFirst.vdotMax.toFixed(1):"–"} → ${vLast?vLast.vdotMax.toFixed(1):"–"}</span><span class="sub">${vFirst&&vLast?`${vFirst.y} → ${vLast.y} · peak ${vPeak.vdotMax.toFixed(1)} in ${vPeak.y}`:"needs GPS tracks"}</span></div>`);
   k.push(`<div class="kpi"><span class="lab">Volume</span><span class="val">${nf.format(totKm)} km</span><span class="sub">${nf.format(runs.length)} runs over ${ys.length} years</span></div>`);
+  const lastDay = RUNS.length ? RUNS[RUNS.length-1]._day : 0;
+  const decIn = (a,b) => runs.filter(r=>r._dec!=null && r._day>a && r._day<=b).map(r=>r._dec);
+  const decNow = decIn(lastDay-365, lastDay), decPrev = decIn(lastDay-730, lastDay-365);
+  const dNow = median(decNow), dPrev = median(decPrev);
+  k.push(`<div class="kpi"><span class="lab">Aerobic decoupling</span><span class="val">${dNow==null?"–":dNow.toFixed(1)+"%"}</span><span class="sub">${dNow==null?"No steady 50-minute runs with heart rate in the last 12 months":`median of ${decNow.length} steady runs, last 12 months `+(dPrev==null?"":chip(dNow-dPrev,true,`${dPrev.toFixed(1)}% the year before`))}</span></div>`);
+  const rLast = RHR.length ? RHR[RHR.length-1].day : 0;
+  const rhrIn = (a,b) => median(RHR.filter(p=>p.day>a && p.day<=b).map(p=>p.v));
+  const rNow = rhrIn(rLast-30, rLast), rPrev = rhrIn(rLast-395, rLast-365);
+  if (RHR.length) k.push(`<div class="kpi"><span class="lab">Resting heart rate</span><span class="val">${rNow==null?"–":Math.round(rNow)+" bpm"}</span><span class="sub">median of the last 30 days ${rPrev==null?"":chip(rNow-rPrev,true,`${rNow-rPrev<0?"−":"+"}${Math.abs(Math.round(rNow-rPrev))} bpm vs a year ago`)}</span></div>`);
   $("kpis").innerHTML = k.join("");
 
   // efficiency chart
@@ -919,12 +1156,67 @@ function render(){
     ]}, options:o});
   }
 
+  // resting HR: daily dots + 30-day rolling median
+  $("rhr-panel").hidden = !RHR.length;
+  if (RHR.length){
+    const roll = []; let j = 0;
+    for (let i=0;i<RHR.length;i++){ while (RHR[j].day <= RHR[i].day-30) j++; if (i-j >= 9) roll.push({x:RHR[i].x, y:median(RHR.slice(j,i+1).map(p=>p.v))}); }
+    o = baseOpts(c);
+    o.scales.x = {...o.scales.x, type:"linear", min:RHR[0].y, max:RHR[RHR.length-1].y+1, ticks:{...o.scales.x.ticks, ...xTicks}};
+    o.scales.y.title = {display:true,text:"bpm",color:c.muted};
+    o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${Math.round(ctx.parsed.y)} bpm`, title:items=>items.length?String(Math.floor(items[0].parsed.x)):""};
+    chart("c-rhr", {type:"scatter", data:{datasets:[
+      {label:"Day", data:RHR.map(p=>({x:p.x,y:p.v})), pointRadius:1.6, pointHoverRadius:4, backgroundColor:alpha(c.a3,.35), borderColor:"transparent"},
+      {label:"30-day median", type:"line", data:roll, borderColor:c.ink, borderWidth:2, pointRadius:0, tension:.2}
+    ]}, options:o});
+  }
+
+  // per-run trend charts: dots + yearly median
+  const trend = (id, pts, med, col, yTitle, fmt, yOpts, extra) => {
+    const o = baseOpts(c);
+    o.scales.x = {...o.scales.x, type:"linear", min:xMin, max:xMax, ticks:{...o.scales.x.ticks, ...xTicks}};
+    o.scales.y = {...o.scales.y, ...(yOpts||{}), ticks:{...o.scales.y.ticks, callback:v=>fmt(v)}, title:{display:true,text:yTitle,color:c.muted}};
+    o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`, title:items=>items.length?String(Math.floor(items[0].parsed.x)):""};
+    chart(id, {type:"scatter", data:{datasets:[
+      {label:"Run", data:pts, pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(col,.3), borderColor:"transparent"},
+      {label:"Yearly median", type:"line", data:med, borderColor:c.ink, backgroundColor:c.ink, borderWidth:2.5, pointRadius:4, tension:.25},
+      ...(extra||[])
+    ]}, options:o});
+  };
+  const decPts = runs.filter(r=>r._dec!=null).map(r=>({x:r._x, y:Math.max(-10, Math.min(25, r._dec))}));
+  $("dec-panel").hidden = !decPts.length;
+  if (decPts.length) trend("c-dec", decPts, ys.filter(Y=>Y.decMed!=null).map(Y=>({x:Y.y+.5,y:Y.decMed})), c.accent, "% drift", v=>v.toFixed(0)+"%", {min:-10, max:25},
+    [{label:"5% line", type:"line", data:[{x:xMin,y:5},{x:xMax,y:5}], borderColor:c.muted, borderDash:[5,4], borderWidth:1.5, pointRadius:0, pointHitRadius:0}]);
+  const cadPts = runs.filter(r=>r.cad>100).map(r=>({x:r._x, y:r.cad}));
+  $("cad-panel").hidden = !cadPts.length;
+  if (cadPts.length) trend("c-cad", cadPts, ys.filter(Y=>Y.cadMed).map(Y=>({x:Y.y+.5,y:Y.cadMed})), c.accent, "steps/min", v=>v.toFixed(0));
+  const stPts = runs.filter(r=>r.stride>0).map(r=>({x:r._x, y:r.stride/100}));
+  $("stride-panel").hidden = !stPts.length;
+  if (stPts.length) trend("c-stride", stPts, ys.filter(Y=>Y.strideMed).map(Y=>({x:Y.y+.5,y:Y.strideMed})), c.a3, "m per step", v=>v.toFixed(2));
+
+  // Training Effect
+  const teRuns = runs.filter(r=>r.te!=null);
+  $("te-panel").hidden = !teRuns.length;
+  if (teRuns.length){
+    o = baseOpts(c);
+    o.scales.x = {...o.scales.x, type:"linear", min:xMin, max:xMax, ticks:{...o.scales.x.ticks, ...xTicks}};
+    o.scales.y = {...o.scales.y, min:0, max:5, title:{display:true,text:"Training Effect",color:c.muted}};
+    o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}`, title:items=>items.length?String(Math.floor(items[0].parsed.x)):""};
+    const teMed = key => ys.map(Y=>{ const v=median(teRuns.filter(r=>r._y===Y.y && r[key]!=null).map(r=>r[key])); return v==null?null:{x:Y.y+.5,y:v}; }).filter(Boolean);
+    chart("c-te", {type:"scatter", data:{datasets:[
+      {label:"Aerobic", data:teRuns.map(r=>({x:r._x,y:r.te})), pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.accent,.3), borderColor:"transparent"},
+      {label:"Anaerobic", data:teRuns.filter(r=>r.teAn!=null).map(r=>({x:r._x,y:r.teAn})), pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.a2,.35), borderColor:"transparent"},
+      {label:"Aerobic, yearly median", type:"line", data:teMed("te"), borderColor:c.accent, backgroundColor:c.accent, borderWidth:2.5, pointRadius:4, tension:.25},
+      {label:"Anaerobic, yearly median", type:"line", data:teMed("teAn"), borderColor:c.a2, backgroundColor:c.a2, borderWidth:2.5, pointRadius:4, tension:.25}
+    ]}, options:o});
+  }
+
   // table
   const bestOf = key => { let b=null; ys.forEach(Y=>{ const v=Y[key]; if (v!=null && (b==null || v<b)) b=v; }); return b; };
   const bestEff = bestOf("effMed");
   const best5 = Math.min(...ys.map(Y=>Y.best["5k"]||Infinity)), best10 = Math.min(...ys.map(Y=>Y.best["10k"]||Infinity));
   const bestV = Math.max(...ys.map(Y=>Y.vdotMax||0));
-  let h = `<thead><tr><th>Year</th><th>Runs</th><th>km</th><th>Pace @ ${lo}–${hi}</th><th>Best 1 km</th><th>Best 5 km</th><th>Best 10 km</th><th>Best half</th><th>VDOT</th><th>Garmin VO2max</th></tr></thead><tbody>`;
+  let h = `<thead><tr><th>Year</th><th>Runs</th><th>km</th><th>Pace @ ${lo}–${hi}</th><th>Best 1 km</th><th>Best 5 km</th><th>Best 10 km</th><th>Best half</th><th>VDOT</th><th>Garmin VO2max</th><th>Decoupling</th><th>Cadence</th><th>Stride</th><th>Resting HR</th></tr></thead><tbody>`;
   for (const Y of [...ys].reverse()){
     h += `<tr><td>${Y.y}</td><td>${Y.n}</td><td>${nf.format(Y.km)}</td>
       <td class="${Y.effMed!=null&&Y.effMed===bestEff?"best":""}">${fmtPace(Y.effMed)}</td>
@@ -933,9 +1225,113 @@ function render(){
       <td class="${Y.best["10k"]===best10?"best":""}">${fmtTime(Y.best["10k"])}</td>
       <td>${fmtTime(Y.best["hm"])}</td>
       <td class="${Y.vdotMax&&Y.vdotMax===bestV?"best":""}">${Y.vdotMax?Y.vdotMax.toFixed(1):"–"}</td>
-      <td>${Y.vo2Med?Y.vo2Med.toFixed(0):"–"}</td></tr>`;
+      <td>${Y.vo2Med?Y.vo2Med.toFixed(0):"–"}</td>
+      <td>${Y.decMed!=null?Y.decMed.toFixed(1)+"%":"–"}</td>
+      <td>${Y.cadMed?Y.cadMed.toFixed(0):"–"}</td>
+      <td>${Y.strideMed?Y.strideMed.toFixed(2)+" m":"–"}</td>
+      <td>${Y.rhrMed?Math.round(Y.rhrMed):"–"}</td></tr>`;
   }
   $("tbl").innerHTML = h + "</tbody>";
+
+  renderTraining(c);
+}
+
+/* ---------------- training (all runs, last 52 weeks) ---------------- */
+function renderTraining(c){
+  const max = +$("hr-max").value || 190, rest = Math.min(+$("hr-rest").value || 50, max-20);
+  if (!RUNS.length){ $("kpis2").innerHTML = ""; return; }
+  const lastDay = RUNS[RUNS.length-1]._day, lastWeek = weekOf(lastDay), W = 52, firstWeek = lastWeek-W+1;
+  const fmtDay = day => new Date(day*864e5).toLocaleDateString(undefined, {day:"numeric", month:"short", year:"numeric", timeZone:"UTC"});
+  $("tr-end").textContent = ` (${fmtDay(lastDay)})`;
+
+  // daily load and per-week buckets for every run
+  const daily = new Map(), allWeeks = new Map();
+  const weeks = Array.from({length:W}, (_,i)=>({w:firstWeek+i, km:0, long:0, n:0, load:0, z:[0,0,0,0,0]}));
+  for (const r of RUNS){
+    const load = trimp(r, max, rest);
+    daily.set(r._day, (daily.get(r._day)||0) + load);
+    const aw = allWeeks.get(weekOf(r._day)) || {n:0, km:0, long:0};
+    aw.n++; aw.km += r._km||0; aw.long = Math.max(aw.long, r._km||0); allWeeks.set(weekOf(r._day), aw);
+    const i = weekOf(r._day) - firstWeek; if (i < 0) continue;
+    const B = weeks[i]; B.n++; B.km += r._km||0; B.long = Math.max(B.long, r._km||0); B.load += load;
+    const z = zoneTime(r, max); if (z) z.forEach((v,k)=>B.z[k]+=v);
+  }
+  const sumDays = (a,b) => { let s=0; for (let d=a; d<=b; d++) s += daily.get(d)||0; return s; };
+  const firstDay = RUNS[0]._day;
+  const acwr = day => { if (day-27 < firstDay) return null; const ch = sumDays(day-27, day)/4; return ch>0 ? sumDays(day-6, day)/ch : null; };
+  weeks.forEach(B => { B.acwr = acwr(Math.min(weekStart(B.w)+6, lastDay)); });
+
+  // KPIs over the last 12 weeks
+  const last12 = weeks.slice(-12);
+  const now = acwr(lastDay);
+  const ratioTxt = now==null ? "" : now<0.8 ? "below 0.8: easing off" : now<=1.3 ? "in the 0.8–1.3 range" : now<=1.5 ? "1.3–1.5: ramping up fast" : "above 1.5: high injury risk";
+  const zt = last12.reduce((a,B)=>a.map((v,k)=>v+B.z[k]), [0,0,0,0,0]), zSum = zt.reduce((a,b)=>a+b,0);
+  const easy = zSum ? (zt[0]+zt[1]+zt[2])/zSum*100 : null;
+  const n12 = last12.reduce((s,B)=>s+B.n,0), km12 = last12.reduce((s,B)=>s+B.km,0);
+  let streak = 0; for (let w=lastWeek; allWeeks.has(w); w--) streak++;
+  let best = 0, cur = 0, prevW = null;
+  for (const w of [...allWeeks.keys()].sort((a,b)=>a-b)){ cur = prevW!=null && w===prevW+1 ? cur+1 : 1; best = Math.max(best, cur); prevW = w; }
+  const longShare = median(last12.filter(B=>B.km>0).map(B=>B.long/B.km*100));
+  const k = [];
+  k.push(`<div class="kpi"><span class="lab">Load ratio (7 d : 28 d)</span><span class="val">${now==null?"–":now.toFixed(2)}</span><span class="sub">${now==null?"Needs 4 weeks of runs with heart rate":`at your last run · <span class="chip ${now>=0.8&&now<=1.3?"good":"bad"}">${ratioTxt}</span>`}</span></div>`);
+  k.push(`<div class="kpi"><span class="lab">Easy share, 12 weeks</span><span class="val">${easy==null?"–":Math.round(easy)+"%"}</span><span class="sub">${easy==null?"No heart-rate data":`of running time below 80% of max HR · <span class="chip ${easy>=75?"good":"bad"}">${easy>=75?"close to 80/20":"aim for about 80%"}</span>`}</span></div>`);
+  k.push(`<div class="kpi"><span class="lab">Runs per week, 12 weeks</span><span class="val">${(n12/12).toFixed(1)}</span><span class="sub">${nf.format(km12/12)} km a week on average</span></div>`);
+  k.push(`<div class="kpi"><span class="lab">Weekly streak</span><span class="val">${streak} wk</span><span class="sub">weeks in a row with at least one run · longest ${best} wk</span></div>`);
+  k.push(`<div class="kpi"><span class="lab">Long-run share, 12 weeks</span><span class="val">${longShare==null?"–":Math.round(longShare)+"%"}</span><span class="sub">of a week's distance in its longest run (median)</span></div>`);
+  $("kpis2").innerHTML = k.join("");
+
+  const labels = weeks.map(B => new Date(weekStart(B.w)*864e5).toLocaleDateString(undefined, {day:"numeric", month:"short", timeZone:"UTC"}));
+  const title = items => items.length ? `Week of ${fmtDay(weekStart(weeks[items[0].dataIndex].w))}` : "";
+  const xCat = o => { o.scales.x = {...o.scales.x, ticks:{...o.scales.x.ticks, maxRotation:0, autoSkip:true, maxTicksLimit:7}}; return o; };
+
+  let o = xCat(baseOpts(c));
+  o.scales.y.title = {display:true,text:"TRIMP",color:c.muted};
+  o.plugins.tooltip.callbacks = {title, label:ctx=>`Load ${nf.format(ctx.parsed.y)} · ${weeks[ctx.dataIndex].n} runs`};
+  chart("c-load", {type:"bar", data:{labels, datasets:[{data:weeks.map(B=>Math.round(B.load)), backgroundColor:alpha(c.accent,.75), borderRadius:3}]}, options:o});
+
+  o = xCat(baseOpts(c));
+  o.scales.y = {...o.scales.y, min:0, suggestedMax:2, title:{display:true,text:"ratio",color:c.muted}};
+  o.plugins.tooltip.callbacks = {title, label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`};
+  o.plugins.tooltip.filter = item => item.datasetIndex === 0;
+  const ref = v => ({label:String(v), data:weeks.map(()=>v), borderColor:c.muted, borderDash:[5,4], borderWidth:1.5, pointRadius:0, pointHitRadius:0});
+  chart("c-acwr", {type:"line", data:{labels, datasets:[
+    {label:"Load ratio", data:weeks.map(B=>B.acwr), borderColor:c.accent, backgroundColor:c.accent, borderWidth:2, pointRadius:2.5, pointHoverRadius:5, tension:.25, spanGaps:false},
+    ref(0.8), ref(1.3)
+  ]}, options:o});
+
+  o = xCat(baseOpts(c));
+  o.scales.x.stacked = true; o.scales.y = {...o.scales.y, stacked:true, title:{display:true,text:"minutes",color:c.muted}};
+  o.interaction = {mode:"index", intersect:false};
+  o.plugins.tooltip.callbacks = {title, label:ctx=>`${ctx.dataset.label}: ${nf.format(ctx.parsed.y)} min`};
+  const zc = [1,2,3,4,5].map(i=>tok("--z"+i));
+  chart("c-zones", {type:"bar", data:{labels, datasets:zc.map((col,i)=>({label:"Z"+(i+1), data:weeks.map(B=>Math.round(B.z[i]/60)), backgroundColor:col, borderColor:c.surface, borderWidth:{top:1}, borderSkipped:false}))}, options:o});
+
+  o = xCat(baseOpts(c));
+  o.scales.x.stacked = true; o.scales.y = {...o.scales.y, stacked:true, title:{display:true,text:"km",color:c.muted}};
+  o.interaction = {mode:"index", intersect:false};
+  o.plugins.tooltip.callbacks = {title, label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} km`};
+  chart("c-week", {type:"bar", data:{labels, datasets:[
+    {label:"Longest run", data:weeks.map(B=>B.long), backgroundColor:c.a2, borderColor:c.surface, borderWidth:{top:1}, borderSkipped:false},
+    {label:"Other runs", data:weeks.map(B=>B.km-B.long), backgroundColor:alpha(c.accent,.75), borderColor:c.surface, borderWidth:{top:1}, borderSkipped:false}
+  ]}, options:o});
+
+  // consistency per calendar year (all runs)
+  const days = [...new Set(RUNS.map(r=>r._day))].sort((a,b)=>a-b);
+  const yrs = {};
+  for (let i=0;i<days.length;i++){
+    const y = new Date(days[i]*864e5).getUTCFullYear(), Y = yrs[y] ||= {y, runDays:0, gaps:0, longest:0};
+    if (i>0){ const gap = days[i]-days[i-1]-1; if (gap>=7) Y.gaps++; Y.longest = Math.max(Y.longest, gap); }
+  }
+  for (const r of RUNS) (yrs[r._y] ||= {y:r._y, gaps:0, longest:0}).n = (yrs[r._y].n||0) + 1;
+  let h = `<thead><tr><th>Year</th><th>Runs/week</th><th>Weeks with a run</th><th>Breaks of 7+ days</th><th>Longest break</th><th>Long-run share</th></tr></thead><tbody>`;
+  for (const Y of Object.values(yrs).sort((a,b)=>b.y-a.y)){
+    const a = Math.max(Math.round(Date.UTC(Y.y,0,1)/864e5), firstDay), b = Math.min(Math.round(Date.UTC(Y.y,11,31)/864e5), lastDay);
+    const wks = [...allWeeks.entries()].filter(([w])=>w>=weekOf(a) && w<=weekOf(b));
+    const span = weekOf(b)-weekOf(a)+1;
+    const share = median(wks.filter(([,v])=>v.km>0).map(([,v])=>v.long/v.km*100));
+    h += `<tr><td>${Y.y}</td><td>${(Y.n/((b-a+1)/7)).toFixed(1)}</td><td>${Math.round(wks.length/span*100)}%</td><td>${Y.gaps}</td><td>${Y.longest} d</td><td>${share==null?"–":Math.round(share)+"%"}</td></tr>`;
+  }
+  $("tbl2").innerHTML = h + "</tbody>";
 }
 
 // re-render charts when the theme changes
