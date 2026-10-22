@@ -166,7 +166,7 @@ test("TC-6 the zones legend shows live bpm ranges and follows the max/resting in
 test("TC-7 runs without a usable HR stream are counted; easy share is below 70% of HRR", () => {
   const { el } = runPage(hrzOnlyData());
   assert.equal(el("zones-fallback").hidden, false);
-  assert.match(el("zones-fallback").textContent, /\b\d+ runs without a usable heart-rate stream use Garmin's zones/);
+  assert.match(el("zones-fallback").textContent, /\b40 runs without a usable heart-rate stream use Garmin's zones/);
   assert.match(el("zones-fallback").textContent, /%HRR|HRR zones/);
   const ex = runPage();
   const kpi = ex.el("kpis2").innerHTML.split('<div class="kpi">').find(k => k.includes("Easy share"));
