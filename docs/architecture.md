@@ -78,7 +78,7 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 | `dom.js` | `$` helper; shows the embedded grabber source |
 | `copy.js` | Clipboard with `execCommand` fallback |
 | `zip.js` | Minimal ZIP writer for the grabber download |
-| `metrics.js` | `hav`, `minetti`, `gapFactor`, `vdot`, `decYear`, `weekOf`, `bestEffort`, `prepare`, `bandPace`, `decoupling`, `zoneTime`, `trimp` |
+| `metrics.js` | `hav`, `minetti`, `gapFactor`, `vdot`, `decYear`, `weekOf`, `bestEffort`, `prepare`, `bandPace`, `decoupling`, `HRR_ZONES`, `hrrZones`, `zoneTime`, `trimp` |
 | `stats.js` | `median`, `theilSen`, pace and time formatters |
 | `example-data.js` | Seeded synthetic 10-year dataset shown before you load yours |
 | `gpx-import.js` | `parseGpxText` for loading raw GPX files |

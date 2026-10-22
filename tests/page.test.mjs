@@ -21,7 +21,8 @@ function runPage(data, scripts = [pageScript]) {
   const el = id => els[id] ??= {
     id, textContent: id === "grabber-src" ? grabberSrc : "", innerHTML: "", hidden: false,
     value: defaults[id] || "", checked: id === "no-trail" || id === "remember", className: "", style: {},
-    classList: { toggle() {}, add() {}, remove() {} }, addEventListener() {}, click() {},
+    classList: { toggle() {}, add() {}, remove() {} }, click() {},
+    listeners: {}, addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
     firstElementChild: { style: {} }, files: [],
   };
   const defined = [];
@@ -60,6 +61,23 @@ function oldFormatData() {
   return { format: "garmin-runs/1", runs };
 }
 
+// runs with Garmin's zone times only (no t/d/hr/e streams), two a week
+function hrzOnlyData() {
+  const runs = [];
+  for (let i = 0; i < 40; i++) {
+    const day = new Date(Date.UTC(2023, 0, 2) + i * 3.5 * 864e5).toISOString().slice(0, 10);
+    runs.push({ id: i, date: `${day} 07:00:00`, type: "treadmill_running", dist: 8000, dur: 3600, moving: 3600, avgHr: 140, maxHr: 165, hrz: [600, 1800, 900, 200, 100] });
+  }
+  return { format: "garmin-runs/1", runs };
+}
+
+// metrics.js alone in its own context
+function metrics() {
+  const ctx = vm.createContext({ Math, Float32Array });
+  vm.runInContext(read("src/page/js/metrics.js"), ctx);
+  return ctx;
+}
+
 test("example data renders every section", () => {
   const { el, charts, kpis } = runPage();
   assert.ok(kpis("kpis") >= 4);
@@ -77,6 +95,7 @@ test("old runs.json without the newer fields still renders and hides empty panel
   assert.ok(charts["c-load"] && charts["c-zones"]);
   for (const id of ["rhr-panel", "te-panel", "stride-panel"]) assert.equal(el(id).hidden, true, `${id} shown`);
   assert.equal(el("dec-panel").hidden, false);
+  assert.match(el("lim-hint").textContent, /50 bpm is a placeholder/);
 });
 
 test("the page defines <site-bar> exactly once", () => {
@@ -113,4 +132,45 @@ test("src/page/index.html loads every js file exactly once, site-bar.js first", 
 test("the unbuilt src/page/js files also run as separate scripts (make dev)", () => {
   const { kpis } = runPage(oldFormatData(), devScripts.map(f => read(`src/page/js/${f}`)));
   assert.equal(kpis("kpis2"), 5);
+});
+
+test("TC-4 hrrZones: Karvonen bounds rounded half up, rest clamped to max - 20", () => {
+  const { hrrZones } = metrics();
+  assert.equal(typeof hrrZones, "function");
+  assert.deepEqual([...hrrZones(190, 50)], [134, 148, 162, 176]);
+  assert.deepEqual([...hrrZones(185, 52)], [132, 145, 158, 172]);
+  assert.deepEqual([...hrrZones(185, 50)], [131, 145, 158, 172]);   // 144.5 and 171.5 round up
+  assert.deepEqual([...hrrZones(150, 140)], [142, 144, 146, 148]);  // rest clamped to 130
+});
+
+test("TC-5 zoneTime buckets bpm against the rounded HRR bounds; a bound belongs to the upper zone", () => {
+  const { zoneTime } = metrics();
+  const bpm = [40, 133, 134, 147, 148, 175, 176, 200];
+  const r = { _hrOk: true, t: [0, ...bpm.map((_, i) => (i + 1) * 10)], hr: [120, ...bpm] };
+  assert.deepEqual([...zoneTime(r, 190, 50)], [20, 20, 10, 10, 20]);
+  assert.deepEqual([...zoneTime({ _hrOk: false, hrz: [1, 2, 3, 4, 5, 6] }, 190, 50)], [1, 2, 3, 4, 5]);
+  assert.equal(zoneTime({ _hrOk: false }, 190, 50), null);
+});
+
+test("TC-6 the zones legend shows live bpm ranges and follows the max/resting inputs", () => {
+  const { el } = runPage();
+  const range = (max, rest) => { const b = metrics().hrrZones(max, rest);
+    return [`Z1 &lt;${b[0]}`, `Z2 ${b[0]}–${b[1]}`, `Z3 ${b[1]}–${b[2]}`, `Z4 ${b[2]}–${b[3]}`, `Z5 ${b[3]}+`]; };
+  for (const s of range(+el("hr-max").value, +el("hr-rest").value)) assert.ok(el("zones-legend").innerHTML.includes(s), `legend lacks ${s}`);
+  el("hr-max").value = "200"; el("hr-rest").value = "60";
+  for (const fn of el("hr-max").listeners.change ?? []) fn({});
+  for (const s of range(200, 60)) assert.ok(el("zones-legend").innerHTML.includes(s), `legend lacks ${s} after change`);
+  assert.ok(el("zones-legend").innerHTML.includes("Z2 144–158"));
+});
+
+test("TC-7 runs without a usable HR stream are counted; easy share is below 70% of HRR", () => {
+  const { el } = runPage(hrzOnlyData());
+  assert.equal(el("zones-fallback").hidden, false);
+  assert.match(el("zones-fallback").textContent, /\b\d+ runs without a usable heart-rate stream use Garmin's zones/);
+  assert.match(el("zones-fallback").textContent, /%HRR|HRR zones/);
+  const ex = runPage();
+  const kpi = ex.el("kpis2").innerHTML.split('<div class="kpi">').find(k => k.includes("Easy share"));
+  assert.ok(kpi.includes("70% of heart-rate reserve"), "easy-share text not HRR-based");
+  const v = +/<span class="val">(\d+)%<\/span>/.exec(kpi)[1];
+  assert.ok(v > 0 && v < 100, `easy share ${v}`);
 });

@@ -19,7 +19,7 @@ Two inputs (`#hr-max`, `#hr-rest`) drive the zones and the load. `suggestLimits`
 | Max HR | Second-highest per-run peak. The peak is the 99th percentile of the run's heart-rate stream (ignores optical spikes); runs without a stream use Garmin's `maxHr`. Falls back to 190. |
 | Resting HR | Median of the last 365 days of [resting heart rate](resting-heart-rate.md). Falls back to 50. |
 
-The hint under the inputs says where each value came from. Changing either re-renders. A wrong max shifts every zone, so a lab or field-test value is better than the estimate.
+The hint under the inputs says where each value came from and that both move the zone boundaries. Changing either re-renders. A wrong max or resting heart rate shifts every zone, so a lab or field-test value is better than the estimate.
 
 ## Training load (TRIMP)
 
@@ -60,20 +60,42 @@ After a break of several weeks the ratio jumps on the first runs back, because t
 
 ## Heart-rate zones
 
-`zoneTime(run, max)` returns seconds in five zones, by share of max HR:
+One zone model for the whole project: Karvonen, as a share of heart-rate reserve (HRR = max − rest). `HRR_ZONES = [.6, .7, .8, .9]` in `metrics.js` holds the upper bounds of Z1–Z4, and `hrrZones(max, rest)` turns them into whole bpm:
 
-| Zone | Share of max HR |
-|---|---|
-| Z1 | < 60% |
-| Z2 | 60–70% |
-| Z3 | 70–80% |
-| Z4 | 80–90% |
-| Z5 | ≥ 90% |
+```text
+rest   = min(rest, max - 20)                    # clamp, defined only here
+bounds = round(rest + p × (max - rest))  for p in HRR_ZONES   # rounded half up, once
+```
 
-Runs with a stream count each sample pair with `0 < dt <= 30`. Runs without one fall back to Garmin's `hrTimeInZone_1…5` (runs.json `hrz`), which use the zones set in Garmin Connect, not the max HR above.
+| Zone | % HRR | Example, max 190 / rest 50 |
+|---|---|---|
+| Z1 | below 60% | < 134 bpm |
+| Z2 | 60–70% | 134–148 bpm |
+| Z3 | 70–80% | 148–162 bpm |
+| Z4 | 80–90% | 162–176 bpm |
+| Z5 | 90%+ | 176+ bpm |
 
-- **Chart `#c-zones`:** stacked minutes per zone per week, one teal ramp (`--z1`…`--z5`) going from light (Z1) to dark (Z5), dim to bright in the dark theme.
-- **KPI "Easy share, 12 weeks":** share of time in Z1–Z3 (below 80% of max, roughly the first ventilatory threshold). The 80/20 guideline is about 80% easy; the chip turns green at 75%.
+Ranges are half-open: the upper number of each range belongs to the next zone.
+
+`zoneTime(run, max, rest)` returns seconds in the five zones. It compares each sample's bpm with the **rounded** bounds from `hrrZones` (`hr < b[0]` → Z1, `hr < b[1]` → Z2, …), so a bound belongs to the upper zone: 134 bpm is Z2, 148 is Z3. Because the bounds are rounded once and both the legend and the classification use them, the chart, the legend and the KPI never disagree by 1 bpm. The Python port in the planner (roadmap 03) must round the same way, half up (`floor(x + 0.5)`), not with Python's `round()`, which rounds half to even.
+
+Runs with a stream count each sample pair with `0 < dt <= 30`. Runs without a usable stream fall back to Garmin's `hrTimeInZone_1…5` (runs.json `hrz`), which use the zones set in Garmin Connect and can't be converted.
+
+- **Chart `#c-zones`:** stacked minutes per zone per week, one teal ramp (`--z1`…`--z5`) going from light (Z1) to dark (Z5), dim to bright in the dark theme. The tooltip names each zone's bpm range.
+- **Legend `#zones-legend`:** filled on each render from `hrrZones` with the current inputs, e.g. `Z1 <134  Z2 134–148  Z3 148–162  Z4 162–176  Z5 176+ bpm` (the shared number is the bound, which belongs to the upper zone).
+- **Fallback line `#zones-fallback`:** under the chart, shown when any run in the chart's 52-week window has no usable heart-rate stream (`!r._hrOk && Array.isArray(r.hrz)`): "N runs without a usable heart-rate stream use Garmin's zones: set Garmin Connect to HRR zones to match."
+- **KPI "Easy share, 12 weeks":** share of time in Z1–Z2, below 70% of HRR (close to the first ventilatory threshold); the text shows the bound, e.g. "< 148 bpm". The 80/20 guideline is about 80% easy; the chip turns green at 75%.
+
+Easy share changed with the switch from % of max HR (Z1–Z3, below 80% of max) to HRR: with a resting heart rate around 50, Z1–Z2 under HRR ends at about 77% of max, so everyone's easy share drops slightly.
+
+### Garmin Connect zones
+
+To make Garmin's own zone times (`hrz`) match the page, set Garmin Connect's heart-rate zones to the HRR basis with the same max and resting heart rate:
+
+- Garmin Connect phone app: menu > Settings > User Settings > Heart Rate Zones > Based On: %HRR;
+- or on the watch: User Profile > Heart Rate Zones > Zones > Based On > %HRR.
+
+Labels vary by app version and device. Only runs synced after the change use the new zones.
 
 ## Consistency
 

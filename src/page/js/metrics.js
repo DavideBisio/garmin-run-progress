@@ -85,14 +85,20 @@ function decoupling(r){
   const ef1=half[0][0]/half[0][1], ef2=half[1][0]/half[1][1];
   return {pct:(ef1-ef2)/ef1*100, min:total/60};
 }
-function zoneTime(r, max){       // seconds in zones 1–5 (share of max HR)
+// Karvonen zones: upper bounds of Z1–Z4 as a share of heart-rate reserve (max − rest)
+const HRR_ZONES = [.6,.7,.8,.9];
+function hrrZones(max, rest){    // bpm bounds of Z1–Z4, rounded once (half up); rest clamped to max − 20
+  rest = Math.min(rest, max-20);
+  return HRR_ZONES.map(p => Math.round(rest + p*(max-rest)));
+}
+function zoneTime(r, max, rest){ // seconds in zones 1–5 (share of HRR); a bound bpm belongs to the upper zone
   if (r._hrOk){
-    const z=[0,0,0,0,0], t=r.t, h=r.hr;
+    const z=[0,0,0,0,0], t=r.t, h=r.hr, b=hrrZones(max, rest);
     for (let i=1;i<t.length;i++){ const dt=t[i]-t[i-1]; if (dt<=0 || dt>30 || !h[i]) continue;
-      const f=h[i]/max; z[f<.6?0:f<.7?1:f<.8?2:f<.9?3:4]+=dt; }
+      const x=h[i]; z[x<b[0]?0:x<b[1]?1:x<b[2]?2:x<b[3]?3:4]+=dt; }
     return z;
   }
-  return Array.isArray(r.hrz) ? r.hrz.slice(0,5) : null;
+  return Array.isArray(r.hrz) ? r.hrz.slice(0,5) : null;   // Garmin's own zones, can't be converted
 }
 function trimp(r, max, rest){    // Banister TRIMP: minutes × HRr × 0.64·e^(1.92·HRr)
   const f = hr => { const x=Math.max(0,Math.min(1,(hr-rest)/(max-rest))); return x*0.64*Math.exp(1.92*x)/60; };

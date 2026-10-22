@@ -21,7 +21,7 @@ function suggestLimits(){
   const restMed = median(RHR.filter(p=>p.day>lastR-365).map(p=>p.v));
   const rest = restMed ? Math.round(restMed) : 50;
   $("hr-max").value = max; $("hr-rest").value = rest;
-  $("lim-hint").textContent = `Filled in from your data: ${peaks.length ? `${max} bpm is the second-highest sustained heart rate in any run` : "no heart rate found, so 190 bpm is a placeholder"}; ${restMed ? `${rest} bpm is your median resting heart rate over the last year` : "no resting heart rate in this file, so 50 bpm is a placeholder"}. Change them if you know better values.`;
+  $("lim-hint").textContent = `Filled in from your data: ${peaks.length ? `${max} bpm is the second-highest sustained heart rate in any run` : "no heart rate found, so 190 bpm is a placeholder"}; ${restMed ? `${rest} bpm is your median resting heart rate over the last year` : "no resting heart rate in this file, so 50 bpm is a placeholder"}. Both move the zone boundaries; change them if you know better values.`;
 }
 function suggestBand(){
   const hrs = RUNS.filter(r=>r._hrOk).map(r=>{ const h=r.hr.filter(x=>x>0).sort((a,b)=>a-b); return h[h.length>>1]; });

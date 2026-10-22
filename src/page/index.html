@@ -212,10 +212,11 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <div class="panel">
         <div class="chart-head">
           <h3>Heart-rate zones per week</h3>
-          <p class="muted small-t">Minutes in each zone, as a share of your max heart rate. Zones 1–3 count as easy.</p>
-          <div class="legend"><span style="--c:var(--z1)">Z1 &lt;60%</span><span style="--c:var(--z2)">Z2 60–70%</span><span style="--c:var(--z3)">Z3 70–80%</span><span style="--c:var(--z4)">Z4 80–90%</span><span style="--c:var(--z5)">Z5 90%+</span></div>
+          <p class="muted small-t">Minutes in each zone, as a share of your heart-rate reserve (max − resting). Zones 1–2 count as easy.</p>
+          <div class="legend" id="zones-legend"></div>
         </div>
         <div class="chart-box"><canvas id="c-zones" aria-label="Minutes per heart-rate zone per week"></canvas></div>
+        <p class="muted small-t" id="zones-fallback" hidden></p>
       </div>
       <div class="panel">
         <div class="chart-head">
@@ -239,8 +240,8 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <p><b>Hills</b> are corrected with Minetti's energy-cost curve over 100 m windows. <b>Heat</b> raises heart rate at a given pace; use the month filter to compare like with like.</p>
       <p><b>Trend</b> is the Theil–Sen slope of the yearly medians, which ignores single odd years. Years with fewer than 5 qualifying runs are left out of it.</p>
       <p><b>Aerobic decoupling</b> only uses steady runs: the hill-adjusted pace of 5-minute blocks must stay within 10% of their average, so interval sessions drop out. Heat and dehydration raise it, so compare similar seasons.</p>
-      <p><b>Training load</b> is Banister's TRIMP. Treadmill runs without a heart-rate stream use their average heart rate. Runs with no heart rate at all add nothing, which understates the load. <b>Max and resting heart rate</b> set the zones and the load; a wrong max shifts every zone, so enter a measured one if you have it.</p>
-      <p><b>Zones</b> come from the heart-rate stream. Runs without one fall back to Garmin's own zone times, which use the zones set in Garmin Connect.</p>
+      <p><b>Training load</b> is Banister's TRIMP. Treadmill runs without a heart-rate stream use their average heart rate. Runs with no heart rate at all add nothing, which understates the load. <b>Max and resting heart rate</b> set the zones and the load: both move every zone boundary, so enter a measured max if you have it.</p>
+      <p><b>Zones</b> are shares of your heart-rate reserve (max − resting, the Karvonen method): Z1–Z2 is below 70% and counts as easy. They come from the heart-rate stream. Runs without one fall back to Garmin's own zone times, which use the zones set in Garmin Connect; set its heart-rate zones to %HRR with the same max and resting heart rate so both agree.</p>
     </div>
   </div>
 </section>
