@@ -249,3 +249,12 @@ test("TC-11 WAI-ARIA tabs: roles, one aria-selected, arrow keys wrap, Home/End; 
   key("planning", "Home"); check("data");
   el("tab-btn-analysis").listeners.click[0]({}); check("analysis");
 });
+
+test("arrow keys replace the hash, clicks add a history entry", () => {
+  const { el, hashes } = runPage(undefined, undefined, { hash: "" });
+  el("tab-btn-data").listeners.keydown[0]({ key: "ArrowRight", preventDefault() {} });
+  el("tab-btn-analysis").listeners.keydown[0]({ key: "End", preventDefault() {} });
+  assert.deepEqual(hashes, [["replace", "#analysis"], ["replace", "#planning"]]);
+  el("tab-btn-data").listeners.click[0]({});
+  assert.deepEqual(hashes.at(-1), ["push", "#data"]);
+});

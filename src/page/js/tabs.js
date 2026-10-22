@@ -5,7 +5,8 @@ const TABS = ["data","analysis","planning"], OLD_TABS = {s1:"data", s2:"data", s
 let curTab = null, tabTouched = false;
 function curHash(){ try{ return location.hash || ""; }catch(e){ return ""; } }
 function tabFromHash(){ const h = curHash().slice(1); return TABS.includes(h) ? h : OLD_TABS[h] || ""; }
-// push: add a history entry (a click or a file load); otherwise only fix up a hash that is already there
+// push: true adds a history entry (a click or a file load), "replace" rewrites the hash without one
+// (arrow keys); otherwise only fix up a hash that is already there
 function showTab(name, push){
   const hash = curHash(), want = "#"+name;
   if (name===curTab && (hash===want || !push && !hash)) return;
@@ -14,14 +15,14 @@ function showTab(name, push){
     $("tab-"+t).hidden = !on; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; }
   // charts drawn while their panel was hidden measured 0 x 0
   if (name!==was && name==="analysis") Object.values(charts).forEach(c=>c?.resize?.());
-  try{ if (hash!==want && (push || hash)){ if (push) location.hash = want; else location.replace(want); } }catch(e){}
+  try{ if (hash!==want && (push || hash)){ if (push===true) location.hash = want; else location.replace(want); } }catch(e){}
 }
 TABS.forEach((t,i)=>{ const b = $("tab-btn-"+t);
   b.addEventListener("click", ()=>{ tabTouched = true; showTab(t, true); });
   b.addEventListener("keydown", e=>{
     const j = {ArrowRight:(i+1)%TABS.length, ArrowLeft:(i+TABS.length-1)%TABS.length, Home:0, End:TABS.length-1}[e.key];
     if (j==null) return;
-    e.preventDefault(); tabTouched = true; showTab(TABS[j], true); $("tab-btn-"+TABS[j]).focus();
+    e.preventDefault(); tabTouched = true; showTab(TABS[j], "replace"); $("tab-btn-"+TABS[j]).focus();
   });
 });
 try{ window.addEventListener("hashchange", ()=>{ const t = tabFromHash() || "data"; if (t!==curTab) tabTouched = true; showTab(t, false); }); }catch(e){}
