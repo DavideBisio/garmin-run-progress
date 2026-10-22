@@ -21,6 +21,6 @@ jobs:
           python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - run: make test
       - run: npm --prefix site ci && make site-build site-test

@@ -78,7 +78,7 @@ The page also accepts raw `.gpx` files directly (select many at once), but witho
 
 ## Development
 
-The code lives in `src/`: the grabber package in `src/garmin_grab/` and the page's HTML, CSS and per-section scripts in `src/page/`. `tools/build.py` bundles them into `dist/garmin_grab.py` and `dist/index.html`, which are not committed: the Pages workflow publishes the page at `/app/` of the project site (`site/`, Astro + site-kit, at https://davidebisio.github.io/garmin-run-progress/), and each release attaches both files. Building and testing need only Python and Node 20.11+; the site needs Node 22.12+.
+The code lives in `src/`: the grabber package in `src/garmin_grab/` and the page's HTML, CSS and per-section scripts in `src/page/`. `tools/build.py` bundles them into `dist/garmin_grab.py` and `dist/index.html`, which are not committed: the Pages workflow publishes the page at `/app/` of the project site (`site/`, Astro + site-kit, at https://davidebisio.github.io/garmin-run-progress/), and each release attaches both files. Building and testing need only Python and Node 20.11+; the site needs Node 22.23.4+ (CI uses 24).
 
 ```text
 make install   create .venv and install the Garmin library

@@ -108,7 +108,7 @@ GitHub Pages serves the project site: an Astro + [site-kit](https://github.com/D
 
 Visitors load their own `runs.json`; nothing is uploaded to GitHub, and the data stays in each visitor's browser.
 
-To work on the site locally (Node 22.12+): `make site-install` once, then `make site-build` (app, copy, `astro build` into `site/dist/`) and `make site-test`, or `make site-dev` for a live preview. The docs pages are the Markdown files in `docs/` as they are; links between them are rewritten to the built pages, so link other repo files with absolute GitHub URLs.
+To work on the site locally (Node 22.23.4+): `make site-install` once, then `make site-build` (app, copy, `astro build` into `site/dist/`) and `make site-test`, or `make site-dev` for a live preview. The docs pages are the Markdown files in `docs/` as they are; links between them are rewritten to the built pages, so link other repo files with absolute GitHub URLs.
 
 ### Upgrading site-kit
 
