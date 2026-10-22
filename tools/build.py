@@ -46,9 +46,9 @@ GRABBER = re.compile(r'(<script type="text/plain" id="grabber-src">)(.*?)(</scri
 # self-containment check on the finished page
 SCRIPT_BODY = re.compile(r"(<script\b[^>]*>).*?(</script\s*>)", re.S | re.I)
 LOADING_TAG = re.compile(r"<(?:script|link)\b[^>]*>", re.I)
-TAG_URL = re.compile(r"""\b(?:src|href)\s*=\s*["']?([^"'\s>]+)""", re.I)
+TAG_URL = re.compile(r"""(?<![\w-])(?:src|href)\s*=\s*["']?([^"'\s>]+)""", re.I)
 REMOTE = re.compile(r"^(?:https?:)?//", re.I)
-LOCAL_ASSET = re.compile(r"\.(?:js|css)(?:[?#].*)?$", re.I)
+LOCAL_ASSET = re.compile(r"\.(?:m?js|css)(?:[?#].*)?$", re.I)
 CSS_REMOTE = re.compile(r"""@import\b|url\(\s*["']?(?:https?:)?//""", re.I)
 
 
@@ -138,13 +138,11 @@ def check_self_contained(html):
     script and the grabber's text/plain source) are text, not markup, so they are skipped."""
     markup = SCRIPT_BODY.sub(r"\1\2", html)
     for tag in LOADING_TAG.findall(markup):
-        m = TAG_URL.search(tag)
-        if not m:
-            continue
-        if REMOTE.match(m[1]):
-            fail(f"the page must not load anything from another site: {tag}")
-        if LOCAL_ASSET.search(m[1]):
-            fail(f"src/page/index.html loads a file the build does not inline: {tag}")
+        for url in TAG_URL.findall(tag):
+            if REMOTE.match(url):
+                fail(f"the page must not load anything from another site: {tag}")
+            if LOCAL_ASSET.search(url):
+                fail(f"src/page/index.html loads a file the build does not inline: {tag}")
     if m := CSS_REMOTE.search(markup):
         fail(f"the page's CSS must not import or load remote files: {markup[m.start():m.start() + 80]!r}")
 

@@ -17,7 +17,8 @@ test("the app is published at /app/", () => {
 });
 
 test("the repo docs are published as pages", () => {
-  for (const page of ["docs/features/resting-heart-rate/index.html", "docs/roadmap/index.html"])
+  for (const page of ["docs/features/resting-heart-rate/index.html", "docs/roadmap/index.html",
+                      "docs/roadmap/readme/index.html"])
     assert.ok(fs.existsSync(path.join(DIST, page)), `${page} missing`);
 });
 

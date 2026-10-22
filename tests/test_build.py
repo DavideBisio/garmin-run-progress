@@ -77,6 +77,10 @@ class SelfContainedPage(unittest.TestCase):
         self.assertFails(html=PAGE.replace(
             CHART_TAG, '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>\n'))
 
+    def test_remote_src_after_other_attribute(self):
+        self.assertFails(html=PAGE.replace(
+            "</body>", '<script data-src="x" src="https://example.com/x.js"></script>\n</body>'))
+
     def test_google_fonts_stylesheet(self):
         self.assertFails(html=PAGE.replace("<head>\n", '<head>\n<link rel="stylesheet" href='
                                            '"https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&display=swap">\n'))
@@ -93,6 +97,10 @@ class SelfContainedPage(unittest.TestCase):
     def test_leftover_local_script(self):
         self.assertFails(html=PAGE.replace("</body>", '<script src="vendor/other.js"></script>\n</body>'),
                          extra={"vendor/other.js": "var other = 1;\n"})
+
+    def test_leftover_local_module(self):
+        self.assertFails(html=PAGE.replace("</body>", '<script type="module" src="vendor/other.mjs"></script>\n</body>'),
+                         extra={"vendor/other.mjs": "export const other = 1;\n"})
 
     def test_leftover_local_stylesheet(self):
         self.assertFails(html=PAGE.replace("</body>", '<link rel="stylesheet" href="vendor/extra.css">\n</body>'),
