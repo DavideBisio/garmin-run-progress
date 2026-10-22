@@ -1,18 +1,21 @@
 "use strict";
 /* ---------------- state ---------------- */
 let DATA = null, RUNS = [], RHR = [];
-function setData(payload, isExample){
+// fromUser: a file the user just loaded, which opens Analysis (not the example data or a restore)
+function setData(payload, isExample, fromUser){
   DATA = payload;
   RUNS = (payload.runs||[]).map(r=>prepare({...r})).filter(Boolean).sort((a,b)=>a._x-b._x);
   RHR = (Array.isArray(payload.rhr) ? payload.rhr : []).map(([ds,v])=>{ const p=decYear(ds); return p && v>0 ? {x:p.x, y:p.y, day:p.day, v} : null; })
     .filter(Boolean).sort((a,b)=>a.day-b.day);
   const yrs = RUNS.length ? `${RUNS[0]._y}–${RUNS[RUNS.length-1]._y}` : "";
   $("status").classList.toggle("real", !isExample);
-  $("status-t").textContent = isExample ? "Showing example data · load yours in step 2" : `Your data · ${nf.format(RUNS.length)} runs · ${yrs}`;
+  $("status-t").textContent = isExample ? "Example data ·" : `Your data · ${nf.format(RUNS.length)} runs · ${yrs}`;
+  $("status-load").hidden = !isExample;
   $("clear").hidden = isExample;
   suggestBand();
   suggestLimits();
   render();
+  if (fromUser) showTab("analysis", true);
 }
 function suggestLimits(){
   const peaks = RUNS.map(r=>r._hrPeak || r.maxHr || 0).filter(v=>v>120 && v<230).sort((a,b)=>b-a);

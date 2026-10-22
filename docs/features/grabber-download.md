@@ -1,6 +1,6 @@
 # Grabber download and copy
 
-Step 1 of the page lets people get `garmin_grab.py` without visiting GitHub.
+Step 1 of the page's Data tab lets people get `garmin_grab.py` without visiting GitHub.
 
 ## Embedded source
 

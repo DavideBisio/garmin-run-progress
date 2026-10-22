@@ -1,4 +1,5 @@
-/* Layout: one narrow working column; three numbered steps, then a scan-first analysis panel (KPIs → charts → year table). */
+/* Layout: one narrow working column; a sticky tab bar under the header, then three tab panels:
+   Data (three numbered steps), Analysis (KPIs → charts → year table) and Planning. */
 /* UI colors and fonts alias site-kit's --sk-* tokens (vendor/tokens.css, light and dark
    from the kit, theme shared with every *.github.io site). Only the data-viz colors are
    the app's own: --accent-1..3 are chart series, --z1..5 one teal ramp for the HR zones. */
@@ -38,6 +39,19 @@ header{display:flex;flex-direction:column;gap:12px}
   padding:5px 10px;border-radius:999px;background:var(--soft);color:var(--muted)}
 .status i{width:8px;height:8px;border-radius:50%;background:var(--accent-2)}
 .status.real i{background:var(--good)}
+.status a{color:var(--sk-link);font-weight:600}
+.tabs{position:sticky;top:0;z-index:10;display:flex;gap:4px;background:var(--bg);border-bottom:1px solid var(--line);margin-block:-8px}
+.tabs [role=tab]{min-height:var(--sk-tap);border:0;border-bottom:3px solid transparent;border-radius:0;background:none;color:var(--muted);padding:10px 18px;margin-bottom:-1px}
+.tabs [role=tab]:hover{color:var(--ink);filter:none}
+.tabs [role=tab][aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs [role=tab]:focus-visible{outline-offset:-2px}
+.tabpanel{display:flex;flex-direction:column;gap:28px;min-width:0}
+.tabpanel.step-body{gap:14px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.empty{align-items:center;text-align:center;padding:36px 18px}
+ul.cmds{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;text-align:left;color:var(--muted);font-size:14px}
+ul.cmds .chip{margin-right:8px;color:var(--ink)}
+#hr-link a{color:var(--sk-link)}
 section.step{display:grid;grid-template-columns:56px 1fr;gap:4px 18px}
 .num{font:700 52px/1 var(--f-display);color:var(--accent);grid-row:span 2}
 .step-body{display:flex;flex-direction:column;gap:14px;min-width:0}
@@ -92,5 +106,8 @@ td.best{color:var(--accent);font-weight:600}
 .group h3{font-size:26px}
 .progress{height:4px;background:var(--soft);border-radius:4px;overflow:hidden}
 .progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
-@media (max-width:560px){section.step{grid-template-columns:1fr}.num{font-size:40px;grid-row:auto}}
+@media (max-width:560px){section.step{grid-template-columns:1fr}.num{font-size:40px;grid-row:auto}
+  .tabs{gap:0;margin-left:calc(-1*max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1*max(16px,env(safe-area-inset-right,0px)));
+    padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .tabs [role=tab]{flex:1 1 0;min-width:0;padding-inline:4px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

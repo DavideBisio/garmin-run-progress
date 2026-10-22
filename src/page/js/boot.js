@@ -6,4 +6,5 @@ new MutationObserver(render).observe(document.documentElement, {attributes:true,
 
 /* ---------------- boot ---------------- */
 setData(exampleData(), true);
-idbGet().then(saved => { if (saved && Array.isArray(saved.runs)) { setData(saved, false); say(`Loaded ${nf.format(RUNS.length)} runs saved in this browser.`, "ok"); } });
+idbGet().then(saved => { if (saved && Array.isArray(saved.runs)) { setData(saved, false); say(`Loaded ${nf.format(RUNS.length)} runs saved in this browser.`, "ok");
+  if (!tabFromHash() && !tabTouched) showTab("analysis", false); } });

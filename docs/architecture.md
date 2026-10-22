@@ -83,11 +83,12 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 | `example-data.js` | Seeded synthetic 10-year dataset shown before you load yours |
 | `gpx-import.js` | `parseGpxText` for loading raw GPX files |
 | `storage.js` | Remember loaded data in this browser (IndexedDB) |
-| `state.js` | `setData` (runs and resting HR), heart-rate band and max/resting HR suggestions |
+| `state.js` | `setData(payload, isExample, fromUser)` (runs and resting HR, status chip; a user load opens Analysis), heart-rate band and max/resting HR suggestions |
 | `loading.js` | Drop zone, file input, JSON/GPX dispatch |
 | `render.js` | Filters → yearly aggregates → KPIs, fitness charts, year table |
 | `training.js` | `renderTraining`: last 52 weeks of all runs → load, load ratio, zones, weekly distance, consistency table |
-| `boot.js` | Re-render on theme change; load example data, then saved data if any |
+| `tabs.js` | Data, Analysis and Planning tabs: WAI-ARIA tabs (arrow keys, Home/End), `showTab` follows the URL hash (`#data`, `#analysis`, `#planning`; old `#s1`–`#s3` too) and resizes the Analysis charts on show |
+| `boot.js` | Re-render on theme change; load example data, then saved data if any (which opens Analysis unless the hash picked a tab) |
 
 ## Grabber modules
 

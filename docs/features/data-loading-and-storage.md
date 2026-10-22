@@ -1,6 +1,6 @@
 # Data loading and storage
 
-Step 2 of the page. Code sections: `loading`, `storage (IndexedDB)`, `state`, `example data`.
+Step 2 of the page's Data tab. Code sections: `loading`, `storage (IndexedDB)`, `state`, `example data`.
 
 ## Inputs
 
@@ -16,13 +16,14 @@ If both are selected, the JSON wins. The drop zone is keyboard-operable (Enter/S
 
 ## setData
 
-`setData(payload, isExample)`:
+`setData(payload, isExample, fromUser)`:
 
 1. Shallow-copies each run and calls `prepare(run)`, which adds the derived fields below. Runs with an unparseable `date` are dropped.
 2. Sorts by date.
-3. Updates the status chip ("Showing example data" vs "Your data · N runs · 2016–2026").
+3. Updates the status chip ("Example data · Load yours", linking to the Data tab, vs "Your data · N runs · 2016–2026").
 4. Suggests a heart-rate band.
 5. Calls `render()`.
+6. If `fromUser` (a file loaded in the drop zone), switches to the Analysis tab with a history entry. The example data, "Forget my data" and a restore from this browser pass no `fromUser`.
 
 `prepare` computes, once per load:
 
@@ -49,7 +50,7 @@ With "Remember in this browser" ticked (default), the loaded payload is stored i
 - database `run-progress-lab`, object store `kv`, key `data`
 - IndexedDB rather than `localStorage` because a 10-year `runs.json` is 10–20 MB, beyond `localStorage` limits
 
-On boot the page renders example data immediately, then replaces it with the stored payload if one exists. Unticking the box or pressing "Forget my data" deletes the key. Every IndexedDB call is wrapped in try/catch, so private windows or blocked storage just mean nothing is remembered.
+On boot the page renders example data immediately, then replaces it with the stored payload if one exists and opens the Analysis tab, unless the URL hash picked a tab or you already switched. Unticking the box or pressing "Forget my data" deletes the key. Every IndexedDB call is wrapped in try/catch, so private windows or blocked storage just mean nothing is remembered.
 
 Data never leaves the browser.
 
@@ -63,4 +64,4 @@ Data never leaves the browser.
 - 15% of runs at threshold heart rate
 - rolling terrain (±25 m)
 
-The status chip says "Showing example data" until real data is loaded.
+The status chip says "Example data · Load yours" until real data is loaded.

@@ -3,7 +3,8 @@
 function renderTraining(c){
   const max = +$("hr-max").value || 190, rest = Math.min(+$("hr-rest").value || 50, max-20), zb = hrrZones(max, rest);
   const zr = [`Z1 &lt;${zb[0]}`, `Z2 ${zb[0]}–${zb[1]}`, `Z3 ${zb[1]}–${zb[2]}`, `Z4 ${zb[2]}–${zb[3]}`, `Z5 ${zb[3]}+`];
-  $("zones-legend").innerHTML = zr.map((s,i)=>`<span style="--c:var(--z${i+1})">${s}</span>`).join("") + " bpm";
+  $("zones-legend").innerHTML = $("zones-preview").innerHTML = zr.map((s,i)=>`<span style="--c:var(--z${i+1})">${s}</span>`).join("") + " bpm";
+  $("hr-link").innerHTML = `Max ${max} / resting ${rest} bpm · set in <a href="#data">Data › Your heart rate</a>`;
   $("zones-fallback").hidden = true;
   if (!RUNS.length){ $("kpis2").innerHTML = ""; return; }
   const lastDay = RUNS[RUNS.length-1]._day, lastWeek = weekOf(lastDay), W = 52, firstWeek = lastWeek-W+1;

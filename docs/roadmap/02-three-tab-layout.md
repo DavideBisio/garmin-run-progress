@@ -119,8 +119,10 @@ Mobile (360 px):
 ## Completion checklist
 
 - [ ] No chart is drawn at 0 × 0: open Analysis for the first time after loading data while Data was showing.
-- [ ] The Data tab's "Your heart rate" is now the **only** place to set max and resting HR. The Training group's hint links to it instead of duplicating the inputs.
+- [x] The Data tab's "Your heart rate" is now the **only** place to set max and resting HR. The Training group's hint links to it instead of duplicating the inputs.
 - [ ] Theme changes re-render the charts in hidden tabs too. They stay correct when you switch to them.
-- [ ] Deep links to old anchors (`#s1`, `#s2`, `#s3`) still land on the right tab.
+- [x] Deep links to old anchors (`#s1`, `#s2`, `#s3`) still land on the right tab.
 - [ ] The built single-file `index.html` still works when opened from disk (`file://`). Hash navigation needs no server.
-- [ ] `tools/build.py` picks up `tabs.js` from the script tag list, and `tests/page.test.mjs` "loads every js file exactly once" passes.
+- [x] `tools/build.py` picks up `tabs.js` from the script tag list, and `tests/page.test.mjs` "loads every js file exactly once" passes.
+
+The README has no screenshots, so there were none to update. The unchecked items above, and the manual checks under Testing strategy, need a browser.

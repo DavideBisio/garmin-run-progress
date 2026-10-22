@@ -17,16 +17,23 @@
 <div class="wrap">
 <header>
   <h1>Run Progress Lab</h1>
-  <p class="lede">Measure how your running fitness changed across the years: pace at the same heart rate, best efforts converted to VDOT, endurance, resting heart rate and form. Then see how hard you're training right now. Everything runs in your browser; your data never leaves this page.</p>
-  <span class="status" id="status"><i></i><span id="status-t">Showing example data</span></span>
+  <p class="lede">Measure how your running fitness changed, and plan what comes next. Everything runs in your browser; your data never leaves this page.</p>
+  <span class="status" id="status"><i></i><span id="status-t">Example data ·</span><a href="#data" id="status-load">Load yours</a></span>
 </header>
 
+<div class="tabs" role="tablist" aria-label="Sections">
+  <button role="tab" id="tab-btn-data" aria-controls="tab-data" aria-selected="true">Data</button>
+  <button role="tab" id="tab-btn-analysis" aria-controls="tab-analysis" aria-selected="false" tabindex="-1">Analysis</button>
+  <button role="tab" id="tab-btn-planning" aria-controls="tab-planning" aria-selected="false" tabindex="-1">Planning</button>
+</div>
+
+<section class="tabpanel" role="tabpanel" id="tab-data" aria-labelledby="tab-btn-data">
 <section class="step" aria-labelledby="s1">
   <div class="num">1</div>
   <div class="step-body">
     <h2 id="s1">Get the grabber</h2>
     <div class="panel">
-      <p>A Python script that logs into Garmin Connect, fetches only runs it hasn't seen before, keeps the original GPX files, and writes one <span class="chip">runs.json</span> for step 2.</p>
+      <p>A Python script that logs into Garmin Connect, fetches only runs it hasn't seen before, keeps the original GPX files, and writes one <span class="chip">runs.json</span> to load in step 2.</p>
       <div class="row">
         <button class="primary" id="dl-zip" hidden>Download grabber (.zip)</button>
         <a class="btn" id="dl-py" href="https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py">Download garmin_grab.py</a>
@@ -69,10 +76,26 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
   </div>
 </section>
 
-<section class="step" aria-labelledby="s3">
+<section class="step" aria-labelledby="s-hr">
   <div class="num">3</div>
   <div class="step-body">
-    <h2 id="s3">Analysis</h2>
+    <h2 id="s-hr">Your heart rate</h2>
+    <div class="panel">
+      <p class="muted small-t">Your max and resting heart rate set the training zones and the load in Analysis, and the plan in Planning.</p>
+      <div class="controls">
+        <div class="field">Max / resting heart rate
+          <span class="band"><input type="number" id="hr-max" min="140" max="230" value="190" aria-label="Maximum heart rate"> / <input type="number" id="hr-rest" min="30" max="90" value="50" aria-label="Resting heart rate"> bpm</span>
+        </div>
+      </div>
+      <p class="muted small-t" id="lim-hint"></p>
+      <div class="legend" id="zones-preview"></div>
+    </div>
+  </div>
+</section>
+</section>
+
+<section class="tabpanel step-body" role="tabpanel" id="tab-analysis" aria-labelledby="tab-btn-analysis" hidden>
+    <h2 class="vh" id="s3">Analysis</h2>
     <div class="panel">
       <div class="controls">
         <div class="field">Heart-rate band
@@ -180,14 +203,7 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <h3>Training</h3>
       <p class="muted small-t">The 52 weeks up to your last run<span id="tr-end"></span>. Uses every run: the month and trail filters above don't apply. Only runs are in the grabber, so cross-training isn't counted.</p>
     </div>
-    <div class="panel">
-      <div class="controls">
-        <div class="field">Max / resting heart rate
-          <span class="band"><input type="number" id="hr-max" min="140" max="230" value="190" aria-label="Maximum heart rate"> / <input type="number" id="hr-rest" min="30" max="90" value="50" aria-label="Resting heart rate"> bpm</span>
-        </div>
-      </div>
-      <p class="muted small-t" id="lim-hint"></p>
-    </div>
+    <p class="small-t" id="hr-link"></p>
 
     <div class="kpis" id="kpis2"></div>
 
@@ -243,6 +259,18 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <p><b>Training load</b> is Banister's TRIMP. Treadmill runs without a heart-rate stream use their average heart rate. Runs with no heart rate at all add nothing, which understates the load. <b>Max and resting heart rate</b> set the zones and the load: both move every zone boundary, so enter a measured max if you have it.</p>
       <p><b>Zones</b> are shares of your heart-rate reserve (max − resting, the Karvonen method): Z1–Z2 is below 70% and counts as easy. They come from the heart-rate stream. Runs without one fall back to Garmin's own zone times, which use the zones set in Garmin Connect; set its heart-rate zones to %HRR with the same max and resting heart rate so both agree.</p>
     </div>
+</section>
+
+<section class="tabpanel" role="tabpanel" id="tab-planning" aria-labelledby="tab-btn-planning" hidden>
+  <div class="panel empty">
+    <h2>No plan in this file</h2>
+    <p class="muted">Plans will be made on your computer, next to the grabber. These commands come with the training plan generator:</p>
+    <ul class="cmds">
+      <li><span class="chip">make plan</span> write garmin_export/plan.md and plan.json</li>
+      <li><span class="chip">make push</span> put the workouts on your Garmin calendar</li>
+      <li><span class="chip">make grab</span> include the plan in runs.json, then load it in Data</li>
+    </ul>
+    <p><a class="btn" href="../docs/roadmap/readme/">See the roadmap</a></p>
   </div>
 </section>
 </div>
@@ -262,6 +290,7 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
 <script src="js/loading.js"></script>
 <script src="js/render.js"></script>
 <script src="js/training.js"></script>
+<script src="js/tabs.js"></script>
 <script src="js/boot.js"></script>
 
 </body>

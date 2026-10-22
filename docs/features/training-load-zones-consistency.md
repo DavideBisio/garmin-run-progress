@@ -1,6 +1,6 @@
 # Training: load, heart-rate zones and consistency
 
-The "Training" group at the bottom of the analysis shows how hard and how regularly you're training. Function: `renderTraining(c)`, called at the end of `render`.
+The "Training" group at the bottom of the Analysis tab shows how hard and how regularly you're training. Function: `renderTraining(c)`, called at the end of `render`.
 
 ## Scope
 
@@ -12,14 +12,14 @@ Weeks are indexed with `weekOf(day) = floor((day + 3) / 7)`, where `day` is days
 
 ## Max and resting heart rate
 
-Two inputs (`#hr-max`, `#hr-rest`) drive the zones and the load. `suggestLimits` fills them on every load:
+Two inputs (`#hr-max`, `#hr-rest`) in the Data tab's "Your heart rate" step drive the zones and the load. `suggestLimits` fills them on every load:
 
 | Input | Default |
 |---|---|
 | Max HR | Second-highest per-run peak. The peak is the 99th percentile of the run's heart-rate stream (ignores optical spikes); runs without a stream use Garmin's `maxHr`. Falls back to 190. |
 | Resting HR | Median of the last 365 days of [resting heart rate](resting-heart-rate.md). Falls back to 50. |
 
-The hint under the inputs says where each value came from and that both move the zone boundaries. Changing either re-renders. A wrong max or resting heart rate shifts every zone, so a lab or field-test value is better than the estimate.
+The hint under the inputs says where each value came from and that both move the zone boundaries; below it, `#zones-preview` shows the same bpm ranges as the zones chart legend. Changing either re-renders. In the Training group, `#hr-link` repeats the two values and links to the Data tab. A wrong max or resting heart rate shifts every zone, so a lab or field-test value is better than the estimate.
 
 ## Training load (TRIMP)
 

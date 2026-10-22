@@ -15,7 +15,8 @@ const pageScript = [...html.matchAll(/<script>\n([\s\S]*?)<\/script>/g)].at(-1)[
 const BOOT = "setData(exampleData(), true);\nidbGet()";
 
 // scripts: the built page script, or the unbuilt src/page/js files run one after another
-function runPage(data, scripts = [pageScript]) {
+// opts.hash installs window.location (hash writes and replace() recorded) and window.addEventListener
+function runPage(data, scripts = [pageScript], opts = {}) {
   const defaults = { "hr-lo": "140", "hr-hi": "150", season: "all", "hr-max": "190", "hr-rest": "50" };
   const els = {}, charts = {};
   const el = id => els[id] ??= {
@@ -24,7 +25,10 @@ function runPage(data, scripts = [pageScript]) {
     classList: { toggle() {}, add() {}, remove() {} }, click() {},
     listeners: {}, addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
     firstElementChild: { style: {} }, files: [],
+    attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k] ?? null; },
+    tabIndex: 0, focus() { focused.push(id); },
   };
+  const focused = [], resized = [], hashes = [], winListeners = {};
   const defined = [];
   const ctx = {
     console, Intl, Math, Date, JSON, Map, Set, Float32Array, Uint32Array, Uint8Array, DataView, ArrayBuffer,
@@ -32,7 +36,7 @@ function runPage(data, scripts = [pageScript]) {
     document: { getElementById: el, querySelectorAll: () => [], documentElement: { dataset: {} }, body: {}, createElement: () => ({}) },
     getComputedStyle: () => ({ getPropertyValue: () => "#2347C5" }),
     matchMedia: () => ({ matches: false, addEventListener() {} }), MutationObserver: class { observe() {} },
-    Chart: class { constructor(canvas, cfg) { charts[canvas.id] = cfg; } destroy() {} },
+    Chart: class { constructor(canvas, cfg) { charts[canvas.id] = cfg; this.id = canvas.id; } destroy() {} resize() { resized.push(this.id); } },
     // just enough for site-bar.js to register itself
     HTMLElement: class {},
     customElements: { define(name) { defined.push(name); }, get: name => defined.includes(name) ? class {} : undefined },
@@ -40,13 +44,19 @@ function runPage(data, scripts = [pageScript]) {
     __DATA: data,
   };
   ctx.window = ctx;
+  if (opts.hash !== undefined) {
+    let hash = opts.hash;
+    ctx.location = { get hash() { return hash; }, set hash(h) { hashes.push(["push", h]); hash = h; },
+      replace(u) { hashes.push(["replace", u]); hash = u.slice(u.indexOf("#")); } };
+    ctx.addEventListener = (type, fn) => { (winListeners[type] ??= []).push(fn); };
+  }
   const last = scripts.at(-1);
   assert.ok(last.includes(BOOT), "boot line not found");
   if (data) scripts = [...scripts.slice(0, -1), last.replace(BOOT, "setData(window.__DATA, false);\nidbGet()")];
   vm.createContext(ctx);
   for (const code of scripts) vm.runInContext(code, ctx);
   const kpis = id => el(id).innerHTML.split('<div class="kpi">').length - 1;
-  return { el, charts, kpis, defined };
+  return { el, charts, kpis, defined, focused, resized, hashes, winListeners, ctx };
 }
 
 // steady 60-minute runs at 3 m/s and ~145 bpm, two a week, in the old runs.json format
@@ -173,4 +183,69 @@ test("TC-7 runs without a usable HR stream are counted; easy share is below 70% 
   assert.ok(kpi.includes("70% of heart-rate reserve"), "easy-share text not HRR-based");
   const v = +/<span class="val">(\d+)%<\/span>/.exec(kpi)[1];
   assert.ok(v > 0 && v < 100, `easy share ${v}`);
+});
+
+const TABS = ["data", "analysis", "planning"];
+const visible = el => TABS.filter(t => !el(`tab-${t}`).hidden);
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+test("TC-8 tabs.js loads once before boot.js; three tabpanels, only Data shown after boot", () => {
+  assert.equal(devScripts.filter(f => f === "tabs.js").length, 1);
+  assert.ok(devScripts.indexOf("tabs.js") < devScripts.indexOf("boot.js"), "tabs.js must load before boot.js");
+  assert.equal(html.match(/role="tabpanel"/g)?.length, 3);
+  for (const t of TABS) assert.ok(new RegExp(`<section[^>]*\\bid="tab-${t}"`).test(html), `no tab-${t} section`);
+  const { el } = runPage();
+  assert.deepEqual(visible(el), ["data"]);
+});
+
+test("TC-9 the URL hash picks the tab, old #s1/#s2/#s3 anchors too", () => {
+  for (const [hash, tab] of [["#planning", "planning"], ["#analysis", "analysis"], ["#data", "data"], ["#s3", "analysis"], ["#s1", "data"], ["#s2", "data"], ["", "data"], ["#nope", "data"]]) {
+    const { el } = runPage(undefined, [pageScript], { hash });
+    assert.deepEqual(visible(el), [tab], `hash ${hash}`);
+  }
+  for (const id of TABS) assert.ok(!new RegExp(`\\bid="${id}"`).test(html), `no element may have id ${id}`);
+});
+
+test("TC-10 a user file load opens Analysis and resizes its charts; example boot and Forget stay put", async () => {
+  const d = oldFormatData();
+  const { el, resized, hashes } = runPage(undefined, [pageScript], { hash: "" });
+  await tick();
+  assert.deepEqual(visible(el), ["data"], "example boot left Data");
+  resized.length = 0;
+  el("file").files = [{ name: "runs.json", text: async () => JSON.stringify(d) }];
+  el("file").listeners.change[0]();
+  await tick(); await tick();
+  assert.match(el("status-t").textContent, /Your data · 120 runs/);
+  assert.deepEqual(visible(el), ["analysis"], "user load did not open Analysis");
+  assert.ok(resized.includes("c-eff") && resized.includes("c-zones"), `charts not resized: ${resized}`);
+  assert.deepEqual(hashes.at(-1), ["push", "#analysis"]);
+  el("clear").listeners.click[0]();
+  await tick(); await tick();
+  assert.match(el("status-t").textContent, /Example data/);
+  assert.deepEqual(visible(el), ["analysis"], "Forget my data switched tabs");
+});
+
+test("TC-11 WAI-ARIA tabs: roles, one aria-selected, arrow keys wrap, Home/End; no location is fine", () => {
+  const attrs = tag => Object.fromEntries([...tag.matchAll(/([\w-]+)="([^"]*)"/g)].map(m => [m[1], m[2]]));
+  const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map(m => attrs(m[0]));
+  assert.deepEqual(tabs.map(a => [a.id, a["aria-controls"]]), TABS.map(t => [`tab-btn-${t}`, `tab-${t}`]));
+  const panels = [...html.matchAll(/<section[^>]*role="tabpanel"[^>]*>/g)].map(m => attrs(m[0]));
+  assert.deepEqual(panels.map(a => [a.id, a["aria-labelledby"]]), TABS.map(t => [`tab-${t}`, `tab-btn-${t}`]));
+  assert.ok(/role="tablist"/.test(html), "no tablist");
+  let page;
+  assert.doesNotThrow(() => { page = runPage(); });
+  const { el, focused } = page;
+  const selected = () => TABS.filter(t => el(`tab-btn-${t}`).getAttribute("aria-selected") === "true");
+  const key = (t, k) => el(`tab-btn-${t}`).listeners.keydown[0]({ key: k, preventDefault() {} });
+  const check = t => {
+    assert.deepEqual(visible(el), [t]); assert.deepEqual(selected(), [t]);
+    for (const u of TABS) assert.equal(el(`tab-btn-${u}`).tabIndex, u === t ? 0 : -1);
+  };
+  check("data");
+  key("data", "ArrowLeft"); check("planning"); assert.equal(focused.at(-1), "tab-btn-planning");
+  key("planning", "ArrowRight"); check("data"); assert.equal(focused.at(-1), "tab-btn-data");
+  key("data", "ArrowRight"); check("analysis");
+  key("analysis", "End"); check("planning");
+  key("planning", "Home"); check("data");
+  el("tab-btn-analysis").listeners.click[0]({}); check("analysis");
 });

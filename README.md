@@ -5,7 +5,7 @@ Measure how your running fitness changed over the years using your own Garmin Co
 It has two parts:
 
 - **`garmin_grab.py`** is an incremental exporter. It logs into Garmin Connect, downloads the GPX of every run it hasn't seen before, fetches your daily resting heart rate, and writes one compact `runs.json`.
-- **`index.html`** is the analysis page. Open it in a browser, drop in `runs.json`, and get the trends. Everything runs locally, and nothing is uploaded.
+- **`index.html`** is the analysis page. Open it in a browser, drop `runs.json` in the Data tab, and get the trends in Analysis. Everything runs locally, and nothing is uploaded.
 
 ## What the analysis shows
 
@@ -43,7 +43,7 @@ python garmin_grab.py
 
 The first run asks for your Garmin email, password and MFA code. Tokens are saved in `~/.garminconnect`, so later runs need nothing.
 
-Then open the analysis page at https://davidebisio.github.io/garmin-run-progress/app/ (or the release's `index.html`, saved locally) and drop in `garmin_export/runs.json`.
+Then open the analysis page at https://davidebisio.github.io/garmin-run-progress/app/ (or the release's `index.html`, saved locally) and drop `garmin_export/runs.json` in the Data tab.
 
 From a clone, `make install` and `make grab` do the same (see [Development](#development)).
 

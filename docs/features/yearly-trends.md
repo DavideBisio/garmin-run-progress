@@ -50,7 +50,7 @@ Theil–Sen is used instead of least squares because it ignores outlier years (a
 
 ## Charts
 
-Chart.js 4.4.1 (UMD build, vendored in `src/page/vendor/` and inlined by `tools/build.py`; the version lives in `CHART_VERSION` there). Each chart is destroyed and recreated on render; with `animation: false` this is cheap.
+Chart.js 4.4.1 (UMD build, vendored in `src/page/vendor/` and inlined by `tools/build.py`; the version lives in `CHART_VERSION` there). Each chart is destroyed and recreated on render; with `animation: false` this is cheap. Charts drawn while the Analysis tab is hidden measure 0 × 0, so `showTab` calls `resize()` on them when the tab is shown.
 
 | Canvas | Type | Data |
 |---|---|---|
