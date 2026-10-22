@@ -1,0 +1,68 @@
+---
+import { BaseLayout, Hero, Section, FeatureGrid, Steps, Callout } from '@davidebisio/site-kit';
+import config from 'virtual:site-kit/config';
+
+const download = 'https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py';
+---
+
+<BaseLayout title={config.title}>
+  <Hero
+    title={config.title}
+    lede={config.description}
+    actions={[
+      { label: 'Open the app', href: '/app/', primary: true },
+      { label: 'Read the docs', href: '/docs/' },
+      { label: 'View source', href: config.repo ?? '/' },
+    ]}
+  />
+
+  <Section title="What it shows">
+    <FeatureGrid
+      items={[
+        {
+          title: 'Pace at the same heart rate',
+          body: 'Grade-adjusted pace inside a heart-rate band, year by year: the steadiest fitness signal.',
+          href: '/docs/features/pace-at-heart-rate/',
+        },
+        {
+          title: 'Best efforts as VDOT',
+          body: "The fastest 5 km, 10 km and half inside any run, converted to Daniels' VDOT so distances compare.",
+          href: '/docs/features/best-efforts-and-vdot/',
+        },
+        {
+          title: 'Training load and zones',
+          body: 'Weekly TRIMP, the acute:chronic load ratio, minutes per heart-rate zone and consistency.',
+          href: '/docs/features/training-load-zones-consistency/',
+        },
+        {
+          title: 'Resting heart rate',
+          body: 'The daily value from your watch with its 30-day median, to spot fitness gains and fatigue.',
+          href: '/docs/features/resting-heart-rate/',
+        },
+        {
+          title: 'Aerobic decoupling',
+          body: 'How much pace per heartbeat drops in the second half of long steady runs.',
+          href: '/docs/features/aerobic-decoupling/',
+        },
+        {
+          title: 'Planning (roadmap)',
+          body: 'A training plan generator built on your own VDOT, heart rate and volume, pushed to the Garmin calendar.',
+          href: '/docs/roadmap/readme/',
+        },
+      ]}
+    />
+  </Section>
+
+  <Section title="How it works">
+    <Steps
+      items={[
+        { title: 'Download garmin_grab.py', body: 'Needs Python 3.12 or later and `pip install garminconnect curl_cffi ua-generator`.', command: `curl -fLO ${download}` },
+        { title: 'Run it', body: 'It fetches only the runs it has not seen before and writes `garmin_export/runs.json`.', command: 'python garmin_grab.py' },
+        { title: 'Drop runs.json on the app', body: '[Open the app](./app/) and drop the file on it, or try it first with the example data.' },
+      ]}
+    />
+    <Callout tone="privacy" title="Your data stays on your computer">
+      <p>The grabber talks only to Garmin; the app runs in your browser.</p>
+    </Callout>
+  </Section>
+</BaseLayout>

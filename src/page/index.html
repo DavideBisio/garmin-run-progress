@@ -7,9 +7,12 @@
 <body>
 <title>Run Progress Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="vendor/tokens.css">
 <link rel="stylesheet" href="styles.css">
+
+<site-bar project="Run Progress Lab" home="../" repo="https://github.com/DavideBisio/garmin-run-progress" wide>
+  <a slot="links" href="../docs/">Docs</a>
+</site-bar>
 
 <div class="wrap">
 <header>
@@ -105,7 +108,7 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
         <div class="chart-head">
           <h3>Best efforts as VDOT</h3>
           <p class="muted small-t">Fastest stretch of each distance found inside any run that year, converted to Daniels' VDOT so distances compare.</p>
-          <div class="legend"><span style="--c:var(--accent)">5 km</span><span style="--c:var(--accent-2)">10 km</span><span style="--c:var(--accent-3)">Half</span></div>
+          <div class="legend"><span style="--c:var(--accent-1)">5 km</span><span style="--c:var(--accent-2)">10 km</span><span style="--c:var(--accent-3)">Half</span></div>
         </div>
         <div class="chart-box"><canvas id="c-vdot" aria-label="Best effort VDOT per year"></canvas></div>
       </div>
@@ -163,7 +166,7 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <div class="chart-head">
         <h3>Garmin Training Effect</h3>
         <p class="muted small-t">Garmin's 0–5 score for how much each run trained your aerobic base and your anaerobic (high-intensity) capacity. Mostly 2–3.5 aerobic with a few anaerobic peaks is a typical balanced pattern.</p>
-        <div class="legend"><span style="--c:var(--accent)">Aerobic</span><span style="--c:var(--accent-2)">Anaerobic</span></div>
+        <div class="legend"><span style="--c:var(--accent-1)">Aerobic</span><span style="--c:var(--accent-2)">Anaerobic</span></div>
       </div>
       <div class="chart-box"><canvas id="c-te" aria-label="Aerobic and anaerobic Training Effect over time"></canvas></div>
     </div>
@@ -218,7 +221,7 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
         <div class="chart-head">
           <h3>Weekly distance</h3>
           <p class="muted small-t">Kilometres per week, split into the week's longest run and everything else.</p>
-          <div class="legend"><span style="--c:var(--accent-2)">Longest run</span><span style="--c:var(--accent)">Other runs</span></div>
+          <div class="legend"><span style="--c:var(--accent-2)">Longest run</span><span style="--c:var(--accent-1)">Other runs</span></div>
         </div>
         <div class="chart-box"><canvas id="c-week" aria-label="Kilometres per week"></canvas></div>
       </div>
@@ -244,7 +247,8 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
 </div>
 
 <script type="text/plain" id="grabber-src"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="vendor/chart.umd.min.js"></script>
+<script src="js/site-bar.js"></script>
 <script src="js/dom.js"></script>
 <script src="js/copy.js"></script>
 <script src="js/zip.js"></script>

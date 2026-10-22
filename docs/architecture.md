@@ -27,7 +27,7 @@ It depends on [python-garminconnect](https://github.com/cyberjunky/python-garmin
 
 ### `index.html` (static page)
 
-Source: `src/page/`. The built `index.html` is one self-contained file: HTML, CSS and JavaScript inline. The only external resources are Google Fonts and Chart.js 4.4.1 from cdnjs. It also embeds a copy of `garmin_grab.py` so people can get the script from the page (see [grabber-download](features/grabber-download.md)).
+Source: `src/page/`. The built `index.html` is one self-contained file: HTML, CSS and JavaScript inline, including the vendored Chart.js (version in `CHART_VERSION` in `tools/build.py`) and site-kit's `tokens.css`. It makes no third-party requests, so it works offline. The shared `<site-bar>` from site-kit sits on top, and the theme (`data-theme`, `localStorage.theme`) is shared with every `*.github.io` project site. It also embeds a copy of `garmin_grab.py` so people can get the script from the page (see [grabber-download](features/grabber-download.md)).
 
 All computation happens in the browser. Nothing is sent to a server.
 
@@ -45,13 +45,16 @@ The page only needs `runs.json`, so other sources can feed it: anything that wri
 
 ```text
 src/garmin_grab/        grabber package (python -m garmin_grab from src/)
-src/page/index.html     page markup; loads styles.css and js/*.js
-src/page/styles.css     all CSS
-src/page/js/*.js        page script, one file per section
+src/page/index.html     page markup; loads vendor/tokens.css, styles.css, vendor/chart.umd.min.js and js/*.js
+src/page/styles.css     the app's CSS; its tokens alias site-kit's --sk-* tokens, plus the data-viz colors
+src/page/vendor/        tokens.css (copied from site-kit) and chart.umd.min.js (Chart.js, MIT header kept)
+src/page/js/*.js        page script, one file per section; site-bar.js is copied from site-kit
 tools/build.py          src/ → dist/garmin_grab.py + dist/index.html (not committed)
-.github/workflows/      ci.yml: test, deploy Pages; release.yml: publish releases
-tests/                  grabber unit tests, page smoke tests
-Makefile                dev, test and deploy tasks
+site/                   project site (Astro + site-kit): landing page, docs/ as pages, the app copied to /app/
+project.json            listing for the hub (davidebisio.github.io)
+.github/workflows/      ci.yml: test, build the site; pages.yml: deploy the site; release.yml: publish releases
+tests/                  grabber and build unit tests, page smoke tests, site checks (site.test.mjs)
+Makefile                dev, test, site and deploy tasks
 ```
 
 `tools/build.py` writes the two shipped files into `dist/`:
@@ -61,9 +64,9 @@ Makefile                dev, test and deploy tasks
   - a relative import sits inside a function
   - two modules define the same top-level name
   - one module defines a name that another module imports, or two modules import the same name from different places
-- **`index.html`:** `src/page/index.html` with `styles.css` inlined into `<style>`, the block of `<script src="js/…">` tags replaced by one inline IIFE holding the files in tag order, and the bundled grabber in `#grabber-src`.
+- **`index.html`:** `src/page/index.html` with `vendor/tokens.css` and `styles.css` inlined into `<style>` (in that order), `vendor/chart.umd.min.js` inlined as its own `<script>`, the block of `<script src="js/…">` tags replaced by one inline IIFE holding the files in tag order, and the bundled grabber in `#grabber-src`. The build then checks that the page is self-contained: it fails on any remote `<script src>`, any remote `<link>` (stylesheet, font, preconnect), any CSS `@import` or remote `url()`, and any local `.js`/`.css` file left un-inlined. Plain links (`<a href>`) are fine.
 
-`dist/` is gitignored. GitHub Actions builds it on every push: `main` is deployed to GitHub Pages, and a `v*` tag publishes both files as release assets, so people still get a single script to run without installing a package (see [Deploy → Releasing a change](deploy.md#releasing-a-change)).
+`dist/` is gitignored. GitHub Actions builds it on every push: on `main`, `pages.yml` copies `dist/index.html` into the project site at `/app/` and deploys the site to GitHub Pages, and a `v*` tag publishes both files as release assets, so people still get a single script to run without installing a package (see [Deploy → Releasing a change](deploy.md#releasing-a-change)).
 
 ## Page code map
 
@@ -71,6 +74,7 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 
 | File | Responsibility |
 |---|---|
+| `site-bar.js` | site-kit's `<site-bar>` element (verbatim copy, loaded first): owner and project links, Docs and Source, theme switch shared through `localStorage.theme` |
 | `dom.js` | `$` helper; shows the embedded grabber source |
 | `copy.js` | Clipboard with `execCommand` fallback |
 | `zip.js` | Minimal ZIP writer for the grabber download |

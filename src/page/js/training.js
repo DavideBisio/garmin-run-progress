@@ -50,7 +50,7 @@ function renderTraining(c){
   let o = xCat(baseOpts(c));
   o.scales.y.title = {display:true,text:"TRIMP",color:c.muted};
   o.plugins.tooltip.callbacks = {title, label:ctx=>`Load ${nf.format(ctx.parsed.y)} · ${weeks[ctx.dataIndex].n} runs`};
-  chart("c-load", {type:"bar", data:{labels, datasets:[{data:weeks.map(B=>Math.round(B.load)), backgroundColor:alpha(c.accent,.75), borderRadius:3}]}, options:o});
+  chart("c-load", {type:"bar", data:{labels, datasets:[{data:weeks.map(B=>Math.round(B.load)), backgroundColor:alpha(c.a1,.75), borderRadius:3}]}, options:o});
 
   o = xCat(baseOpts(c));
   o.scales.y = {...o.scales.y, min:0, suggestedMax:2, title:{display:true,text:"ratio",color:c.muted}};
@@ -58,7 +58,7 @@ function renderTraining(c){
   o.plugins.tooltip.filter = item => item.datasetIndex === 0;
   const ref = v => ({label:String(v), data:weeks.map(()=>v), borderColor:c.muted, borderDash:[5,4], borderWidth:1.5, pointRadius:0, pointHitRadius:0});
   chart("c-acwr", {type:"line", data:{labels, datasets:[
-    {label:"Load ratio", data:weeks.map(B=>B.acwr), borderColor:c.accent, backgroundColor:c.accent, borderWidth:2, pointRadius:2.5, pointHoverRadius:5, tension:.25, spanGaps:false},
+    {label:"Load ratio", data:weeks.map(B=>B.acwr), borderColor:c.a1, backgroundColor:c.a1, borderWidth:2, pointRadius:2.5, pointHoverRadius:5, tension:.25, spanGaps:false},
     ref(0.8), ref(1.3)
   ]}, options:o});
 
@@ -75,7 +75,7 @@ function renderTraining(c){
   o.plugins.tooltip.callbacks = {title, label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} km`};
   chart("c-week", {type:"bar", data:{labels, datasets:[
     {label:"Longest run", data:weeks.map(B=>B.long), backgroundColor:c.a2, borderColor:c.surface, borderWidth:{top:1}, borderSkipped:false},
-    {label:"Other runs", data:weeks.map(B=>B.km-B.long), backgroundColor:alpha(c.accent,.75), borderColor:c.surface, borderWidth:{top:1}, borderSkipped:false}
+    {label:"Other runs", data:weeks.map(B=>B.km-B.long), backgroundColor:alpha(c.a1,.75), borderColor:c.surface, borderWidth:{top:1}, borderSkipped:false}
   ]}, options:o});
 
   // consistency per calendar year (all runs)

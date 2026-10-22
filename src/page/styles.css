@@ -1,32 +1,35 @@
 /* Layout: one narrow working column; three numbered steps, then a scan-first analysis panel (KPIs → charts → year table). */
+/* UI colors and fonts alias site-kit's --sk-* tokens (vendor/tokens.css, light and dark
+   from the kit, theme shared with every *.github.io site). Only the data-viz colors are
+   the app's own: --accent-1..3 are chart series, --z1..5 one teal ramp for the HR zones. */
 :root{
-  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#131923; --muted:#5A6576; --line:#DAE0E8; --soft:#E9EDF3;
-  --accent:#2347C5; --accent-ink:#FFFFFF; --accent-2:#C9731F; --accent-3:#2F8F6B;
-  --good:#23855C; --bad:#B8402F;
-  --z1:#9DB2EC; --z2:#7891E2; --z3:#5272D4; --z4:#3156BE; --z5:#1C398A;
-  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
-  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --bg:var(--sk-bg); --surface:var(--sk-surface); --ink:var(--sk-ink); --muted:var(--sk-muted);
+  --line:var(--sk-line); --soft:var(--sk-surface-2);
+  --accent:var(--sk-accent); --accent-ink:var(--sk-accent-ink);
+  --good:var(--sk-good); --bad:var(--sk-bad);
+  --accent-1:#c84b42; --accent-2:#008e89; --accent-3:#5554b6;
+  --z1:#59c5bf; --z2:#26aea6; --z3:#00958c; --z4:#007a75; --z5:#00605f;
+  --f-display:var(--sk-font-sans);
+  --f-body:var(--sk-font-sans);
+  --f-mono:var(--sk-font-mono);
   --r:10px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0D1219; --surface:#141B25; --ink:#E6EBF2; --muted:#93A0B2; --line:#253041; --soft:#1B2431;
-  --accent:#7E9CFF; --accent-ink:#0D1219; --accent-2:#EFA35C; --accent-3:#5CC69C;
-  --good:#5CC69C; --bad:#F08A78; color-scheme:dark;
-  --z1:#344D8C; --z2:#4766AA; --z3:#5F84DA; --z4:#8FA9F3; --z5:#C6D3FB}}
+  --accent-1:#e3655a; --accent-2:#1aa598; --accent-3:#8382e2;
+  --z1:#00736f; --z2:#038d86; --z3:#1ba79f; --z4:#52bfb8; --z5:#84d5cf}}
 :root[data-theme="dark"]{
-  --bg:#0D1219; --surface:#141B25; --ink:#E6EBF2; --muted:#93A0B2; --line:#253041; --soft:#1B2431;
-  --accent:#7E9CFF; --accent-ink:#0D1219; --accent-2:#EFA35C; --accent-3:#5CC69C;
-  --good:#5CC69C; --bad:#F08A78; color-scheme:dark;
-  --z1:#344D8C; --z2:#4766AA; --z3:#5F84DA; --z4:#8FA9F3; --z5:#C6D3FB}
+  --accent-1:#e3655a; --accent-2:#1aa598; --accent-3:#8382e2;
+  --z1:#00736f; --z2:#038d86; --z3:#1ba79f; --z4:#52bfb8; --z5:#84d5cf}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);margin:0}
+site-bar{display:block}
+site-bar:not(:defined){visibility:hidden;min-height:calc(4.25rem + 1px)}
+.wrap{box-sizing:content-box;max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:28px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
-.wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
-h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
-h1{font-size:clamp(40px,7vw,64px);font-weight:700;text-transform:uppercase}
-h2{font-size:30px;text-transform:uppercase}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:-.01em;text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(36px,6vw,56px);font-weight:700}
+h2{font-size:28px}
 h3{font-size:21px}
 p{margin:0}
 .lede{color:var(--muted);max-width:62ch}
@@ -86,7 +89,7 @@ td.best{color:var(--accent);font-weight:600}
 .method p{max-width:72ch}
 .method b{color:var(--ink)}
 .group{display:flex;flex-direction:column;gap:6px;margin-top:14px}
-.group h3{font-size:28px;text-transform:uppercase}
+.group h3{font-size:26px}
 .progress{height:4px;background:var(--soft);border-radius:4px;overflow:hidden}
 .progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
 @media (max-width:560px){section.step{grid-template-columns:1fr}.num{font-size:40px;grid-row:auto}}

@@ -1,0 +1,126 @@
+/* Copied from site-kit v0.1.2 (DavideBisio/site-kit@ef6ed2586d40a45e27228d4734d5a2abe58575d2) src/styles/tokens.css.
+ * Do not edit: re-copy it together with js/site-bar.js when upgrading site-kit (docs/deploy.md). */
+/*
+ * site-kit design tokens: the single source of truth for color, type, spacing and shape.
+ *
+ * Plain CSS custom properties, prefixed --sk-, so they work in Astro, with Tailwind
+ * (see tailwind.css) and in vanilla apps (link this file, nothing else needed).
+ *
+ * Theme: <html data-theme="light|dark"> wins; with no attribute the OS preference
+ * applies. The attribute is set by ThemeScript (Astro) or <site-bar> (vanilla), and
+ * the choice is stored in localStorage "theme", which every *.github.io project site
+ * shares because they are one origin.
+ *
+ * Everything lives in @layer site-kit, so any unlayered rule and every Tailwind layer
+ * declared after it overrides the kit without !important.
+ */
+@layer site-kit {
+  :root {
+    color-scheme: light;
+
+    /* Brand palette (raw values; prefer the semantic tokens below) */
+    --sk-slate: #1e232a;
+    --sk-crimson: #c84b42;
+    --sk-amber: #f9a23e;
+    --sk-offwhite: #f2ede4;
+    --sk-teal: #4c908f;
+
+    /* Semantic colors: light */
+    --sk-bg: var(--sk-offwhite);
+    --sk-surface: #ffffff;
+    --sk-surface-2: #e9e3d8;
+    --sk-ink: var(--sk-slate);
+    --sk-muted: #45556c; /* the hub's slate-600 */
+    --sk-line: #e2e8f0; /* the hub's slate-200 */
+    --sk-accent: var(--sk-crimson); /* fills: buttons, badges */
+    --sk-accent-ink: #ffffff; /* text on --sk-accent */
+    --sk-link: #b8443b; /* crimson darkened just enough for 4.5:1 on --sk-bg */
+    --sk-highlight: var(--sk-amber);
+    --sk-btn-line: #cad5e2; /* the hub's slate-300 */
+    --sk-secondary: #36706f; /* teal darkened for text */
+    --sk-code-bg: #e9e3d8; /* inline code */
+    --sk-pre-bg: #fbf8f3; /* code blocks: lighter than --sk-code-bg so every highlight color reaches 4.5:1 */
+    --sk-good: #1d7550;
+    --sk-bad: #b8402f;
+    --sk-focus: var(--sk-amber);
+
+    /* Type */
+    --sk-font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --sk-font-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Consolas, monospace;
+    --sk-text-xs: 0.75rem;
+    --sk-text-sm: 0.875rem;
+    --sk-text-md: 1rem;
+    --sk-text-lg: 1.25rem;
+    --sk-text-xl: 1.75rem;
+    --sk-text-2xl: clamp(2rem, 1.4rem + 3vw, 3rem);
+    --sk-leading: 1.5;
+    --sk-leading-tight: 1.15;
+
+    /* Spacing */
+    --sk-space-1: 0.25rem;
+    --sk-space-2: 0.5rem;
+    --sk-space-3: 0.75rem;
+    --sk-space-4: 1rem;
+    --sk-space-5: 1.5rem;
+    --sk-space-6: 2rem;
+    --sk-space-7: 3rem;
+    --sk-space-8: 4rem;
+
+    /* Layout */
+    --sk-width-narrow: 48rem;
+    --sk-width-wide: 72rem;
+    --sk-gutter: 1rem;
+    --sk-tap: 44px;
+
+    /* Shape */
+    --sk-radius: 0.5rem;
+    --sk-radius-sm: 0.25rem;
+    --sk-radius-md: 0.375rem;
+    --sk-radius-pill: 999px;
+    --sk-shadow: 0 1px 3px rgb(30 35 42 / 12%);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+      --sk-bg: var(--sk-slate);
+      --sk-surface: #282e37;
+      --sk-surface-2: #323a45;
+      --sk-ink: var(--sk-offwhite);
+      --sk-muted: #62a6a5; /* teal lightened to 4.5:1 on --sk-surface */
+      --sk-line: var(--sk-teal);
+      --sk-accent: var(--sk-crimson);
+      --sk-accent-ink: #ffffff;
+      --sk-link: var(--sk-amber);
+      --sk-highlight: var(--sk-amber);
+      --sk-btn-line: var(--sk-teal);
+      --sk-secondary: #7fbcbb;
+      --sk-code-bg: #15181e;
+      --sk-pre-bg: #15181e;
+      --sk-good: #5cc69c;
+      --sk-bad: #f08a78;
+      --sk-shadow: 0 1px 3px rgb(0 0 0 / 40%);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --sk-bg: var(--sk-slate);
+    --sk-surface: #282e37;
+    --sk-surface-2: #323a45;
+    --sk-ink: var(--sk-offwhite);
+    --sk-muted: #62a6a5; /* teal lightened to 4.5:1 on --sk-surface */
+    --sk-line: var(--sk-teal);
+    --sk-accent: var(--sk-crimson);
+    --sk-accent-ink: #ffffff;
+    --sk-link: var(--sk-amber);
+    --sk-highlight: var(--sk-amber);
+    --sk-btn-line: var(--sk-teal);
+    --sk-secondary: #7fbcbb;
+    --sk-code-bg: #15181e;
+    --sk-pre-bg: #15181e;
+    --sk-good: #5cc69c;
+    --sk-bad: #f08a78;
+    --sk-shadow: 0 1px 3px rgb(0 0 0 / 40%);
+  }
+}

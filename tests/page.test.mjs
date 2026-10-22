@@ -24,13 +24,18 @@ function runPage(data, scripts = [pageScript]) {
     classList: { toggle() {}, add() {}, remove() {} }, addEventListener() {}, click() {},
     firstElementChild: { style: {} }, files: [],
   };
+  const defined = [];
   const ctx = {
     console, Intl, Math, Date, JSON, Map, Set, Float32Array, Uint32Array, Uint8Array, DataView, ArrayBuffer,
     Promise, setTimeout, TextEncoder, Blob: class {}, navigator: {}, indexedDB: undefined,
-    document: { getElementById: el, querySelectorAll: () => [], documentElement: {}, body: {}, createElement: () => ({}) },
+    document: { getElementById: el, querySelectorAll: () => [], documentElement: { dataset: {} }, body: {}, createElement: () => ({}) },
     getComputedStyle: () => ({ getPropertyValue: () => "#2347C5" }),
-    matchMedia: () => ({ addEventListener() {} }), MutationObserver: class { observe() {} },
+    matchMedia: () => ({ matches: false, addEventListener() {} }), MutationObserver: class { observe() {} },
     Chart: class { constructor(canvas, cfg) { charts[canvas.id] = cfg; } destroy() {} },
+    // just enough for site-bar.js to register itself
+    HTMLElement: class {},
+    customElements: { define(name) { defined.push(name); }, get: name => defined.includes(name) ? class {} : undefined },
+    localStorage: { getItem: () => null, setItem() {} },
     __DATA: data,
   };
   ctx.window = ctx;
@@ -40,7 +45,7 @@ function runPage(data, scripts = [pageScript]) {
   vm.createContext(ctx);
   for (const code of scripts) vm.runInContext(code, ctx);
   const kpis = id => el(id).innerHTML.split('<div class="kpi">').length - 1;
-  return { el, charts, kpis };
+  return { el, charts, kpis, defined };
 }
 
 // steady 60-minute runs at 3 m/s and ~145 bpm, two a week, in the old runs.json format
@@ -74,14 +79,35 @@ test("old runs.json without the newer fields still renders and hides empty panel
   assert.equal(el("dec-panel").hidden, false);
 });
 
+test("the page defines <site-bar> exactly once", () => {
+  assert.deepEqual(runPage().defined, ["site-bar"]);
+});
+
+test("the built page loads no third-party scripts or stylesheets", () => {
+  assert.doesNotMatch(html, /<script\b[^>]*\bsrc\s*=\s*["']?(?:https?:)?\/\//i);
+  assert.doesNotMatch(html, /<link\b[^>]*\bhref\s*=\s*["']?(?:https?:)?\/\//i);
+});
+
+test("the inlined Chart.js bundle defines Chart", () => {
+  const blocks = [...html.matchAll(/<script>\n([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const bundle = blocks.find(b => b.includes("Chart.js v"));
+  assert.ok(bundle, "no inlined Chart.js <script> block");
+  assert.ok(blocks.indexOf(bundle) < blocks.length - 1, "Chart.js must come before the page script");
+  assert.match(bundle, /Released under the MIT License/);
+  const ctx = vm.createContext({});
+  vm.runInContext(bundle, ctx);
+  assert.equal(typeof ctx.Chart, "function");
+});
+
 test("the page embeds the built garmin_grab.py", () => {
   assert.equal(grabberSrc, read("dist/garmin_grab.py"));
 });
 
 const devScripts = [...read("src/page/index.html").matchAll(/<script src="js\/([\w-]+\.js)"><\/script>/g)].map(m => m[1]);
 
-test("src/page/index.html loads every js file exactly once", () => {
+test("src/page/index.html loads every js file exactly once, site-bar.js first", () => {
   assert.deepEqual([...devScripts].sort(), fs.readdirSync(path.join(ROOT, "src/page/js")).sort());
+  assert.equal(devScripts[0], "site-bar.js");
 });
 
 test("the unbuilt src/page/js files also run as separate scripts (make dev)", () => {

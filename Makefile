@@ -25,10 +25,10 @@ ifneq ($(filter release,$(MAKECMDGOALS)),)
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help install upgrade grab rebuild build dev serve test test-py test-js deploy release clean
+.PHONY: help install upgrade grab rebuild build dev serve test test-py test-js site-install site-dev site-build site-test deploy release clean
 
 help: ## list the targets
-	@$(PY) -c "import re; [print(f'  make {m[1]:<9} {m[2]}') for m in re.finditer(r'^([a-z-]+):.*?## (.*)$$', open('Makefile').read(), re.M)]"
+	@$(PY) -c "import re; [print(f'  make {m[1]:<13} {m[2]}') for m in re.finditer(r'^([a-z-]+):.*?## (.*)$$', open('Makefile').read(), re.M)]"
 	@echo "  Pass grabber options with ARGS, e.g. make grab ARGS=\"--since 2016-01-01\""
 
 # ---------------------------------------------------------------- grabber
@@ -57,21 +57,35 @@ dev: ## serve the unbuilt src/page on localhost:8000 (edit, then reload)
 serve: build ## serve the built dist/ on localhost:8000
 	$(PY) -m http.server $(PORT) --bind 127.0.0.1 --directory dist
 
+# ---------------------------------------------------------------- project site (site/, Astro + site-kit)
+site-install: ## install the site's dependencies (npm ci in site/)
+	npm --prefix site ci
+
+site-dev: ## serve the project site with live reload (run site-build once first for /app/)
+	npm --prefix site run dev
+
+site-build: build ## build the app, copy it to site/public/app, then build the site into site/dist
+	npm --prefix site run app:copy
+	npm --prefix site run build
+
+site-test: ## check the built site/dist (run site-build first)
+	$(NODE) --test tests/site.test.mjs
+
 # ---------------------------------------------------------------- test & deploy
 test: build test-py test-js ## build, then run all tests
 
-test-py: ## grabber unit tests
+test-py: ## grabber and build unit tests
 	$(PY) -m unittest discover -s tests
 
 test-js: build ## page smoke tests on dist/ (Node 20.11+)
 	$(NODE) --test tests/page.test.mjs
 
-deploy: test ## test, then push; CI deploys main to GitHub Pages
+deploy: test ## test, then push; pushing main deploys the project site (pages.yml)
 	git push
 
 release: test ## tag and push VERSION (e.g. make release VERSION=v1.0.0); CI publishes the release
 	git tag -a $(VERSION) -m "$(VERSION)"
 	git push origin $(VERSION)
 
-clean: ## remove dist/ and Python caches
-	$(PY) -c "import pathlib, shutil; [shutil.rmtree(p) for p in [pathlib.Path('dist'), *pathlib.Path('.').rglob('__pycache__')] if p.exists() and '.venv' not in p.parts]"
+clean: ## remove dist/, site/dist/ and Python caches
+	$(PY) -c "import pathlib, shutil; [shutil.rmtree(p) for p in [pathlib.Path('dist'), pathlib.Path('site/dist'), *pathlib.Path('.').rglob('__pycache__')] if p.exists() and '.venv' not in p.parts and 'node_modules' not in p.parts]"

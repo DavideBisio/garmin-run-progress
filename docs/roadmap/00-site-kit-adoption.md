@@ -111,10 +111,10 @@ The app at `/app/`, with the shared bar above its own header (and above the tabs
 ## Completion checklist
 
 - [ ] **Settings → Pages → Source** is already "GitHub Actions" (switched earlier). Confirm that `pages.yml` and the removed `ci.yml` deploy job don't both run in the same push, because the `pages` concurrency group would cancel one.
-- [ ] Pin site-kit by **SHA** in both `package.json` and `pages.yml`, with `# v0.1.2` comments. A tag can be moved. claude-code-workflow is still on v0.1.1: note it, but don't change it here.
-- [ ] Old links: `davidebisio.github.io/garmin-run-progress/` now shows the landing page. The page's own "Download garmin_grab.py" link points at the release, so nothing it depends on moves. Search the repo for `github.io/garmin-run-progress/` and update every one.
-- [ ] The kit's `tokens.css` is copied with its version in a comment. Upgrading site-kit means re-copying it together with `site-bar.js`, so write this in `docs/deploy.md`.
-- [ ] Chart.js: keep its MIT license header in the vendored file and in the inlined bundle. Record the version in one place that `build.py` and the docs both read.
-- [ ] Choose the data-viz palette with the dataviz guidance (validated categorical and sequential ramps). Zones Z1–Z5 stay a single-hue sequential ramp, now in a brand hue, and 01's legend uses the same tokens.
+- [x] Pin site-kit by **SHA** in both `package.json` and `pages.yml`, with `# v0.1.2` comments. A tag can be moved. claude-code-workflow is still on v0.1.1: note it, but don't change it here.
+- [x] Old links: `davidebisio.github.io/garmin-run-progress/` now shows the landing page. The page's own "Download garmin_grab.py" link points at the release, so nothing it depends on moves. Search the repo for `github.io/garmin-run-progress/` and update every one.
+- [x] The kit's `tokens.css` is copied with its version in a comment. Upgrading site-kit means re-copying it together with `site-bar.js`, so write this in `docs/deploy.md`.
+- [x] Chart.js: keep its MIT license header in the vendored file and in the inlined bundle. Record the version in one place that `build.py` and the docs both read.
+- [x] Choose the data-viz palette with the dataviz guidance (validated categorical and sequential ramps). Zones Z1–Z5 stay a single-hue sequential ramp, now in a brand hue, and 01's legend uses the same tokens.
 - [ ] `docs/README.md` becomes the docs index page. Check that its table links render as pages, and that the roadmap group lists 00–10 in order.
 - [ ] `project.json` `tagline` matches the landing page lede. The hub's `loadProjects([...])` list gets `garmin-run-progress`, in the hub repo, as a follow-up outside this repo.

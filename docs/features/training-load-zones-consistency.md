@@ -72,7 +72,7 @@ After a break of several weeks the ratio jumps on the first runs back, because t
 
 Runs with a stream count each sample pair with `0 < dt <= 30`. Runs without one fall back to Garmin's `hrTimeInZone_1…5` (runs.json `hrz`), which use the zones set in Garmin Connect, not the max HR above.
 
-- **Chart `#c-zones`:** stacked minutes per zone per week, one blue going from light (Z1) to dark (Z5).
+- **Chart `#c-zones`:** stacked minutes per zone per week, one teal ramp (`--z1`…`--z5`) going from light (Z1) to dark (Z5), dim to bright in the dark theme.
 - **KPI "Easy share, 12 weeks":** share of time in Z1–Z3 (below 80% of max, roughly the first ventilatory threshold). The 80/20 guideline is about 80% easy; the chip turns green at 75%.
 
 ## Consistency

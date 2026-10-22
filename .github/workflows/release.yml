@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: "22"
       - run: make test
-      - run: gh release create "$GITHUB_REF_NAME" dist/garmin_grab.py dist/index.html --title "$GITHUB_REF_NAME" --generate-notes
+      - run: >-
+          gh release create "$GITHUB_REF_NAME" dist/garmin_grab.py dist/index.html
+          --title "$GITHUB_REF_NAME" --generate-notes
+          --notes "Open the app at https://davidebisio.github.io/garmin-run-progress/app/ or download index.html below and open it from disk. Project site and docs: https://davidebisio.github.io/garmin-run-progress/"
         env:
           GH_TOKEN: ${{ github.token }}
