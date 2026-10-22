@@ -6,19 +6,19 @@ Paces come from Daniels' VDOT formulas and HR zones from Karvonen's heart-rate r
 
 ## Sections
 
-| # | Section | Depends on | Milestone |
-|---|---|---|---|
-| 00 | [Project site and shared look with site-kit](00-site-kit-adoption.md) | – | Page foundation |
-| 01 | [Heart-rate reserve zones everywhere](01-hrr-zones-everywhere.md) | – | Page foundation |
-| 02 | [Three-tab page layout](02-three-tab-layout.md) | 00, 01 | Page foundation |
-| 03 | [Core metrics and runner profile](03-core-metrics-and-profile.md) | 01 | MVP |
-| 04 | [Workout templates and markdown renderer](04-workout-templates-and-renderer.md) | 03 | MVP |
-| 05 | [Garmin workout export](05-garmin-workout-export.md) | 04 | MVP |
-| 06 | [Weekly skeleton and volume curve](06-weekly-skeleton-and-volume.md) | 03 | Planner |
-| 07 | [Session selection, sizing and safety checks](07-session-selection-and-checks.md) | 04, 06 | Planner |
-| 08 | [Runner levels, beginner to advanced](08-runner-levels.md) | 07 | Planner |
-| 09 | [Adaptation loop after each grab](09-adaptation-loop.md) | 05, 07 | Closed loop |
-| 10 | [Plan view in the Planning tab](10-page-plan-view.md) | 02, 07 (09 for status) | Closed loop |
+| # | Section | Depends on | Milestone | Issue |
+|---|---|---|---|---|
+| 00 | [Project site and shared look with site-kit](00-site-kit-adoption.md) | – | Page foundation | [#3](https://github.com/DavideBisio/garmin-run-progress/issues/3) |
+| 01 | [Heart-rate reserve zones everywhere](01-hrr-zones-everywhere.md) | – | Page foundation | [#4](https://github.com/DavideBisio/garmin-run-progress/issues/4) |
+| 02 | [Three-tab page layout](02-three-tab-layout.md) | 00, 01 | Page foundation | [#5](https://github.com/DavideBisio/garmin-run-progress/issues/5) |
+| 03 | [Core metrics and runner profile](03-core-metrics-and-profile.md) | 01 | MVP | [#6](https://github.com/DavideBisio/garmin-run-progress/issues/6) |
+| 04 | [Workout templates and markdown renderer](04-workout-templates-and-renderer.md) | 03 | MVP | [#7](https://github.com/DavideBisio/garmin-run-progress/issues/7) |
+| 05 | [Garmin workout export](05-garmin-workout-export.md) | 04 | MVP | [#8](https://github.com/DavideBisio/garmin-run-progress/issues/8) |
+| 06 | [Weekly skeleton and volume curve](06-weekly-skeleton-and-volume.md) | 03 | Planner | [#9](https://github.com/DavideBisio/garmin-run-progress/issues/9) |
+| 07 | [Session selection, sizing and safety checks](07-session-selection-and-checks.md) | 04, 06 | Planner | [#10](https://github.com/DavideBisio/garmin-run-progress/issues/10) |
+| 08 | [Runner levels, beginner to advanced](08-runner-levels.md) | 07 | Planner | [#11](https://github.com/DavideBisio/garmin-run-progress/issues/11) |
+| 09 | [Adaptation loop after each grab](09-adaptation-loop.md) | 05, 07 | Closed loop | [#12](https://github.com/DavideBisio/garmin-run-progress/issues/12) |
+| 10 | [Plan view in the Planning tab](10-page-plan-view.md) | 02, 07 (09 for status) | Closed loop | [#13](https://github.com/DavideBisio/garmin-run-progress/issues/13) |
 
 ```text
 00 ─┐
