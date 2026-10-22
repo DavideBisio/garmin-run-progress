@@ -23,7 +23,8 @@ as written until you change them.
 - exception — training plan generator roadmap (issues #3–#13, see docs/roadmap/):
   all of these commit on one shared branch `feat/training-planner`, cut from source_branch,
   instead of per-issue branches. Do not open a merge request per issue; PRs to target_branch are
-  opened per group: #3–#5 (foundation), #6–#10 (planner core), #11–#13 (adaptation + UI).
+  opened per roadmap milestone: #3–#5 (Page foundation), #6–#8 (MVP), #9–#11 (Planner),
+  #12–#13 (Closed loop).
 <!-- Default if this section is missing: source_branch=dev, target_branch=main, branch_pattern=fix/<iid>-<slug>. -->
 
 ## Issue labels
