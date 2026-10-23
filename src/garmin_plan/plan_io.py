@@ -132,7 +132,8 @@ def write_plan(plan, path):
 
 
 def _check_weeks(weeks):
-    """ValueError naming what is wrong when weeks isn't a list of {start, days: [{date}]} with ISO dates."""
+    """ValueError naming what is wrong when weeks isn't a list of {start, days: [{date, workout}]}
+    with ISO dates and each workout an object or null."""
     if not isinstance(weeks, list):
         raise ValueError("weeks is not a list")
     for i, wk in enumerate(weeks):
@@ -145,6 +146,9 @@ def _check_weeks(weeks):
                 date.fromisoformat(d)
             except (TypeError, ValueError):
                 raise ValueError(f"week {i + 1}: {what} {d!r} is not a YYYY-MM-DD date") from None
+        for x in days:
+            if not isinstance(x.get("workout"), (dict, type(None))):
+                raise ValueError(f"week {i + 1}: day {x['date']}'s workout is not an object")
 
 
 def read_plan(path):

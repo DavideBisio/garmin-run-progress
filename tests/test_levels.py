@@ -738,6 +738,20 @@ class Progress(unittest.TestCase):
                                  [ladder_stage(wk) for wk in a["weeks"][k:k + 3]])     # the ladder goes on
         self.assertEqual((a["progress"]["run_walk_stage"], plan["progress"]["run_walk_stage"]), (0, 2))
 
+    def test_time_trial_later_this_week_moves_to_the_new_plan(self):
+        # a re-plan the day before a pending time trial starts next Monday: the trial moves to that
+        # week instead of staying pending on a day no plan holds (push removes it from the watch)
+        _, a = replan(BEGINNER_TOML, [], TODAY)
+        day = date.fromisoformat(tt_dates(a)[0])
+        _, b = replan(BEGINNER_TOML, [], day - timedelta(days=1), a)
+        first = date.fromisoformat(b["weeks"][0]["start"])
+        self.assertGreater(first, day)
+        self.assertEqual(tt_dates(b), [(first + timedelta(days=day.weekday())).isoformat()])
+        self.assertEqual(b["progress"]["time_trial"], tt_dates(b)[0])
+        # a run on the old date is no time trial
+        prof, _ = replan(BEGINNER_TOML, [stream_run(day, 2, 840)], day + timedelta(days=1), b)
+        self.assertNotEqual(prof.vdot_from, ("2 km time trial", day.isoformat()))
+
     def test_restart_after_sixty_days_off(self):
         # 50 km a week on 5 days, then 60 days off: the 8-week longest run and the 12-week consistency
         # are empty, but the restart volume (33 % of 50 km) is novice's
@@ -760,7 +774,9 @@ class Progress(unittest.TestCase):
     def test_malformed_plan_json_is_no_plan(self):
         env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
         bad = ({"version": 1, "levels": {"volume": "novice", "quality": "novice"}, "weeks": [{"days": []}]},
-               {"version": 1, "levels": {"volume": "novice", "quality": "novice"}, "weeks": None})
+               {"version": 1, "levels": {"volume": "novice", "quality": "novice"}, "weeks": None},
+               {"version": 1, "levels": {"volume": "novice", "quality": "novice"},
+                "weeks": [{"start": "2024-06-10", "days": [{"date": "2024-06-11", "workout": "x"}]}]})
         for plan in bad:
             for cmd in ("profile", "plan"):
                 with self.subTest(plan=plan, cmd=cmd), tempfile.TemporaryDirectory() as d:

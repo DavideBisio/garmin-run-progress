@@ -253,15 +253,14 @@ def _tt_day(c):
 
 def _tt_date(c, start, today):
     """The time trial's date: None without one at the level or once one is run (progress holds
-    it); the planned one's while it isn't past, on c.tt_day of its week when that week is in this
-    plan; this plan's first week when it was missed; else week time_trial_week."""
+    it); the planned one's when its week is in this plan, on c.tt_day of that week; this plan's
+    first week when it was missed or falls before this plan starts (later this week: no plan would
+    hold it and push removes it from the watch); else week time_trial_week."""
     car = c.prof.progress or {}
     if not c.tt or c.tt_day is None or car.get("time_trials"):
         return None
     due = car.get("time_trial")
-    if due and due >= today:
-        if due < start:
-            return due                          # this week's: the last plan's
+    if due and due >= start:
         monday = due - timedelta(days=due.weekday())
     else:
         monday = start + timedelta(weeks=0 if due else c.tt_week - 1)

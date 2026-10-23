@@ -74,7 +74,7 @@ Every plan starts on the Monday after today, so a re-plan restarts its weeks; `p
 | `block_start` | The Monday the block holding the plan's first week started (`YYYY-MM-DD`). With the weeks' `deload` flags it says where the blocks of this plan start: here, and on each week after a deload. A new plan whose first week starts a block (or that this plan doesn't reach) can promote the levels; otherwise it keeps its place in the block, so its deloads fall where this plan's did and the promotion waits. Without it the plan's first week counts as a block start |
 | `run_walk_stage` | The run/walk ladder variants climbed before the plan's first week (`0` at the ladder's start); the plan's week `i` takes the next one in each build week, the same in a deload. The next plan adds this plan's build weeks before its own start. `null` in a plan without the ladder |
 | `time_trials` | The 2 km time trials run, oldest first: `date`, `dist_m` (2000), `time_s` (the best 2 km of the run that day) and `vdot`. The latest gives the derived VDOT ([plan profile](features/plan-profile.md)); once there is one, no time trial is planned again |
-| `time_trial` | The date of the time trial planned and not run yet, else `null`. A re-plan keeps it, in the same week; one that has passed without a run is planned again in the new plan's first week |
+| `time_trial` | The date of the time trial planned and not run yet, else `null`. A re-plan keeps it, in the same week; one that has passed without a run, or falls before the new plan starts, is planned again in the new plan's first week |
 
 A break of more than 5 days restarts the plan ([plan profile](features/plan-profile.md#runner-levels)): its first week starts a block and the ladder starts over; the time trials stay.
 
