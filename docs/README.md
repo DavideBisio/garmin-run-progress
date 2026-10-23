@@ -40,3 +40,4 @@
 |---|---|
 | Runner profile, Daniels paces, HR zones | [features/plan-profile.md](features/plan-profile.md) |
 | Workout templates, markdown renderer, manual `[week]` schedule | [features/plan-workouts.md](features/plan-workouts.md) |
+| Push to Garmin Connect: upload, schedule, re-push, dry-run | [features/plan-push.md](features/plan-push.md) |

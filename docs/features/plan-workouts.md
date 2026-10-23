@@ -20,7 +20,7 @@ The planner's sessions come from a template library, `src/garmin_plan/data/worko
 | `hilly_long` | hill | intermediate | 40, 60, 80 min rolling terrain plus 4–6 downhill reps |
 | `trail_long` | trail | intermediate | 80, 100, 120 min on trail, Z3 cap |
 
-**Ids are stable.** They go into `plan.json` and into the names of workouts pushed to Garmin (05), so renaming one orphans workouts already on the calendar. Add a new template instead. Variants are 1-based everywhere.
+**Ids are stable.** They go into `plan.json`, and into `push_state.json` and the description of workouts pushed to Garmin ([plan push](plan-push.md)); the pushed workouts themselves are named `[plan] <title> <date>`. Renaming an id breaks that link for workouts already on the calendar. Add a new template instead. Variants are 1-based everywhere.
 
 ## Template schema
 

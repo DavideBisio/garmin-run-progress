@@ -6,6 +6,10 @@ PROFILE = "profile.toml"
 RUNS = "runs.json"
 PLAN_JSON = "plan.json"
 PLAN_MD = "plan.md"
+PUSH_STATE = "push_state.json"    # what push uploaded and scheduled: {date: {workout_id, scheduled_id, name}}
+PUSH_DIR = "push"                  # --dry-run payloads
+NAME_PREFIX = "[plan] "            # marks the workouts push owns
+NAME_MAX = 64                      # provisional: Garmin's real limit is still to be checked (05)
 DATA_DIR = Path(__file__).resolve().parent / "data"   # committed generic data (rules.toml, ...)
 
 # fallbacks when neither profile.toml nor runs.json gives a value (HR as on the page's Data tab)

@@ -1,4 +1,8 @@
-"""Command line: python -m garmin_plan profile | plan (later: push, replan)."""
+"""Command line: python -m garmin_plan profile | plan | push (later: replan).
+
+push logs in through garmin_grab.garmin (garminconnect), imported only when it really calls Garmin;
+profile, plan and push --dry-run are standard library only.
+"""
 import argparse
 import json
 import sys
@@ -7,7 +11,8 @@ from pathlib import Path
 
 from .config import EXPORT_DIR, PLAN_JSON, PLAN_MD, PROFILE, RUNS
 from .physiology import hr_zones, load_rules, pace_zones
-from .plan_io import build_plan, write_plan
+from . import push as garmin_push
+from .plan_io import build_plan, read_plan, write_plan
 from .profile import ProfileError, load_profile
 from .render_md import fmt_pace, fmt_time, render_plan  # noqa: F401  (fmt_* used to live here)
 from .templates import TemplateError, load_templates
@@ -91,6 +96,28 @@ def cmd_plan(args):
           f"{plan['weeks'][0]['start']}, {km:.1f} km")
 
 
+def cmd_push(args):
+    out = Path(args.export)
+    path = out / PLAN_JSON
+    if not path.exists():
+        sys.exit(f"error: {path} not found; write it first with make plan")
+    try:
+        plan = read_plan(path)
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        sys.exit(f"error: {path}: can't read plan.json ({e})")
+    try:
+        if args.dry_run:
+            garmin_push.push(None, plan, args.today or date.today(), out, dry_run=True, weeks=args.weeks)
+            return
+        from garmin_grab.garmin import login, with_retry   # garminconnect only for real pushes
+        g = login()
+        garmin_push.check_library(g)
+        today = garmin_push.local_today(g, args.today)
+        garmin_push.push(g, plan, today, out, weeks=args.weeks, retry=with_retry)
+    except (garmin_push.PushError, KeyError, ValueError) as e:
+        sys.exit(f"error: {e}")
+
+
 def positive_int(v):
     n = int(v)
     if n < 1:
@@ -111,5 +138,12 @@ def main(argv=None):
                         help="write plan.json and plan.md from the [week] table in profile.toml")
     pl.add_argument("--weeks", type=positive_int, default=1, help="weeks to plan, from the Monday after today")
     pl.set_defaults(run=cmd_plan)
+    pu = sub.add_parser("push", parents=[shared],
+                        help="upload plan.json's future sessions to Garmin Connect and schedule them")
+    pu.add_argument("--weeks", type=positive_int, default=None,
+                    help="push only the first N plan weeks from today (default: every future session)")
+    pu.add_argument("--dry-run", action="store_true",
+                    help="write the payloads to <export>/push/ and call nothing")
+    pu.set_defaults(run=cmd_push)
     args = ap.parse_args(argv)
     args.run(args)

@@ -22,6 +22,7 @@ const FEATURES = [
   'training-load-zones-consistency',
   'plan-profile',
   'plan-workouts',
+  'plan-push',
 ];
 
 type Doc = CollectionEntry<'docs'>;

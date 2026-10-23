@@ -64,7 +64,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 
 | Field | Contents |
 |---|---|
-| `id` | Template id. **Stable**: it also names the workouts pushed to Garmin |
+| `id` | Template id. **Stable**: it is stored in `push_state.json` and in the description of the workouts pushed to Garmin, which are named `[plan] <title> <date>` ([plan push](features/plan-push.md)) |
 | `variant` | Ladder variant, 1-based |
 | `title`, `kind` | Display title; kind `E`, `L`, `R`, `T`, `I`, `M`, `hill` or `trail` |
 | `km`, `seconds` | Totals, summed from the steps (estimates at the middle of each pace range) |
