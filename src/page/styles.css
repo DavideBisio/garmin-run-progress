@@ -26,8 +26,9 @@
 body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);margin:0}
 site-bar{display:block}
 site-bar:not(:defined){visibility:hidden;min-height:calc(4.25rem + 1px)}
-.wrap{box-sizing:content-box;max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:28px;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+/* same box as <site-bar wide> and the site's wide pages, so the content lines up with the bar */
+.wrap{box-sizing:border-box;max-width:var(--sk-width-wide);margin:0 auto;display:flex;flex-direction:column;gap:28px;
+  padding-left:max(var(--sk-gutter),env(safe-area-inset-left,0px));padding-right:max(var(--sk-gutter),env(safe-area-inset-right,0px));padding-block:28px 64px}
 h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:-.01em;text-wrap:balance;margin:0;line-height:1.1}
 h1{font-size:clamp(36px,6vw,56px);font-weight:700}
 h2{font-size:28px}
@@ -107,7 +108,7 @@ td.best{color:var(--accent);font-weight:600}
 .progress{height:4px;background:var(--soft);border-radius:4px;overflow:hidden}
 .progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
 @media (max-width:560px){section.step{grid-template-columns:1fr}.num{font-size:40px;grid-row:auto}
-  .tabs{gap:0;margin-left:calc(-1*max(16px,env(safe-area-inset-left,0px)));margin-right:calc(-1*max(16px,env(safe-area-inset-right,0px)));
+  .tabs{gap:0;margin-left:calc(-1*max(var(--sk-gutter),env(safe-area-inset-left,0px)));margin-right:calc(-1*max(var(--sk-gutter),env(safe-area-inset-right,0px)));
     padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
   .tabs [role=tab]{flex:1 1 0;min-width:0;padding-inline:4px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

@@ -108,6 +108,14 @@ test("old runs.json without the newer fields still renders and hides empty panel
   assert.match(el("lim-hint").textContent, /50 bpm is a placeholder/);
 });
 
+test("the app's bar links the same pages as the site header, in the same order", () => {
+  const bar = html.match(/<site-bar[^>]*>([\s\S]*?)<\/site-bar>/)[1];
+  const links = [...bar.matchAll(/<a slot="links" href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map(m => [m[2], m[1]]);
+  assert.deepEqual(links, [["Overview", "../"], ["Docs", "../docs/"], ["App", "./"]]);
+  const nav = read("site/astro.config.mjs").match(/nav: \[([\s\S]*?)\]/)[1];
+  assert.deepEqual([...nav.matchAll(/label: '([^']+)'/g)].map(m => m[1]), links.map(l => l[0]));
+});
+
 test("the page defines <site-bar> exactly once", () => {
   assert.deepEqual(runPage().defined, ["site-bar"]);
 });
