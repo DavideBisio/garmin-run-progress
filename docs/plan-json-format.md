@@ -1,6 +1,6 @@
 # plan.json format
 
-`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`. The generator (07) added `warnings` and each week's `phase`, `deload` and `warnings`, and the runner levels (08) `levels` and each week's `unit` and `target_min`; readers that don't know them ignore them, so the version stays `1`.
+`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`. The generator (07) added `warnings` and each week's `phase`, `deload` and `warnings`, and the runner levels (08) `levels`, `progress` and each week's `unit` and `target_min`; readers that don't know them ignore them, so the version stays `1`.
 
 The file holds **resolved** workouts: every step carries its pace and HR ranges in numbers, so readers need neither the templates (`src/garmin_plan/data/workouts.toml`) nor the profile.
 
@@ -11,6 +11,9 @@ The file holds **resolved** workouts: every step carries its pace and HR ranges 
   "profile_hash": "b924fafb9b64…",
   "levels": { "volume": "novice", "quality": "intermediate",
               "reasons": { "volume": "18 km/wk over 4 wk", "quality": "VDOT 39, 7 Q sessions in 8 wk" } },
+  "progress": { "block_start": "2024-06-03", "run_walk_stage": null,
+                "time_trials": [ { "date": "2024-05-21", "dist_m": 2000, "time_s": 662.4, "vdot": 31.81 } ],
+                "time_trial": null },
   "warnings": [
     { "rule": "feasibility", "detail": "the goal needs VDOT 43.4, 3.4 above the current 40.0, in 16 weeks: ambitious …",
       "action": "kept the paces at the current VDOT …" }
@@ -58,8 +61,22 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | `generated` | Local time the plan was written, `YYYY-MM-DDTHH:MM:SS` |
 | `profile_hash` | sha256 (hex) of what the resolved steps depend on: VDOT, HR max and rest, the resolved zones (each pace zone's range to 0.01 s/km, the jog pace, the bpm of Z1–Z5), the runner's two levels and the volume unit. A different hash for today's profile means the steps are stale |
 | `levels` | The runner's levels (roadmap 08, [plan profile](features/plan-profile.md#runner-levels)): `volume` and `quality`, each `"beginner"`, `"novice"`, `"intermediate"` or `"advanced"`, and `reasons`, why each axis is at its level (`""` when not known). The next plan starts from them (promotion); a beginner level on either axis makes the push send HR as guidance only. Absent in a plan of the `[week]` schedule alone |
-| `warnings` | Plan-wide warnings: phases shortened for a near race, goal feasibility, no load-ratio check for want of history. Absent in a plan of the `[week]` schedule alone |
+| `progress` | What the next plan carries on from this one ([Progress](#progress)). Absent in a plan of the `[week]` schedule alone and in plans written before it: the next plan then starts afresh |
+| `warnings` | Plan-wide warnings: phases shortened for a near race, goal feasibility, no load-ratio check for want of history, the time trial's day. Absent in a plan of the `[week]` schedule alone |
 | `weeks` | Monday-based weeks, oldest first |
+
+## Progress
+
+Every plan starts on the Monday after today, so a re-plan restarts its weeks; `progress` keeps what that must not reset. The next `make plan` reads it from the `plan.json` on disk before writing the new one (`progress.carry`), so it carries across any number of re-plans. A value of the wrong type counts as missing.
+
+| Field | Contents |
+|---|---|
+| `block_start` | The Monday the block holding the plan's first week started (`YYYY-MM-DD`). With the weeks' `deload` flags it says where the blocks of this plan start: here, and on each week after a deload. A new plan whose first week starts a block (or that this plan doesn't reach) can promote the levels; otherwise it keeps its place in the block, so its deloads fall where this plan's did and the promotion waits. Without it the plan's first week counts as a block start |
+| `run_walk_stage` | The run/walk ladder variants climbed before the plan's first week (`0` at the ladder's start); the plan's week `i` takes the next one in each build week, the same in a deload. The next plan adds this plan's build weeks before its own start. `null` in a plan without the ladder |
+| `time_trials` | The 2 km time trials run, oldest first: `date`, `dist_m` (2000), `time_s` (the best 2 km of the run that day) and `vdot`. The latest gives the derived VDOT ([plan profile](features/plan-profile.md)); once there is one, no time trial is planned again |
+| `time_trial` | The date of the time trial planned and not run yet, else `null`. A re-plan keeps it, in the same week; one that has passed without a run is planned again in the new plan's first week |
+
+A break of more than 5 days restarts the plan ([plan profile](features/plan-profile.md#runner-levels)): its first week starts a block and the ladder starts over; the time trials stay.
 
 ## Weeks and days
 
@@ -68,7 +85,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | `start` | The week's Monday, `YYYY-MM-DD` |
 | `target_km` | The week's planned volume, in flat-equivalent km: the volume curve's target (06; the taper's share of the last build week), to 0.1 km; the split rounds the days so they add up to it. It becomes the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first, so the week heading adds up its day headings) when the week has `[week]` days, when the fixer trimmed L or dropped F, when the Q template can't take the split's leftover (a `split` warning), and in the race week, which stops before race day |
 | `unit` | The plan's volume unit, `"km"` or `"min"` (a beginner's plan). `target_km` is there either way. Absent in a plan of the `[week]` schedule alone |
-| `target_min` | In a plan in minutes only: the week's sessions in whole minutes, each rounded half up as `plan.md` shows it, then added up. Such a week's `target_km` is the sum of its sessions' km |
+| `target_min` | In a plan in minutes only: the week's sessions in whole minutes, each rounded half up as `plan.md` shows it, then added up. Such a week's `target_km` is the sum of its sessions' km, as is a beginner's in km (run/walk and time sessions fill time, not km) |
 | `phase` | `"base"`, `"rt"` (R + T), `"it"` (I + T), `"tm"` (T + M) or `"taper"` (06's phase calendar). Absent in a plan of the `[week]` schedule alone |
 | `deload` | `true` for the block's lighter week (×0.85 of the block, the deload Q one variant lighter). Absent as `phase` |
 | `warnings` | The week's warnings (see [Warnings](#warnings)), `[]` when it passes every check. Absent as `phase` |
@@ -83,7 +100,7 @@ Each warning says which rule fired and what the planner did about it; `plan.md` 
 
 | Field | Contents |
 |---|---|
-| `rule` | The rule: a check (`easy_share`, `hard_count`, `hard_adjacent`, `volume_rise`, `acwr_high`, `acwr_low`, `long_share`), a note (`acwr_skipped`, `forced_size`), or a planning step (`split`, `phases`, `feasibility`, `hill_swap`, `race_week`, `skeleton`) |
+| `rule` | The rule: a check (`easy_share`, `hard_count`, `hard_adjacent`, `volume_rise`, `acwr_high`, `acwr_low`, `long_share`), a note (`acwr_skipped`, `forced_size`), or a planning step (`split`, `phases`, `feasibility`, `hill_swap`, `race_week`, `skeleton`, `time_trial`) |
 | `detail` | What happened, with the numbers |
 | `action` | What the planner did: the fix it applied (`fixed: Q cruise_tempo variant 5 -> 4`), or why it left it |
 

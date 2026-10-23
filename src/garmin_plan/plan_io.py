@@ -5,7 +5,7 @@ page (10) need neither the templates nor the profile.
 """
 import hashlib
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .config import WEEKDAYS
@@ -131,9 +131,30 @@ def write_plan(plan, path):
     tmp.replace(path)
 
 
+def _check_weeks(weeks):
+    """ValueError naming what is wrong when weeks isn't a list of {start, days: [{date}]} with ISO dates."""
+    if not isinstance(weeks, list):
+        raise ValueError("weeks is not a list")
+    for i, wk in enumerate(weeks):
+        days = wk.get("days") if isinstance(wk, dict) else None
+        if not isinstance(days, list):
+            raise ValueError(f"week {i + 1} has no list of days")
+        for d, what in [(wk.get("start"), "start")] + [((x or {}).get("date") if isinstance(x, dict) else None,
+                                                        "a day's date") for x in days]:
+            try:
+                date.fromisoformat(d)
+            except (TypeError, ValueError):
+                raise ValueError(f"week {i + 1}: {what} {d!r} is not a YYYY-MM-DD date") from None
+
+
 def read_plan(path):
+    """The plan.json dict; ValueError for another version, or weeks and days without their dates."""
     plan = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(plan, dict) or plan.get("version") != VERSION:
         raise ValueError(f"{path}: not a version {VERSION} plan.json")
+    try:
+        _check_weeks(plan.get("weeks"))
+    except ValueError as e:
+        raise ValueError(f"{path}: not a plan.json the planner wrote ({e})") from None
     return plan
 

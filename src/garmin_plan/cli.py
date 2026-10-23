@@ -78,10 +78,13 @@ def resolve_profile(args):
     """(export dir, Profile, runs) for --export / --today; profile errors exit with 'error: ...'."""
     out = Path(args.export)
     runs, rhr = load_runs(out / RUNS)
-    try:
-        prev = read_plan(out / PLAN_JSON) if (out / PLAN_JSON).exists() else None   # its time trial
-    except (OSError, UnicodeDecodeError, ValueError):
-        prev = None
+    prev = None                         # the last plan: its levels, progress and time trials
+    if (out / PLAN_JSON).exists():
+        try:
+            prev = read_plan(out / PLAN_JSON)
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            print(f"warning: {out / PLAN_JSON}: can't read it, ignored as the last plan: the levels are "
+                  f"detected afresh and the block, run/walk ladder and time trials start over ({e})", file=sys.stderr)
     try:
         p = load_profile(out / PROFILE, runs, rhr, args.today, plan=prev)
     except ProfileError as e:

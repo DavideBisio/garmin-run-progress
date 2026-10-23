@@ -2,13 +2,14 @@
 from .templates import LEVELS
 
 
-def block_week(i, deloads, every):
+def block_week(i, deloads, every, first=1):
     """Week i's place (1-based) in its block: the deload week is `every`, the build weeks count from
-    the week after the previous deload (or the plan's first week). A build week past every - 1, in a
-    block lengthened by a deload moved later, stays at every - 1 (the block's biggest week)."""
+    the week after the previous deload (or from `first`, the plan's first week's place, which is 1
+    unless the plan starts mid-block). A build week past every - 1, in a block lengthened by a
+    deload moved later, stays at every - 1 (the block's biggest week)."""
     if i in deloads:
         return every
-    prev = max((d for d in deloads if d < i), default=-1)
+    prev = max((d for d in deloads if d < i), default=-first)
     return min(i - prev, every - 1)
 
 

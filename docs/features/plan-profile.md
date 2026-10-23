@@ -52,7 +52,9 @@ With less than 4 weeks between the first run and today, the volume fields and VD
 
 **VDOT from training is a floor.** Efforts come from any run, so without races the value understates fitness. The output marks it `derived (training efforts)` and names the run it came from; a race or time-trial `vdot` in the profile wins.
 
-**The time trial.** A beginner's plan has a 2 km time trial in week 3 ([plan generator](plan-generator.md#runner-levels)). When `plan.json` plans one and `runs.json` has a GPS run on that date, its best 2 km (`metrics.best_effort`) gives the derived VDOT, shown as `derived: 2 km time trial on <date>`. 2 km is not one of the page's best-effort distances, so this is separate code (`history.time_trial_vdot`).
+**The time trial.** A beginner's plan has a 2 km time trial in week 3 ([plan generator](plan-generator.md#runner-levels)). When `plan.json` plans one and `runs.json` has a GPS run on that date, its best 2 km (`metrics.best_effort`) gives the derived VDOT, shown as `derived: 2 km time trial on <date>`. 2 km is not one of the page's best-effort distances, so this is separate code (`history.time_trials`). The next plan records the result in `plan.json`'s `progress` ([format](../plan-json-format.md#progress)), so it keeps giving VDOT after any number of re-plans; with several, the latest counts.
+
+A `plan.json` that can't be read, or whose weeks and days lack their dates, is ignored with a warning: the levels are detected afresh and the block, ladder and time trials start over.
 
 ## Runner levels
 
@@ -74,7 +76,7 @@ Levels: volume: novice (18 km/wk over 4 wk); quality: intermediate (VDOT 39, 7 Q
 
 and, when a level is held back, what by: `volume: novice (35 km/wk over 4 wk; not intermediate: 2 runs/wk (needs 3))`.
 
-**After a break** (`levels.layoff`, `[layoff]`): with more than 5 days since the last run, the derived 4-week volume restarts from the weekly km of the 4 weeks before the break times the volume factor, and the derived VDOT drops by the VDOT factor; the levels are detected from what is left, so the plan restarts at the matching level.
+**After a break** (`levels.layoff`, `[layoff]`): with more than 5 days since the last run, the derived 4-week volume restarts from the weekly km of the 4 weeks before the break times the volume factor, and the derived VDOT drops by the VDOT factor; the levels are detected from what is left, so the plan restarts at the matching level. The other volume numbers come from before the break too, since the last weeks hold no runs: the runs a week of the 4 weeks before it, the weeks with 2+ runs of the 12 weeks to the last run, and the longest run of the 8 weeks to the last run times the VDOT factor (the fitness lost; the volume factor is the restart load, not what you can still cover). After 60 days off from 50 km a week that is 16.5 km a week, 5 runs, 12 of 12 weeks and a longest run of about 8 km: novice.
 
 | Days off | VDOT factor | Volume factor |
 |---|---|---|
@@ -86,7 +88,7 @@ and, when a level is held back, what by: `volume: novice (35 km/wk over 4 wk; no
 
 The factors follow Daniels' guidance on returning from a break as the roadmap summarises it; they are still to be checked against the book.
 
-**Promotion** (`levels.promote`): when `plan.json` already has levels, the new plan starts from them rather than from detection. A level moves up only at a block's start (the plan's first week, the week after a deload, or past the plan's end), one level at a time: volume when each of the last 4 weeks holds the next level's km plus 10 % (`margin`, the hysteresis that stops a runner at a boundary flapping between levels) and its runs a week; quality when detection finds the next level and VDOT is 1 point over its minimum. Mid-block the reason says `novice until the next block, then intermediate (…)`. Levels never drop, except after a break, when they drop at once to what detection finds. The roadmap's third condition, 75 % of the planned Q sessions done, takes a compliance share that the adaptation loop (09) will count; until then it is skipped with a note.
+**Promotion** (`levels.promote`): when `plan.json` already has levels, the new plan starts from them rather than from detection. A level moves up only at a block's start (counted from the last plan's `progress.block_start`, else its first week; the week after a deload; or past the plan's end), so re-planning twice in one week doesn't promote mid-block; one level at a time: volume when each of the last 4 weeks holds the next level's km plus 10 % (`margin`, the hysteresis that stops a runner at a boundary flapping between levels) and its runs a week; quality when detection finds the next level and VDOT is 1 point over its minimum. Mid-block the reason says `novice until the next block, then intermediate (…)`. Levels never drop, except after a break, when they drop at once to what detection finds. The roadmap's third condition, 75 % of the planned Q sessions done, takes a compliance share that the adaptation loop (09) will count; until then it is skipped with a note.
 
 ## Pace zones (Daniels)
 

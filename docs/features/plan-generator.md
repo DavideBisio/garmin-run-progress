@@ -106,6 +106,7 @@ Each warning is `{rule, detail, action}` in `plan.json`: the plan-wide ones at t
 | `forced_size` | week | The smallest variant, over its cap, used anyway |
 | `hill_swap` | week | A hilly or trail long run left out for 80/20 |
 | `race_week` | week | No session from race day on |
+| `time_trial` | plan | No Q day off the hill days and no easy day 48 h from L for the time trial: it goes on a hill Q day, else the easy day next to L |
 | a check code | week | What failed and what the fixer did: `fixed: Q cruise_tempo variant 5 -> 4`, or why it is left |
 
 ## Runner levels
@@ -129,7 +130,9 @@ Novice and intermediate keep 06's ×1.00, ×1.08, ×1.16 blocks (+8 % a block, u
 
 - the easy and long runs climb the **run/walk ladder** (`run_walk`), one variant a build week, from 8 × (2 min run + 1 min walk) to 30 minutes continuous: the set is repeated to fill the slot after at least 2 minutes of brisk walk, and a slot too short for the week's variant takes the one before. Past the ladder they are `easy_time` and `long_time`;
 - the Q day holds `strides_feel`, or `hills_effort` on a hill day;
-- week 3 holds a **2 km time trial** (`time_trial`, kind `tt`) on the Q day, or on an easy day 48 h from L when the week has no Q. A run on that date gives the first VDOT ([plan profile](plan-profile.md)), and with it a quality level above beginner at the next plan.
+- week 3 holds a **2 km time trial** (`time_trial`, kind `tt`) on the Q day when it isn't a hill day (the trial wants a flat route), else on an easy day 48 h from L, the week's other Q days easy; failing both, a `time_trial` warning and a hill Q day, else the easy day next to L. A run on that date gives the first VDOT ([plan profile](plan-profile.md)), and with it a quality level above beginner at the next plan.
+
+**Re-plans carry on.** A plan always starts on the Monday after today, so `plan.json` keeps a `progress` block ([format](../plan-json-format.md#progress)) that the next `make plan` reads before it overwrites the file. The new plan's first week keeps its place in the block the last plan had it in (`block_start`), so the deloads fall where they did, the rotation keeps its block week, and the levels change only when that week really starts a block. The run/walk ladder goes on from the stage the last plan had reached by the new start date. The time trial keeps its date across re-plans, is planned again in the first week once its date has passed without a run, and is not planned again once run: its result stays in `progress` and keeps giving VDOT. After a break the plan restarts: a new block, the ladder from its start. A beginner's weeks in km, like those in minutes, have `target_km` = the sum of their sessions, which are fitted in time.
 
 **Advanced plans** say in `plan.md` that they are a starting point to edit; keep the sessions you change in `profile.toml`'s `[week]`. `plan.md` names the levels and their reasons under the title.
 
@@ -149,7 +152,7 @@ A `[week]` table in `profile.toml` pins weekdays to `template:variant` ([plan wo
 UPDATE_GOLDEN=1 PYTHONPATH=src python -m unittest tests.test_planner
 ```
 
-`tests/test_levels.py` (TC-11) covers the levels: the parameters per level and axis, detection (a history per level, a split-axis runner, a return after 6 weeks off, a new runner), the layoff table, the run cap and 2-Q placement, beginner plans (minutes, no pace targets, the run/walk ladder, the time trial and the VDOT it gives), promotion (only at a block's start, hysteresis, demotion after a break) and four golden plans for the same 10 km race in 12 weeks, one per level, `tests/fixtures/plan_golden_<level>.md`:
+`tests/test_levels.py` (TC-11) covers the levels: the parameters per level and axis, detection (a history per level, a split-axis runner, a return after 6 weeks off, a new runner), the layoff table, the run cap and 2-Q placement, beginner plans (minutes, no pace targets, the run/walk ladder, the time trial and the VDOT it gives), promotion (only at a block's start, hysteresis, demotion after a break), re-plans (`Progress`: two re-plans in one week stay mid-block, a time trial's result and date, the ladder and the deloads carried on, a restart after 60 days off, a beginner's weeks in km, a malformed `plan.json`, the time trial's day) and four golden plans for the same 10 km race in 12 weeks, one per level, `tests/fixtures/plan_golden_<level>.md`:
 
 ```sh
 UPDATE_GOLDEN=1 PYTHONPATH=src python -m unittest tests.test_levels

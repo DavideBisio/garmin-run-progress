@@ -657,6 +657,133 @@ class Promotion(unittest.TestCase):
             self.assertIn("novice -> intermediate", up.level_reasons["volume"])
 
 
+BEGINNER_TOML = ('hr_max = 190\nhr_rest = 50\nvolume_level = "beginner"\nquality_level = "beginner"\n'
+                 'days = ["tue", "thu", "sat"]\nlong_run_day = "sat"\n'
+                 '[race]\ndate = 2024-09-29\ndistance = "10k"\n')        # a race keeps the phases put
+DETECTED_TOML = "hr_max = 190\nhr_rest = 50\n"
+
+
+def replan(text, runs, today, plan=None, weeks=8):
+    """(profile, plan.json dict) of `make plan` on `today` with `plan` the plan.json on disk."""
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "profile.toml"
+        path.write_text(text, encoding="utf-8")
+        prof = profile.load_profile(path, list(runs), [], today, plan=plan)
+    out = planner.build_plan(prof, list(runs), LIB, RULES, today, weeks, generated=GENERATED)
+    return prof, json.loads(json.dumps(out))
+
+
+def tt_dates(plan):
+    return [d["date"] for wk in plan["weeks"] for d in wk["days"] if d["workout"]["kind"] == "tt"]
+
+
+def weekday(iso):
+    return WEEKDAYS[date.fromisoformat(iso).weekday()]
+
+
+def ladder_stage(wk):
+    """The week's run/walk variant: its longest run's (a short easy run may step one back)."""
+    return max((d["workout"]["variant"] for d in wk["days"] if d["workout"]["id"] == "run_walk"), default=None)
+
+
+class Progress(unittest.TestCase):
+    """plan.json's progress: the block, the run/walk ladder and the time trials across re-plans."""
+
+    def test_same_week_replans_stay_held(self):
+        p0 = json.loads(json.dumps(build(generic_profile(km_4w=20.0, longest_8w=8.0, volume_level="novice",
+                                                         quality_level="novice"), weeks=8)))
+        day = date(2024, 6, 12)                     # in P0's first week: the re-plans start on its second
+        runs = training(12, 4, 9, end=day)           # 36 km a week: intermediate's volume
+        prof1, p1 = replan(DETECTED_TOML, runs, day, p0)
+        self.assertEqual(prof1.volume_level, "novice")
+        self.assertIn("novice until the next block, then intermediate", prof1.level_reasons["volume"])
+        prof2, p2 = replan(DETECTED_TOML, runs, day, p1)             # the same day again: still mid-block
+        self.assertEqual(prof2.volume_level, "novice")
+        self.assertIn("novice until the next block, then intermediate", prof2.level_reasons["volume"])
+        self.assertEqual(p2["progress"]["block_start"], p0["weeks"][0]["start"])
+        # the block keeps P0's deload, and the week after it starts the next block
+        self.assertEqual(next(wk["start"] for wk in p2["weeks"] if wk["deload"]), "2024-07-01")
+        at = date(2024, 7, 3)
+        prof3, p3 = replan(DETECTED_TOML, training(12, 4, 9, end=at), at, p2)
+        self.assertEqual(prof3.volume_level, "intermediate")
+        self.assertEqual(p3["progress"]["block_start"], "2024-07-08")
+
+    def test_time_trial_result_carries_over(self):
+        _, a = replan(BEGINNER_TOML, [], TODAY)
+        day = date.fromisoformat(tt_dates(a)[0])
+        runs = sorted(training(6, 3, 3, end=day + timedelta(days=9)) + [stream_run(day, 2, 840)],
+                      key=lambda r: r["date"])
+        want = physiology.vdot(2000, 840)
+        prof_b, b = replan(BEGINNER_TOML, runs, day + timedelta(days=2), a)
+        self.assertAlmostEqual(prof_b.vdot, want, places=6)
+        self.assertEqual(tt_dates(b), [])                        # done: not scheduled again
+        self.assertEqual([t["date"] for t in b["progress"]["time_trials"]], [day.isoformat()])
+        prof_c, c = replan(BEGINNER_TOML, runs, day + timedelta(days=8), b)   # plan.json no longer plans it
+        self.assertAlmostEqual(prof_c.vdot, want, places=6)
+        self.assertEqual((prof_c.sources["vdot"], prof_c.vdot_from), ("derived", ("2 km time trial", day.isoformat())))
+        self.assertEqual(tt_dates(c), [])
+        self.assertEqual(c["progress"]["time_trials"], b["progress"]["time_trials"])
+
+    def test_ladder_and_time_trial_continue(self):
+        _, a = replan(BEGINNER_TOML, [], TODAY)
+        plan = a
+        for k, today in enumerate((date(2024, 6, 12), date(2024, 6, 19)), 1):     # weekly re-plans
+            with self.subTest(today=today):
+                _, plan = replan(BEGINNER_TOML, [], today, plan)
+                self.assertEqual(plan["weeks"][0]["start"], a["weeks"][k]["start"])
+                self.assertEqual(tt_dates(plan), tt_dates(a))                    # the time trial keeps its date
+                self.assertEqual([wk["deload"] for wk in plan["weeks"][:4]],
+                                 [wk["deload"] for wk in a["weeks"][k:k + 4]])
+                self.assertEqual([ladder_stage(wk) for wk in plan["weeks"][:3]],
+                                 [ladder_stage(wk) for wk in a["weeks"][k:k + 3]])     # the ladder goes on
+        self.assertEqual((a["progress"]["run_walk_stage"], plan["progress"]["run_walk_stage"]), (0, 2))
+
+    def test_restart_after_sixty_days_off(self):
+        # 50 km a week on 5 days, then 60 days off: the 8-week longest run and the 12-week consistency
+        # are empty, but the restart volume (33 % of 50 km) is novice's
+        runs = training(20, 5, 10, end=TODAY - timedelta(days=59))
+        prev = build(generic_profile(km_4w=50.0, longest_8w=15.0, volume_level="intermediate",
+                                     quality_level="intermediate"), weeks=8)
+        for plan in (None, prev):
+            with self.subTest(plan=bool(plan)):
+                prof, _ = replan(DETECTED_TOML, runs, TODAY, plan)
+                self.assertEqual(prof.layoff["days_off"], 60)
+                self.assertAlmostEqual(prof.km_4w, 16.5)
+                self.assertEqual(prof.volume_level, "novice")
+
+    def test_beginner_in_km_adds_up(self):
+        plan = build(beginner(unit="km"), weeks=12)
+        for wk in plan["weeks"]:
+            with self.subTest(week=wk["start"]):
+                self.assertEqual(wk["target_km"], round(sum(plan_io.shown_km(d["workout"]) for d in wk["days"]), 1))
+
+    def test_malformed_plan_json_is_no_plan(self):
+        env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+        bad = ({"version": 1, "levels": {"volume": "novice", "quality": "novice"}, "weeks": [{"days": []}]},
+               {"version": 1, "levels": {"volume": "novice", "quality": "novice"}, "weeks": None})
+        for plan in bad:
+            for cmd in ("profile", "plan"):
+                with self.subTest(plan=plan, cmd=cmd), tempfile.TemporaryDirectory() as d:
+                    (Path(d) / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+                    res = subprocess.run([sys.executable, "-m", "garmin_plan", cmd, "--export", d, "--today",
+                                          TODAY.isoformat()], capture_output=True, text=True, env=env)
+                    self.assertEqual(res.returncode, 0, res.stderr)
+                    self.assertRegex(res.stderr, r"warning: .*plan\.json.*ignored")
+
+    def test_time_trial_day(self):
+        # the Q day is a hill day: the time trial (a flat route) takes the easy day 48 h from L
+        plan = build(beginner(hill_days=["tue"]), weeks=4)
+        self.assertEqual([weekday(d) for d in tt_dates(plan)], ["thu"])
+        self.assertNotIn("time_trial", [w["rule"] for w in plan["warnings"]])
+        # no Q day: an easy day 48 h from L, else the day next to L, with a warning
+        far = build(beginner(days=["wed", "sun"], long_run_day="sun"), weeks=4)
+        self.assertEqual([weekday(d) for d in tt_dates(far)], ["wed"])
+        self.assertNotIn("time_trial", [w["rule"] for w in far["warnings"]])
+        near = build(beginner(days=["sat", "sun"], long_run_day="sun"), weeks=4)
+        self.assertEqual([weekday(d) for d in tt_dates(near)], ["sat"])
+        self.assertIn("time_trial", [w["rule"] for w in near["warnings"]])
+
+
 GOLDEN_RACE = {"date": date(2024, 9, 1), "distance_m": 10000, "goal_s": None}       # Sunday of week 12
 GOLDEN_RUNNERS = {
     # level: the runner of tests/fixtures/plan_golden_<level>.md, the same 10 km race in 12 weeks

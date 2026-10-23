@@ -11,6 +11,10 @@ The runner's levels (08, levels.py) set the numbers. A plan in minutes (a beginn
 km all the same, converted at the middle of the E pace range: its weeks show the minutes their
 sessions add up to. A beginner's easy and long runs climb the run/walk ladder first, and their plan
 has a time trial for a first VDOT.
+
+A re-plan carries on from the last plan (prof.progress, progress.py): its first week keeps its place
+in the block, so the deloads stay put, the ladder goes on from the stage reached, and the time trial
+keeps its date, or isn't planned again once run. The plan's "progress" is what the next one reads.
 """
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -64,14 +68,14 @@ def _calendar(prof, rules, start, weeks):
     return cal, warns, len(cal)
 
 
-def _targets(prof, cal, rules, floor_km):
+def _targets(prof, cal, rules, floor_km, first=1):
     """(km per week, deload week indices). The build weeks follow the block curve with deloads off
-    the phase starts, from at least floor_km; taper weeks are [volume] taper shares of the last
-    build week that isn't a deload."""
+    the phase starts, from at least floor_km, the first week at place `first` in its block; taper
+    weeks are [volume] taper shares of the last build week that isn't a deload."""
     every = rules["volume"]["deload_every"]
     build = [w.phase for w in cal if w.phase != "taper"]
     starts = [i for i in range(1, len(build)) if build[i] != build[i - 1]]
-    deloads = align_deloads(len(build), every, starts)
+    deloads = align_deloads(len(build), every, starts, lead=1 - first)
     out = block_curve(prof.km_4w, len(build), **{**settings(rules), "floor": floor_km}, deloads=deloads)
     peak = next((out[i] for i in range(len(out) - 1, -1, -1) if i not in deloads), max(prof.km_4w, floor_km))
     taper = rules["volume"]["taper"]
@@ -107,25 +111,11 @@ class _Week:
             self.q[d] = (tid, v, self._forced(tid, budget) if forced else "")
             budget -= workout_flat_km(instantiate(c.lib[tid], v, c.prof, c.rules))
         self.tt_extra = False                   # the time trial is a hard day on top of the Q days
-        if c.tt and i == c.tt_week - 1:
-            self._time_trial(q_days)
+        if c.tt_date in self.dates.values():    # it takes the week's Q, on its day (_tt_day)
+            self.q, self.tt_extra = {c.tt_day: (c.tt, 1, "")}, not q_days
         # a Q day the rotation leaves empty (Q2 in a deload) is an easy one
         self.slots = {d: "Q" if d in self.q else "E" if s == "Q" else s for d, s in c.slots.items()}
 
-    def _time_trial(self, q_days):
-        """The time trial takes the week's first Q day (its other Q days are easy), else an easy day,
-        the first that is 48 h from L if there is one."""
-        c = self.ctx
-        if q_days:
-            day = q_days[0]
-        else:
-            easy = [d for d, s in c.slots.items() if s in ("E", "F")]
-            if not easy:
-                return
-            far = [d for d in easy
-                   if self.l_day is None or min(skeleton.gap(self.l_day, d), skeleton.gap(d, self.l_day)) >= 2]
-            day, self.tt_extra = (far or easy)[0], True
-        self.q = {day: (c.tt, 1, "")}
     def _forced(self, tid, budget):
         c, t = self.ctx, self.ctx.lib[tid]
         w = instantiate(t, 1, c.prof, c.rules)
@@ -241,6 +231,56 @@ class _Week:
         return {**c.rules, "checks": {**c.rules["checks"], "max_hard": c.rules["checks"]["max_hard"] + 1}}
 
 
+def _tt_day(c):
+    """(weekday, warning or None) of the time trial: a Q day off the hill days (it wants a flat
+    route), else an easy day 48 h from L, one off the hill days first. Failing both, with a warning,
+    a hill Q day, else an easy day next to L; (None, None) in a week of L alone."""
+    l_day = next((d for d, s in c.slots.items() if s == "L"), None)
+    q = [d for d, s in c.slots.items() if s == "Q"]
+    easy = [d for d, s in c.slots.items() if s in ("E", "F")]
+    far = [d for d in easy if l_day is None or min(skeleton.gap(l_day, d), skeleton.gap(d, l_day)) >= 2]
+    hills = c.prof.hill_days
+    best = [d for d in q if d not in hills] + sorted(far, key=lambda d: d in hills)
+    if best:
+        return best[0], None
+    if not q + easy:
+        return None, None
+    day = (q + easy)[0]
+    where = "a hill day: run it on a flat route or a track" if day in q else f"the day next to L ({l_day})"
+    return day, warning("time_trial", f"no Q day off the hill days and no easy day 48 h from L ({l_day}) "
+                                      "for the time trial", f"planned it on {day}, {where}")
+
+
+def _tt_date(c, start, today):
+    """The time trial's date: None without one at the level or once one is run (progress holds
+    it); the planned one's while it isn't past, on c.tt_day of its week when that week is in this
+    plan; this plan's first week when it was missed; else week time_trial_week."""
+    car = c.prof.progress or {}
+    if not c.tt or c.tt_day is None or car.get("time_trials"):
+        return None
+    due = car.get("time_trial")
+    if due and due >= today:
+        if due < start:
+            return due                          # this week's: the last plan's
+        monday = due - timedelta(days=due.weekday())
+    else:
+        monday = start + timedelta(weeks=0 if due else c.tt_week - 1)
+    return monday + timedelta(days=WEEKDAYS.index(c.tt_day))
+
+
+def _block(prof, rules, start):
+    """(block start, the first week's place in its block, run/walk stages reached before it) from
+    the last plan's progress; (start, 1, 0) without one or after a break, which restarts the plan.
+    A first week that the last plan has as a deload is the block's deload (place deload_every)."""
+    car, every = prof.progress, rules["volume"]["deload_every"]
+    if not car or prof.layoff:
+        return start, 1, 0
+    stage = car["run_walk_stage"] or 0
+    if car["block_start"] == start:
+        return start, 1, stage
+    return car["block_start"], every if car["deload"] else min(car["block_week"], every - 1), stage
+
+
 def _cap_name(kind, caps):
     c = caps.get(kind)
     return c if isinstance(c, str) else kind
@@ -315,13 +355,17 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     paces = pace_zones(prof.vdot, rules)
     e_mid = pace_range("E", paces, rules).mid
     floor = rules["volume"]["start_floor"]                  # in the level's own unit
-    targets, deloads = _targets(prof, cal, rules, floor * 60 / e_mid if rules["volume"]["unit"] == "min" else floor)
+    block, first, reached = _block(prof, rules, start)
+    targets, deloads = _targets(prof, cal, rules, floor * 60 / e_mid if rules["volume"]["unit"] == "min" else floor,
+                                first)
     c = SimpleNamespace()               # what every week shares
     c.prof, c.lib, c.rules, c.caps, c.deloads = prof, library, rules, rules["caps"], set(deloads)
     c.level, c.unit = prof.quality_level, levels.unit(prof, level_data)
     c.rw = rules["rotation"].get("run_walk")
     c.tt, c.tt_week = rules["rotation"].get("time_trial"), rules["rotation"].get("time_trial_week")
     c.slots = place_slots(prof.days, prof.long_run_day, rules)
+    c.tt_day, tt_warn = _tt_day(c) if c.tt else (None, None)
+    c.tt_date = _tt_date(c, start, today)
     n_q = sum(s == "Q" for s in c.slots.values())
     rules["checks"]["max_hard"] = n_q + 1                   # the Q days and L (levels.toml q_from_days)
     c.manual = manual_days(prof, library, rules)
@@ -346,6 +390,8 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
         if f:
             top.append(warning("feasibility", f.detail, "kept the paces at the current VDOT (set vdot after a "
                                                          "race or time trial to raise them)"))
+    if c.tt_date and tt_warn:
+        top.append(tt_warn)
     if not hist_ok:
         top.append(warning("acwr_skipped", f"{stats['history_days']} days of history in runs.json, under "
                                            f"{MIN_HISTORY_DAYS}", "skipped the 7:28-day load ratio check in every week"))
@@ -353,8 +399,8 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     every, n_build = rules["volume"]["deload_every"], sum(w.phase != "taper" for w in cal)
     longs, out = [], []
     for i, pw in enumerate(cal):
-        bw = select.block_week(i, deloads, every) if i < n_build else i - n_build + 1
-        builds = sum(j not in c.deloads for j in range(i))              # a deload repeats the last stage
+        bw = select.block_week(i, deloads, every, first) if i < n_build else i - n_build + 1
+        builds = reached + sum(j not in c.deloads for j in range(i))    # a deload repeats the last stage
         week = _Week(c, i, pw, targets[i], i in c.deloads, bw, stage=max(1, builds + (i not in c.deloads)))
         week.longest = max([prof.longest_8w] + longs[max(0, i - 8):i])
         hill = _hill_swap(week)
@@ -369,8 +415,8 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
             warns.append(warning("race_week", f"the race is on {WEEKDAYS[c.race.weekday()]} {c.race}",
                                  "planned no session from race day on; the week's km are the sessions before it"))
         lost = any("leftover" in w for w in split_warns)
-        if res.adjust.trim_l_km or res.adjust.drop_f or race_cut or c.manual or lost or c.unit == "min":
-            target = actual                     # a plan in minutes: the run/walk sessions fill time
+        if res.adjust.trim_l_km or res.adjust.drop_f or race_cut or c.manual or lost or c.unit == "min" or c.rw:
+            target = actual                     # run/walk and time sessions (a beginner's) fill time, not km
         long_date = week.dates[prof.long_run_day]           # L, or the [week] day that replaces it
         longs.append(max((d.workout.km for d in days if d.slot == "L" or d.manual and d.date == long_date),
                          default=0.0))
@@ -390,4 +436,9 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
             "profile_hash": profile_hash(prof, rules),
             "levels": {"volume": prof.volume_level, "quality": prof.quality_level,
                        "reasons": {axis: prof.level_reasons.get(axis, "") for axis in ("volume", "quality")}},
+            "progress": {"block_start": block.isoformat(),
+                         "run_walk_stage": min(reached, len(library[c.rw]["ladder"])) if c.rw else None,
+                         "time_trials": [{**t, "vdot": round(t["vdot"], 2)}
+                                         for t in (prof.progress or {}).get("time_trials", [])],
+                         "time_trial": c.tt_date.isoformat() if c.tt_date else None},
             "warnings": top, "weeks": out}

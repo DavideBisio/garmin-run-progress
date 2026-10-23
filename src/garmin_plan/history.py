@@ -49,13 +49,16 @@ def recent_stats(runs, today):
     56 days; vdot: the best 5 km / 10 km / half effort of the last 12 weeks (training efforts).
     consistency: share of the last 12 full weeks with 2 or more runs; days_off: days from the last
     run to today; km_before / runs_before: weekly km and runs over the 4 weeks up to the last run
-    (the volume before a break); weeks: {km, runs} of the last 4 full weeks, oldest first.
+    (the volume before a break); longest_before / consistency_before: longest_8w and consistency
+    up to the last run (what a break leaves out); weeks: {km, runs} of the last 4 full weeks, oldest
+    first.
     """
     now = day_index(today.isoformat() if isinstance(today, date) else today)
     rs = [(d, r) for d, r in dated(runs) if d <= now]
     out = {"history_days": now - rs[0][0] if rs else 0, "km_4w": None, "km_12w": None,
            "runs_per_week": None, "longest_8w": None, "vdot": None, "vdot_from": None,
-           "consistency": None, "days_off": None, "km_before": None, "runs_before": None, "weeks": []}
+           "consistency": None, "days_off": None, "km_before": None, "runs_before": None,
+           "longest_before": None, "consistency_before": None, "weeks": []}
     if out["history_days"] < MIN_HISTORY_DAYS:
         return out
     weeks, cur = weekly_km([r for _, r in rs]), week_of(now)
@@ -74,6 +77,9 @@ def recent_stats(runs, today):
     out["km_before"] = sum(run_km(r) for r in before) / 4
     out["runs_before"] = len(before) / 4
     out["longest_8w"] = max((run_km(r) for d, r in rs if d > now - 56), default=0.0)
+    out["longest_before"] = max(run_km(r) for d, r in rs if d > last - 56)
+    lw = week_of(last)
+    out["consistency_before"] = sum(weeks.get(w, {"runs": 0})["runs"] >= 2 for w in range(lw - 11, lw + 1)) / 12
     for d, r in rs:
         if d <= now - 84:
             continue
@@ -104,21 +110,21 @@ def q_sessions(runs, today, hr_max, hr_rest, weeks=8):
     return n
 
 
-def time_trial_vdot(runs, plan, today):
-    """(VDOT, "YYYY-MM-DD") of the latest time trial up to today: a run with a GPS stream on a day
-    plan.json planned a time trial (kind tt), from its best 2 km (metrics.best_effort; the page's
-    best-effort distances don't include 2 km). None when there is none."""
+def time_trials(runs, days, today, recorded=()):
+    """[{date, dist_m, time_s, vdot}] of the time trials run up to today, oldest first: the recorded
+    ones (plan.json's progress) and each run with a GPS stream on one of `days` ("YYYY-MM-DD", the
+    days a plan planned a time trial), from its best 2 km (metrics.best_effort; the page's
+    best-effort distances don't include 2 km). A recorded day whose run is still in runs.json is
+    read again from it."""
     now = today.isoformat() if isinstance(today, date) else str(today)
-    days = {d["date"] for wk in (plan or {}).get("weeks", []) for d in wk.get("days", [])
-            if (d.get("workout") or {}).get("kind") == "tt" and d["date"] <= now}
-    out = None
+    out = {t["date"]: t for t in recorded if t["date"] <= now}
     for _, r in dated(runs):
         day = r["date"][:10]
-        if day in days and has_stream(r):
+        if day in days and day <= now and has_stream(r):
             s = best_effort(r["t"], r["d"], 2000)
-            if s and (out is None or day >= out[1]):
-                out = (vdot(2000, s), day)
-    return out
+            if s:
+                out[day] = {"date": day, "dist_m": 2000, "time_s": round(s, 1), "vdot": vdot(2000, s)}
+    return [out[d] for d in sorted(out)]
 
 
 def resting_hr(rhr):

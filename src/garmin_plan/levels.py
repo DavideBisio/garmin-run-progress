@@ -2,14 +2,15 @@
 
 A runner has two levels, one per axis: a volume level (how much they run) and a quality level (what
 sessions they're ready for). detect(stats, levels) reads both from the runner's history, promote()
-moves them on from the last plan's at a block's start, layoff(days) scales VDOT and volume after a
-break, and params(levels, volume_level, quality_level, rules) gives the rules the planner uses: a copy
-of rules.toml with each levels.toml key set to its value at the right level.
+moves them on from the last plan's at a block's start (counted across re-plans: progress.py),
+layoff(days) scales VDOT and volume after a break, and params(levels, volume_level, quality_level,
+rules) gives the rules the planner uses: a copy of rules.toml with each levels.toml key set to its
+value at the right level.
 """
 import copy
 import tomllib
-from datetime import date
 
+from . import progress
 from .config import DATA_DIR, MIN_HISTORY_DAYS
 from .physiology import load_rules
 from .templates import LEVELS
@@ -131,13 +132,11 @@ def describe(volume_level, quality_level, reasons):
 
 
 def block_start(plan, monday):
-    """Whether the week from `monday` starts a block of `plan` (a plan.json dict): its first week,
-    the week after a deload, or a week the plan doesn't reach."""
-    starts = [date.fromisoformat(wk["start"]) for wk in plan.get("weeks", [])]
-    if monday not in starts:
-        return True
-    i = starts.index(monday)
-    return i == 0 or bool(plan["weeks"][i - 1].get("deload"))
+    """Whether the week from `monday` starts a block after `plan` (a plan.json dict): the block its
+    progress says the plan's first week is in (else its first week), the week after a deload, or a
+    week the plan doesn't reach (progress.carry)."""
+    c = progress.carry(plan, monday)
+    return c is None or c["block_start"] == monday
 
 
 def promote(current, stats, levels, *, block_start, compliance=None):
