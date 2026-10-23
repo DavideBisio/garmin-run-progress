@@ -16,6 +16,13 @@ test("the app is published at /app/", () => {
   assert.ok(fs.existsSync(path.join(DIST, "app/index.html")));
 });
 
+test("the header carries the hub's logo and tab icon", () => {
+  const home = fs.readFileSync(path.join(DIST, "index.html"), "utf8");
+  assert.match(home, /<img src="\/garmin-run-progress\/logo\.jpg"/);
+  assert.match(home, /<link rel="icon" href="\/garmin-run-progress\/favicon\.png">/);
+  for (const f of ["logo.jpg", "favicon.png"]) assert.ok(fs.existsSync(path.join(DIST, f)), `${f} missing`);
+});
+
 test("the repo docs are published as pages", () => {
   for (const page of ["docs/features/resting-heart-rate/index.html", "docs/roadmap/index.html",
                       "docs/roadmap/readme/index.html"])

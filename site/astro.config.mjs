@@ -16,6 +16,9 @@ export default defineConfig({
       title: 'Run Progress Lab',
       description: 'Measure how your running fitness changed over the years, then plan what comes next, from your own Garmin data.',
       repo: 'https://github.com/DavideBisio/garmin-run-progress',
+      // Same mark and tab icon as the hub (copied from davidebisio.github.io/public).
+      logo: '/logo.jpg',
+      favicon: '/favicon.png',
       nav: [
         { label: 'Overview', href: '/' },
         { label: 'Docs', href: '/docs/' },
