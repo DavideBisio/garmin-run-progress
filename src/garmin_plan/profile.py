@@ -47,6 +47,7 @@ class Profile:
     progress: dict | None = None         # what the last plan carries over (progress.carry; time_trials: all run)
     vdot_estimate: dict | None = None    # the derived VDOT before any layoff factor, for progress.vdot
     overrides: list = field(default_factory=list)   # [[override]]: {"from", "to", "action"} (roadmap 09)
+    auto_push: bool = True               # make replan pushes the new plan (roadmap 09)
     sources: dict = field(default_factory=dict)   # field -> "set" | "derived" | "default"
     warnings: list = field(default_factory=list)
 
@@ -363,6 +364,9 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
             raise ProfileError(f"unit must be km or min, got {raw['unit']!r}")
         sources["unit"] = "set"
     overrides = parse_overrides(raw["override"]) if "override" in raw else []
+    auto_push = raw.get("auto_push", True)
+    if not isinstance(auto_push, bool):
+        raise ProfileError(f"auto_push must be true or false, got {auto_push!r}")
     week, sources["week"] = {}, "default"
     if "week" in raw:
         week, sources["week"] = parse_week(raw["week"], Path(path).read_text(encoding="utf-8")), "set"
@@ -370,5 +374,5 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
     return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills, week=week,
                    volume_level=vol, quality_level=qual, level_reasons=reasons, layoff=lay, unit=unit,
                    vdot_from=stats["vdot_from"] if sources["vdot"] == "derived" else None, progress=carried,
-                   vdot_estimate=est, overrides=overrides,
+                   vdot_estimate=est, overrides=overrides, auto_push=auto_push,
                    sources=sources, warnings=warnings)

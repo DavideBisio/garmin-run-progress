@@ -25,6 +25,8 @@ goal = "1:35:00"          # optional, H:MM:SS or MM:SS
 tue = "cruise_tempo:2"
 sun = "steady_long:1"
 
+auto_push = true          # make replan pushes the new plan (default true)
+
 [[override]]              # optional, repeatable: skip, reduce or lock days (plan adaptation)
 from = 2027-02-02
 to = 2027-02-05
@@ -35,7 +37,7 @@ action = "skip"
 
 The derived numbers (`km_4w`, `km_12w`, `runs_per_week`, `longest_8w`) can be set too, for example after a break the data doesn't explain.
 
-`[[override]]` tables (`parse_overrides`, `Profile.overrides`) skip, reduce or lock days from today on: see [plan adaptation](plan-adaptation.md#overrides). A missing `from`, a `to` before it or an unknown action is a `ProfileError`.
+`auto_push` (`Profile.auto_push`, true or false) says whether `make replan` pushes ([plan adaptation](plan-adaptation.md#command)). `[[override]]` tables (`parse_overrides`, `Profile.overrides`) skip, reduce or lock days from today on: see [plan adaptation](plan-adaptation.md#overrides). A missing `from`, a `to` before it or an unknown action is a `ProfileError`.
 
 ## Resolution order
 

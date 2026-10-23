@@ -373,5 +373,56 @@ class CliPlan(unittest.TestCase):
         self.assertNotIn("Traceback", res.stderr)
 
 
+class CliReplan(unittest.TestCase):
+    """make replan: plan (matched and adapted), then push unless --no-push or auto_push = false."""
+    TEXT = 'vdot = 40\nhr_max = 190\nhr_rest = 50\nkm_4w = 30\nlongest_8w = 12\n'
+
+    def replan(self, d, *extra, today=TODAY, check=True):
+        env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+        return subprocess.run([sys.executable, "-m", "garmin_plan", "replan", "--export", d,
+                               "--today", today.isoformat(), *extra],
+                              capture_output=True, text=True, encoding="utf-8", env=env, check=check)
+
+    def test_dry_run_pushes_the_new_plan(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT, encoding="utf-8")
+            res = self.replan(d, "--dry-run", "--weeks", "2")
+            self.assertIn("Dry run", res.stdout)
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            files = sorted(p.name[:10] for p in (Path(d) / "push").glob("*.json"))
+            self.assertEqual(files, sorted(x["date"] for w in plan["weeks"] for x in w["days"] if x["workout"]))
+
+    def test_no_push(self):
+        for extra, text in ((["--no-push"], self.TEXT), ([], self.TEXT + "auto_push = false\n")):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as d:
+                (Path(d) / "profile.toml").write_text(text, encoding="utf-8")
+                res = self.replan(d, "--dry-run", *extra)
+                self.assertTrue((Path(d) / "plan.json").exists())
+                self.assertFalse((Path(d) / "push").exists())
+                self.assertIn("not pushed", res.stdout)
+
+    def test_bad_auto_push(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT + 'auto_push = "yes"\n', encoding="utf-8")
+            res = self.replan(d, "--dry-run", check=False)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("error: auto_push", res.stderr)
+
+    def test_wellness_from_runs_json(self):
+        # runs.json's HRV status reaches the adaptation: a low status today makes the next Q easy
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT, encoding="utf-8")
+            self.replan(d, "--no-push")
+            later = TODAY + timedelta(days=7)
+            runs = {"format": "garmin-runs/1", "runs": [], "rhr": [],
+                    "hrv": [[later.isoformat(), "LOW"]], "readiness": []}
+            (Path(d) / "runs.json").write_text(json.dumps(runs), encoding="utf-8")
+            self.replan(d, "--no-push", today=later)
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            self.assertEqual([(c["from"], c["to"], c["reason"]) for c in plan["changes"]],
+                             [("Q", "E", "HRV status low")])
+            self.assertIn("## What changed", (Path(d) / "plan.md").read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

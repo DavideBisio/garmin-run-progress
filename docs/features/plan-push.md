@@ -47,6 +47,8 @@ Step 2 stops with an error, before changing anything, when the listing has items
 
 One case can still leave a stray workout: a Ctrl-C or a lost connection after Garmin stored an upload but before its answer arrived. It is not on the calendar and not in the state; delete it by hand in Garmin Connect (its name starts with `[plan]`). A lost answer to any other call is finished by the next push.
 
+<a id="re-plans"></a>**Re-plans** (`make replan`, roadmap 09, [plan adaptation](plan-adaptation.md#command)) push the same way: every future session is removed and pushed again, with no diffing, and only `[plan]` workouts are ever touched. One exception: a day of today that already has a run in `runs.json` is left alone, in both the remove and the push steps, so a session started (or finished) on the watch is not replaced under it. `push` does the same (`push(..., ran=...)`, the dates with a run, from `cli.ran_today`). After a `make grab` that brought today's run, today's workout stays as it was pushed; its state entry too.
+
 When a real push fails, the command stops with `error: <message> (re-run to resume; state is in garmin_export/push_state.json)`; Ctrl-C stops it with `interrupted; re-run to resume`.
 
 ## Payload
@@ -77,7 +79,7 @@ If the logged-in client lacks `upload_workout`, `schedule_workout`, `unschedule_
 
 ## Tests
 
-`tests/test_push.py` (TC-8) runs against `FakeGarmin`, never the real library: payload shape per role, end and target; step order; repeats; snapshots; names; future sessions and `--weeks`; HR guidance for beginners (no target, the description, pace steps unchanged, the plan's levels); re-push; resume after an interruption at every call of a first push and of a re-push; a lost answer (applied, then an error) at every upload, schedule, unschedule and delete; a resumed workout already gone or renamed; a listing with unexpected or unreadable field names; one workout on two dates; dry-run; the old-library message; `push --dry-run` through the CLI and the error and Ctrl-C messages of `cmd_push`.
+`tests/test_push.py` (TC-8) runs against `FakeGarmin`, never the real library: payload shape per role, end and target; step order; repeats; snapshots; names; future sessions and `--weeks`; HR guidance for beginners (no target, the description, pace steps unchanged, the plan's levels); re-push; resume after an interruption at every call of a first push and of a re-push; a lost answer (applied, then an error) at every upload, schedule, unschedule and delete; a resumed workout already gone or renamed; a listing with unexpected or unreadable field names; one workout on two dates; dry-run; the old-library message; `push --dry-run` through the CLI and the error and Ctrl-C messages of `cmd_push`; a day already run today left alone by a re-push, and skipped by a dry run.
 
 ## Open: manual acceptance on a real account
 

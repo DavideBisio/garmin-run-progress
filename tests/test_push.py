@@ -630,6 +630,30 @@ class Push(unittest.TestCase):
         self.assertEqual(p["workoutName"], f"[plan] Half-Marathon Long Run {self.future[0]}")
         self.assertFalse((self.export / config.PUSH_STATE).exists())
 
+    def test_day_run_today_is_left_alone(self):
+        # a re-plan on Sunday after the run started: Sunday's workout stays as pushed, the rest is replaced
+        run(self.g, self.plan, self.export)
+        sunday = self.future[0]
+        kept = self.state()[sunday]
+        self.g.calls.clear()
+        today = date.fromisoformat(sunday)
+        run(self.g, self.plan, self.export, today=today, ran={sunday})
+        touched = {c[1] for c in self.g.calls if c[0] in ("unschedule_workout", "delete_workout")}
+        self.assertNotIn(kept["workout_id"], touched)
+        self.assertNotIn(kept["scheduled_id"], touched)
+        uploads = [c[1] for c in self.g.calls if c[0] == "upload_workout"]
+        self.assertFalse([n for n in uploads if n.endswith(sunday)], uploads)
+        self.assertEqual(len(uploads), len(self.future) - 1)
+        self.assertEqual(self.state()[sunday], kept)
+        self.assertIn(kept["workout_id"], self.g.workouts)
+        self.assertEqual(self.g.schedules[kept["scheduled_id"]], (kept["workout_id"], sunday))
+        self.assert_consistent()
+
+    def test_dry_run_skips_a_day_already_run(self):
+        run(mock.Mock(), self.plan, self.export, dry_run=True, ran={self.future[0]})
+        files = sorted(p.name for p in (self.export / config.PUSH_DIR).glob("*.json"))
+        self.assertEqual([f[:10] for f in files], self.future[1:])
+
     def test_nothing_to_push(self):
         run(self.g, self.plan, self.export, today=date(2025, 1, 1))
         self.assertEqual(self.g.calls, [])

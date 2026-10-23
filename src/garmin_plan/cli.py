@@ -1,7 +1,9 @@
-"""Command line: python -m garmin_plan profile | plan | push (later: replan).
+"""Command line: python -m garmin_plan profile | plan | push | replan.
 
 push logs in through garmin_grab.garmin (garminconnect), imported only when it really calls Garmin;
-profile, plan and push --dry-run are standard library only.
+profile, plan, push --dry-run and replan --dry-run / --no-push are standard library only. replan is
+plan (matched and adapted to the runs, roadmap 09) then push, unless --no-push or profile.toml's
+auto_push = false.
 """
 import argparse
 import json
@@ -23,15 +25,22 @@ from .templates import TemplateError, load_templates
 
 
 def load_runs(path):
-    """(runs, rhr) from runs.json; a missing file is an empty history."""
+    """(runs, wellness) from runs.json, wellness {"rhr", "hrv", "readiness"} (each [] when absent); a
+    missing file is an empty history."""
     if not path.exists():
         print(f"warning: {path} not found, deriving nothing from history", file=sys.stderr)
-        return [], []
+        return [], {"rhr": [], "hrv": [], "readiness": []}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
         sys.exit(f"error: {path}: can't read runs.json ({e})")
-    return data.get("runs") or [], data.get("rhr") or []
+    return data.get("runs") or [], {k: data.get(k) or [] for k in ("rhr", "hrv", "readiness")}
+
+
+def ran_today(runs, today):
+    """{today's ISO date} when runs.json has a run dated today, else empty: push leaves that day alone."""
+    t = today.isoformat()
+    return {t} if any(str(r.get("date") or "")[:10] == t for r in runs) else set()
 
 
 def show_profile(p, path):
@@ -76,10 +85,10 @@ def show_profile(p, path):
 
 
 def resolve_profile(args):
-    """(export dir, Profile, runs, the last plan.json or None, rhr) for --export / --today; profile errors
+    """(export dir, Profile, runs, the last plan.json or None, wellness) for --export / --today; profile errors
     exit with 'error: ...'."""
     out = Path(args.export)
-    runs, rhr = load_runs(out / RUNS)
+    runs, wellness = load_runs(out / RUNS)
     prev = None                         # the last plan: its levels, progress and time trials
     if (out / PLAN_JSON).exists():
         try:
@@ -88,12 +97,12 @@ def resolve_profile(args):
             print(f"warning: {out / PLAN_JSON}: can't read it, ignored as the last plan: the levels are "
                   f"detected afresh and the block, run/walk ladder and time trials start over ({e})", file=sys.stderr)
     try:
-        p = load_profile(out / PROFILE, runs, rhr, args.today, plan=prev)
+        p = load_profile(out / PROFILE, runs, wellness["rhr"], args.today, plan=prev)
     except ProfileError as e:
         sys.exit(f"error: {e}")
     for w in p.warnings:
         print(f"warning: {w}", file=sys.stderr)
-    return out, p, runs, prev, rhr
+    return out, p, runs, prev, wellness
 
 
 def cmd_profile(args):
@@ -102,11 +111,11 @@ def cmd_profile(args):
 
 
 def cmd_plan(args):
-    out, p, runs, prev, rhr = resolve_profile(args)
+    out, p, runs, prev, wellness = resolve_profile(args)
     try:
         rules = load_rules()
         plan = replan(prev, p, runs, load_templates(), rules, args.today or date.today(), args.weeks,
-                      wellness={"rhr": rhr})
+                      wellness=wellness)
     except (ProfileError, TemplateError, SkeletonError, PhaseError) as e:
         sys.exit(f"error: {e}")
     write_plan(plan, out / PLAN_JSON)
@@ -119,10 +128,16 @@ def cmd_plan(args):
     n = len(plan["warnings"]) + sum(len(w.get("warnings") or []) for w in new)
     print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {len(new)} week(s) from "
           f"{new[0]['start']}, {total}" + (f"; {n} warning(s), listed in plan.md" if n else ""))
+    if plan.get("changes"):
+        print(f"{len(plan['changes'])} change(s) from today on, under What changed in plan.md")
+    return p, runs
 
 
-def cmd_push(args):
+def cmd_push(args, runs=None):
+    """Push plan.json; a day of today with a run in runs.json (runs, else read from --export) is left alone."""
     out = Path(args.export)
+    if runs is None:
+        runs = load_runs(out / RUNS)[0] if (out / RUNS).exists() else []
     path = out / PLAN_JSON
     if not path.exists():
         sys.exit(f"error: {path} not found; write it first with make plan")
@@ -132,7 +147,8 @@ def cmd_push(args):
         sys.exit(f"error: {path}: can't read plan.json ({e})")
     if args.dry_run:
         try:
-            garmin_push.push(None, plan, args.today or date.today(), out, dry_run=True, weeks=args.weeks)
+            today = args.today or date.today()
+            garmin_push.push(None, plan, today, out, dry_run=True, weeks=args.weeks, ran=ran_today(runs, today))
         except (garmin_push.PushError, KeyError, ValueError) as e:
             sys.exit(f"error: {e}")
         return
@@ -141,11 +157,21 @@ def cmd_push(args):
     garmin_push.check_library(g)
     try:
         today = garmin_push.local_today(g, args.today)
-        garmin_push.push(g, plan, today, out, weeks=args.weeks, retry=with_retry)
+        garmin_push.push(g, plan, today, out, weeks=args.weeks, retry=with_retry, ran=ran_today(runs, today))
     except KeyboardInterrupt:
         sys.exit("interrupted; re-run to resume")
     except Exception as e:  # noqa: BLE001  (Garmin's errors, PushError, a broken plan.json: all resumable)
         sys.exit(f"error: {e} (re-run to resume; state is in {out / PUSH_STATE})")
+
+
+def cmd_replan(args):
+    """plan, then push every future session (as push does) unless --no-push or auto_push = false."""
+    p, runs = cmd_plan(args)
+    if args.no_push or not p.auto_push:
+        why = "--no-push" if args.no_push else "auto_push = false in profile.toml"
+        print(f"Plan not pushed ({why}); push it with: make push")
+        return
+    cmd_push(argparse.Namespace(export=args.export, today=args.today, weeks=None, dry_run=args.dry_run), runs)
 
 
 def positive_int(v):
@@ -178,5 +204,12 @@ def main(argv=None):
     pu.add_argument("--dry-run", action="store_true",
                     help="write the payloads to <export>/push/ and call nothing")
     pu.set_defaults(run=cmd_push)
+    rp = sub.add_parser("replan", parents=[shared],
+                        help="re-plan from the runs (match, adapt: plan) and push the future sessions again")
+    rp.add_argument("--weeks", type=positive_int, default=None, help="as plan --weeks")
+    rp.add_argument("--no-push", action="store_true",
+                    help="write plan.json and plan.md only (as auto_push = false in profile.toml)")
+    rp.add_argument("--dry-run", action="store_true", help="push --dry-run: write the payloads, call nothing")
+    rp.set_defaults(run=cmd_replan)
     args = ap.parse_args(argv)
     args.run(args)

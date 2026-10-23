@@ -57,8 +57,23 @@ No GUI in this section. Status shows up on the page in 10.
 
 ## Completion checklist
 
-- [ ] Missing HRV or readiness data, from older watches or nights without the watch, never counts as fatigue.
-- [ ] Bundler rules hold for `wellness.py`: unique top-level names and module order. `tools/build.py` fails otherwise.
-- [ ] Re-planning only touches `[plan]` workouts in Garmin. A session already started on the watch today is left alone.
-- [ ] Training-run efforts are never used to raise VDOT. Per the page's own notes, they understate fitness, so they could only lower it by mistake.
-- [ ] The partial-run threshold and the fatigue thresholds are settings, documented in `docs/features/plan-adaptation.md`.
+- [x] Missing HRV or readiness data, from older watches or nights without the watch, never counts as fatigue.
+- [x] Bundler rules hold for `wellness.py`: unique top-level names and module order. `tools/build.py` fails otherwise.
+- [x] Re-planning only touches `[plan]` workouts in Garmin. A session already started on the watch today is left alone. "Started" is read as a run of today already in `runs.json` (after `make grab`); a session in progress that isn't synced yet can't be seen.
+- [x] Training-run efforts are never used to raise VDOT. Per the page's own notes, they understate fitness, so they could only lower it by mistake.
+- [x] The partial-run threshold and the fatigue thresholds are settings, documented in `docs/features/plan-adaptation.md`.
+
+## Shipped
+
+Adaptation loop (#12): `garmin_grab/wellness.py` (HRV status and training readiness), `garmin_plan/match.py`, `adapt.py` and `replan.py`, the kept past weeks and `history` in `plan.json`, `make replan` and the re-push that leaves a day already run alone. Documented in [plan adaptation](../features/plan-adaptation.md), [HRV status and training readiness](../features/wellness.md), [plan push](../features/plan-push.md#re-plans), [plan profile](../features/plan-profile.md), [plan generator](../features/plan-generator.md#re-plans), the [plan.json format](../plan-json-format.md) and the [runs.json format](../runs-json-format.md); tested by `tests/test_adapt.py`, `tests/test_grabber.py` (`Wellness`), `tests/test_push.py`, `tests/test_planner.py` (`CliReplan`) and `tests/test_levels.py` (Q compliance). Differences from the plan above:
+
+- Signatures: `update_wellness(g, out, first_day)` writes both files into the export folder; `match(plan, runs, today, rules, hr_max=None, hr_rest=None)` (the HR bounds tell a Q run); `adapt(plan, history, wellness, overrides, today, rules, easy, prev=None)` edits the plan in place and returns the change log; `replan.replan` ties the generator, `keep_past`, `match` and `adapt` together for `plan` and `replan`.
+- Partial means under 70 % of both the planned distance and time (a slow run that went the time isn't partial); a hard Q run with under 10 minutes at Z4+ is partial too. A time trial is judged by its best 2 km, not its planned total.
+- A missed L is only moved or skipped within 3 days (`l_move_max_days`), so a weekly re-plan doesn't move last week's long run into this one. Fatigue changes one Q at a time; each wellness value counts only when fresh (today or yesterday).
+- Two runs on one day count as one session unless the second is the moved run of the day before or after.
+- The VDOT across re-plans is `progress.vdot`: training efforts give the first estimate only; races (`event` = `race` in `runs.json`) raise it every 4 weeks, a time trial replaces it at once, and a break lowers it by the layoff table once running resumes (during the break the layoff factor applies on top, as before).
+- Q compliance for the level promotion is the last block's Q sessions done, moved or swapped over those planned.
+- Without a race the phase cycle is carried (`progress.cycle_start`), so its deloads stay put across re-plans; `progress.plan_start` marks the plan's own weeks so the kept ones don't count twice.
+- "What changed" goes after the levels line and before the warnings in `plan.md`.
+
+Open, to check on a real account: the shapes of `get_hrv_data_range` and `get_training_readiness` responses (parsed defensively, field names unconfirmed), Garmin's day limit for an HRV range request (28 days assumed), and readiness levels and score bands (`LOW`/`POOR`, under 50).

@@ -1,6 +1,6 @@
 # Plan adaptation
 
-Every `make plan` adapts the plan to what actually happened (roadmap 09). It matches the runs in `runs.json` to the last plan's sessions, keeps the past weeks with their result, and rewrites only the days from today on: missed sessions, fatigue and the overrides in `profile.toml`. The thresholds are settings in the `[adapt]` table of `src/garmin_plan/data/rules.toml`.
+Every `make plan`, and `make replan` after each `make grab`, adapts the plan to what actually happened (roadmap 09). It matches the runs in `runs.json` to the last plan's sessions, keeps the past weeks with their result, and rewrites only the days from today on: missed sessions, fatigue and the overrides in `profile.toml`. The thresholds are settings in the `[adapt]` table of `src/garmin_plan/data/rules.toml`.
 
 ```text
 plan.json (last)  ──match──▶  status of each past session        (match.py)
@@ -12,6 +12,22 @@ profile + runs ──generate──▶ weeks from next Monday              (plan
            adapt the days from today on, log the changes         (adapt.py)
                                     │
                          plan.json, plan.md "What changed"
+```
+
+## Command
+
+```sh
+make grab                                # fetch the new runs, HRV status and readiness (no planning)
+make replan                              # re-plan from them, then push the future sessions again
+make replan ARGS="--no-push"             # re-plan only (as make plan)
+make replan ARGS="--dry-run"             # re-plan, then push --dry-run: payloads in garmin_export/push/
+python -m garmin_plan replan [--weeks N] [--no-push] [--dry-run] [--export DIR] [--today YYYY-MM-DD]
+```
+
+`replan` is `plan` (generate, match, adapt; `--weeks` as for `plan`) followed by `push` of every future session ([plan push](plan-push.md#re-plans)). Whether it pushes is `auto_push` in `profile.toml` (default `true`); `--no-push` overrides it for one run. `make grab` stays as it was: it plans nothing. `runs.json` gives the runs and the wellness data (`rhr`, `hrv`, `readiness`); an older `runs.json` without `hrv` or `readiness` simply has no such signals.
+
+```toml
+auto_push = false          # profile.toml: make replan writes the plan, make push sends it
 ```
 
 ## Matching runs to sessions
@@ -104,6 +120,10 @@ It is read back from the changed days from today on (plus the missed long runs s
 | `reduce` | 0.5 | A reduce override's share of each session's km |
 | `vdot_every_weeks` | 4 | Weeks between VDOT re-estimates |
 
+`auto_push` (default `true`) is a `profile.toml` key, not a rule: see [Command](#command).
+
 ## Tests
+
+`tests/test_planner.py` (`CliReplan`) runs `replan` through the CLI: `--dry-run` pushes the new plan's sessions, `--no-push` and `auto_push = false` push nothing, a bad `auto_push` is an error, `runs.json`'s HRV status reaches the adaptation. `tests/test_push.py` covers the day already run today. `tests/test_grabber.py` covers the wellness grab.
 
 `tests/test_adapt.py`: matching (all done, Q missed, a Q run easy, two runs on one day, a run on the wrong day, a partial run, a trail run in place of L, today and the future, runs without HR, Q compliance), past weeks (kept, never changed, statuses, the run/walk stage and block not counted twice, no-race deloads put across weekly re-plans, history), the rules (Q missed, L missed with and without room, fatigue from resting HR, HRV and readiness, missing or stale data never fatigue, thresholds as settings, a day run today left alone, skip, reduce and lock), the invariants over whole re-plans (re-planning twice gives the same plan, past weeks and locked days never change, "What changed"), the VDOT rules and the override parsing.

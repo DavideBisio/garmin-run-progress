@@ -9,6 +9,10 @@ interrupted push left off the calendar, then removes the future "[plan]" workout
 (unschedule, then delete), then uploads and schedules each session. push_state.json ({date:
 {workout_id, scheduled_id, name}}) is saved after every mutating call, so an interrupted push is
 resumed by running it again.
+
+A re-plan (roadmap 09, make replan) pushes every future session again the same way, with no diffing,
+but leaves alone the days already run (ran: the dates with a run in runs.json, today's at most):
+their workout is neither removed nor uploaded again, so a session started on the watch stays.
 """
 import json
 import sys
@@ -270,16 +274,18 @@ def dry_run_files(todo, export):
     return {"pushed": 0, "removed": 0, "written": len(todo)}
 
 
-def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=time.sleep, retry=None):
+def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=time.sleep, retry=None, ran=()):
     """Replace the future [plan] workouts in the pushed range with plan.json's sessions.
 
     retry(fn, *args) wraps every Garmin call (garmin_grab.garmin.with_retry); sleep(delay) follows
-    every mutating call. Returns {"pushed", "removed"} counts.
+    every mutating call. ran: ISO dates already run, left as they are on Garmin (module docstring).
+    Returns {"pushed", "removed"} counts.
     """
+    ran = set(ran)
     lv = plan.get("levels") or {}
     guide = "beginner" in (lv.get("volume"), lv.get("quality"))       # 08: HR caps as guidance only
     todo = [(day, wd, to_garmin(wd, workout_name(wd["title"], day), description(wd), hr_guidance=guide))
-            for day, wd in sessions(plan, today, weeks)]
+            for day, wd in sessions(plan, today, weeks) if day not in ran]
     if dry_run:
         return dry_run_files(todo, export)
 
@@ -312,7 +318,7 @@ def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=tim
         save_state(state, path)
 
     if not todo:
-        print("Nothing to push: plan.json has no session from today on")
+        print("Nothing to push: plan.json has no session from today on" + (" not run yet" if ran else ""))
         return {"pushed": 0, "removed": removed}
     first, last = today.isoformat(), todo[-1][0]
 
@@ -339,7 +345,7 @@ def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=tim
         if name is None and not matched:
             continue
         day = day or (matched[0] if matched else None)
-        if day is None or not first <= day <= last:
+        if day is None or not first <= day <= last or day in ran:
             continue
         if wid is None and matched:
             wid = state[matched[0]].get("workout_id")
@@ -349,7 +355,7 @@ def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=tim
                         f"{len(items)} item(s) (keys seen: {_keys_seen(items)})")
     for d in sorted(state):
         e = state[d]
-        if first <= d <= last and e.get("scheduled_id") is not None and d not in found:
+        if first <= d <= last and e.get("scheduled_id") is not None and d not in found and d not in ran:
             if e.get("workout_id") is None or call(_get_workout, g, e["workout_id"]):
                 raise PushError(f"{d}: workout {e.get('workout_id')} (schedule {e['scheduled_id']}) of "
                                 f"{path.name} is not in Garmin's scheduled-workout listing "

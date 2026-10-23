@@ -25,7 +25,7 @@ ifneq ($(filter release,$(MAKECMDGOALS)),)
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help install upgrade grab rebuild plan-profile plan push build dev serve test test-py test-js site-install site-dev site-build site-test deploy release clean
+.PHONY: help install upgrade grab rebuild plan-profile plan push replan build dev serve test test-py test-js site-install site-dev site-build site-test deploy release clean
 
 help: ## list the targets
 	@$(PY) -c "import re; [print(f'  make {m[1]:<13} {m[2]}') for m in re.finditer(r'^([a-z-]+):.*?## (.*)$$', open('Makefile').read(), re.M)]"
@@ -56,6 +56,9 @@ plan: ## generate garmin_export/plan.json and plan.md from profile.toml and runs
 
 push: $(VENV_PY) ## upload and schedule plan.json's future sessions on Garmin (ARGS="--weeks 2 --dry-run")
 	$(VENV_PY) -m garmin_plan push $(ARGS)
+
+replan: $(VENV_PY) ## re-plan from the runs (after make grab), then push (ARGS="--no-push" or "--dry-run")
+	$(VENV_PY) -m garmin_plan replan $(ARGS)
 
 # ---------------------------------------------------------------- page
 build: ## build dist/garmin_grab.py and dist/index.html from src/

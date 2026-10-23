@@ -109,7 +109,7 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 
 ## Planner modules (`garmin_plan`)
 
-Runs from a clone (`make plan-profile`, `make plan`, `make push`) and is not part of the release bundle. It is standard library only, except a real `push`: that logs in through `garmin_grab.garmin.login` and so uses `garminconnect`, imported only then (`push --dry-run` needs neither). Personal files (`profile.toml`, `plan.json`, `plan.md`, `push_state.json`, `push/`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md), [plan workouts](features/plan-workouts.md), [plan generator](features/plan-generator.md), [plan push](features/plan-push.md) and the [plan.json format](plan-json-format.md).
+Runs from a clone (`make plan-profile`, `make plan`, `make push`, `make replan`) and is not part of the release bundle. It is standard library only, except a real `push`: that logs in through `garmin_grab.garmin.login` and so uses `garminconnect`, imported only then (`push --dry-run` needs neither). Personal files (`profile.toml`, `plan.json`, `plan.md`, `push_state.json`, `push/`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md), [plan workouts](features/plan-workouts.md), [plan generator](features/plan-generator.md), [plan push](features/plan-push.md) and the [plan.json format](plan-json-format.md).
 
 | Module | Responsibility |
 |---|---|
@@ -138,8 +138,8 @@ Runs from a clone (`make plan-profile`, `make plan`, `make push`) and is not par
 | `checks.py` | `Day`, `check_week` (easy share, hard days, volume rise, load ratio, L share → `Violation`s and notes), `easy_share`, `week_km`, `feasibility` |
 | `fix.py` | `fix_week` (shrink Q, trim L, drop F; bounded and deterministic), `Adjust`, `FixResult` |
 | `planner.py` | `build_plan` (the generator: phases, volume, slots, sessions, the split, checks and fixes, `[week]` overrides, warnings, the `progress` the next plan carries on) |
-| `push.py` | `to_garmin` (plan.json workout → `RunningWorkout`-shaped dict, Garmin ids inlined), `workout_name`, `sessions`, `local_today`, `check_library`, `push` (re-push, resume, `push_state.json`, dry-run) |
-| `cli.py` | `main`: the `profile`, `plan` (the generator, through `replan`) and `push` subcommands (shared `--export`, `--today`) |
+| `push.py` | `to_garmin` (plan.json workout → `RunningWorkout`-shaped dict, Garmin ids inlined), `workout_name`, `sessions`, `local_today`, `check_library`, `push` (re-push, resume, `push_state.json`, dry-run; a day already run left alone) |
+| `cli.py` | `main`: the `profile`, `plan` (the generator, through `replan`), `push` and `replan` (plan, then push unless `--no-push` or `auto_push = false`) subcommands (shared `--export`, `--today`); `load_runs` (runs and wellness), `ran_today` |
 | `data/rules.toml` | What is the same at every level: Daniels pace fractions, the R-pace offset, pace bands and the jog offset; the F slot (`[skeleton]`), the deload, the next block's start and the taper (`[volume]`), L's growth (`[split]`), the phase calendar (`[phases]`, lengths per race distance in `[phases.*]`), the hard-portion caps (`[caps]`), the session rotations (`[rotation]`, per phase in `[rotation.*]`, with `Q2` rows), the week checks (`[checks]`), the fixer (`[fix]`), goal feasibility (`[feasibility]`) and the adaptation loop (`[adapt]`) |
 | `data/levels.toml` | What depends on the runner's level, each key a `level = value` table: the ramp, block length, start floor and unit (`[volume]`), the long run caps and the E minimum (`[split]`), the run cap and Q days (`[skeleton]`), the E template, run/walk ladder, time trial and the beginner's rotation (`[rotation]`); level detection and promotion (`[detect]`) and the layoff table (`[layoff]`) |
 | `data/workouts.toml` | The workout template library (stable ids) |
