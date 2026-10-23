@@ -1,0 +1,27 @@
+# Builds the project site (site/, Astro + site-kit) with the app copied in at /app/, using
+# site-kit's shared workflow, and deploys it to GitHub Pages. Tests run in ci.yml.
+# One-time setup: Settings → Pages → Source: GitHub Actions.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pages:
+    uses: DavideBisio/site-kit/.github/workflows/deploy-pages.yml@ef6ed2586d40a45e27228d4734d5a2abe58575d2 # v0.1.2
+    with:
+      site-dir: "site"
+      node-version: "24"
+      python-version: "3.12"
+      prebuild: python tools/build.py && npm --prefix site run app:copy

@@ -1,0 +1,32 @@
+---
+import { BaseLayout, Section, FeatureGrid } from '@davidebisio/site-kit';
+import { docsNav } from '@davidebisio/site-kit/content';
+import { getDocs } from '../../lib/docs';
+
+const entries = await getDocs();
+const descriptions = new Map(entries.map((e) => [e.id, e.data.description]));
+// FeatureGrid adds the base path to hrefs itself.
+const nav = docsNav(entries, (e) => `/docs/${e.id}/`);
+const intros: Record<string, string> = {
+  Overview: 'How the grabber and the page fit together, the `runs.json` contract, and how to run, deploy and release.',
+  Features: 'One page per feature: what it computes, from which data, and where it shows up.',
+  Roadmap: 'The training plan generator, section by section.',
+};
+---
+
+<BaseLayout title="Docs" description="Documentation for Run Progress Lab: the Garmin grabber, the analysis page and the roadmap." wide>
+  <h1>Documentation</h1>
+  {
+    nav.map((group) => (
+      <Section title={group.label || undefined} intro={intros[group.label]}>
+        <FeatureGrid
+          items={group.items.map((item) => ({
+            title: item.title,
+            body: descriptions.get(item.id),
+            href: item.href,
+          }))}
+        />
+      </Section>
+    ))
+  }
+</BaseLayout>

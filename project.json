@@ -1,0 +1,9 @@
+{
+  "name": "garmin-run-progress",
+  "tagline": "Measure how your running fitness changed over the years, then plan what comes next, from your own Garmin data.",
+  "repo": "DavideBisio/garmin-run-progress",
+  "url": "https://davidebisio.github.io/garmin-run-progress/",
+  "status": "active",
+  "tags": ["running", "garmin", "python", "data-viz"],
+  "order": 200
+}

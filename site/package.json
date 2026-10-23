@@ -1,0 +1,21 @@
+{
+  "name": "garmin-run-progress-site",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "astro": "astro",
+    "app:copy": "node -e \"const fs = require('fs'); fs.mkdirSync('public/app', { recursive: true }); fs.copyFileSync('../dist/index.html', 'public/app/index.html')\""
+  },
+  "//": "@davidebisio/site-kit is pinned to the v0.1.2 commit (ef6ed25); .github/workflows/pages.yml pins the same SHA",
+  "dependencies": {
+    "@davidebisio/site-kit": "github:DavideBisio/site-kit#ef6ed2586d40a45e27228d4734d5a2abe58575d2",
+    "astro": "^7.4.1"
+  }
+}

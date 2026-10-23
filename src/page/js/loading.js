@@ -28,7 +28,7 @@ async function handleFiles(files){
       if (!runs.length) throw new Error("None of the GPX files had a usable track.");
       payload = {format:"garmin-runs/1", runs};
     } else throw new Error("Choose runs.json or .gpx files.");
-    setData(payload, false);
+    setData(payload, false, true);
     const withStream = RUNS.filter(r=>r._g).length;
     say(`Loaded ${nf.format(RUNS.length)} runs (${nf.format(withStream)} with GPS track).`, "ok");
     if ($("remember").checked) idbSet(payload);

@@ -1,5 +1,5 @@
-# Test every push and pull request; deploy dist/ to GitHub Pages from main.
-# One-time setup: Settings → Pages → Source: GitHub Actions.
+# Test every push and pull request: the grabber and page tests, then a project site build
+# so a broken site shows up on a branch before main deploys it (pages.yml deploys).
 name: CI
 
 on:
@@ -21,26 +21,6 @@ jobs:
           python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - run: make test
-      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - run: npm --prefix site ci && make site-build site-test

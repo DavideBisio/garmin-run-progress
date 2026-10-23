@@ -9,6 +9,12 @@ grab.log
 # Build output (tools/build.py)
 dist/
 
+# Project site (site/): dependencies, build output, and the app copied in by app:copy
+site/node_modules/
+site/dist/
+site/.astro/
+site/public/app/
+
 # Python
 .venv/
 __pycache__/

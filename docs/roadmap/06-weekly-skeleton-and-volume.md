@@ -1,0 +1,77 @@
+# 06 · Weekly skeleton and volume curve
+
+## Requirements
+
+- **Slot placement:**
+  - Each available day gets one slot: **L** (long), **Q** (quality), **E** (easy) or **F** (flex, the first slot dropped when volume is short). The remaining days are rest.
+  - L goes on the preferred day.
+  - Q goes as far from L as possible: at least 48 h away in both directions, and never on the day after L.
+  - No two hard days are back to back.
+- **Volume curve:**
+  - The start is the 4-week average from `runs.json`.
+  - Blocks have 4 weeks: ×1.00, ×1.08, ×1.16, then a deload at ×0.85.
+  - The next block starts from the previous block's week 2, which is roughly +10 % per block. The ramp and the deload period are configurable.
+- **Phases:**
+  - Counted back from the race date: Base (E + strides/hills), then R + T, then I + T, then T + M, then a 2-week taper.
+  - With no race, the planner cycles Base and R + T.
+  - If the weeks are too few, it warns and shortens phases in a fixed order rather than compressing the ramp.
+- **Splitting a week's km across slots:**
+  - L = min(L share cap × week, longest recent run + 2 km, time cap);
+  - Q comes from the template size (sizing is in 07; until then, the smallest variant);
+  - E gets the remainder, each E run between 5 km (or 30 min) and the length of L;
+  - F switches on when E slots would run over L, and off when they would fall below the minimum.
+- The result is the week and slot structure of `plan.json`, with a km target for each slot.
+
+## Implementation
+
+```text
+src/garmin_plan/
+  skeleton.py  place_slots(available_days, long_day, rules) -> {weekday: slot}
+  volume.py    block_curve(start, weeks, ramp, deload_every) -> [target]
+  phases.py    phase_calendar(today, race_date, distance) -> [(week_start, phase)]
+  split.py     split_week(target, slots, history, rules) -> {weekday: km}
+  data/rules.toml  caps, ramp, deload, phase lengths per race distance, E minimum
+```
+
+- **Placement is brute force:** at most 4⁷ assignments. A score function adds hard constraints (infinite penalty) and soft preferences (Q–L distance, E spread). Ties break in a fixed day order, so a re-plan doesn't shuffle days.
+- **Volume units** stay abstract (`km` or `min`) in `volume.py`, ready for the minute-based beginner plans in 08.
+- A plan can start on any weekday. Its first week is partial and isn't counted for the ramp.
+
+Example result for a generic profile (Tue/Wed/Thu/weekend available, 16 km starting volume):
+
+```text
+| Mon  | Tue | Wed | Thu | Fri  | Sat/Sun |
+| rest | Q   | F   | E   | rest | L       |
+
+Wk  Phase  km   Q    E    F    L
+1   Base   18   5.3  5.0  –    8.0
+2   Base   20   6.0  5.0  –    9.0
+3   Base   21   6.0  5.5  –    9.5
+4   Base   16   5.0  4.0  –    7.0   (deload)
+```
+
+No GUI in this section.
+
+## Testing strategy
+
+- **Table-driven placement tests** for 2-, 3-, 4-, 5- and 6-day availabilities and a weekend-only runner. Impossible sets fail with an error that names the broken rule.
+- **Property tests** over every 3–6-day subset of the week:
+  - Q is never the day after L;
+  - Q and L are always at least 48 h apart;
+  - there are never back-to-back hard days;
+  - the result is deterministic.
+- **Volume curve:** exact numbers for 3 blocks; the ramp and deload settings take effect.
+- **Phases:** race in 6, 12, 20 and 30 weeks; no race; race distances 5K, 10K, HM and M.
+- **Split invariants:**
+  - the parts add up to the target within ±0.5 km;
+  - the E minimum is respected;
+  - F switches on at the expected volume;
+  - the L cap binds at low volume.
+
+## Completion checklist
+
+- [ ] The low-frequency L cap of 45 % (Daniels says 25–30 %) is a setting with a comment explaining why. Without it, a 3-runs-a-week plan gets a tiny long run.
+- [ ] Deloads line up with phase boundaries where possible, so a phase doesn't start with a lighter week.
+- [ ] A starting volume near 0, after a break, is clamped to a floor here; 08 handles detraining properly.
+- [ ] A "Sat/Sun" long run uses the preferred day, with the other weekend day as a fallback, and moving it doesn't break the 48 h rule.
+- [ ] Phase lengths per race distance are written down together with their source, in `rules.toml`.

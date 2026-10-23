@@ -7,8 +7,8 @@ function chart(id, cfg){ if (charts[id]) charts[id].destroy(); if (!window.Chart
 function baseOpts(c){
   return { responsive:true, maintainAspectRatio:false, animation:false, interaction:{mode:"nearest",intersect:false},
     plugins:{legend:{display:false}, tooltip:{backgroundColor:c.surface, titleColor:c.ink, bodyColor:c.ink, borderColor:c.line, borderWidth:1}},
-    scales:{ x:{grid:{color:c.grid}, ticks:{color:c.muted, font:{family:"IBM Plex Mono"}}, border:{color:c.line}},
-             y:{grid:{color:c.grid}, ticks:{color:c.muted, font:{family:"IBM Plex Mono"}}, border:{color:c.line}} } };
+    scales:{ x:{grid:{color:c.grid}, ticks:{color:c.muted, font:{family:c.mono}}, border:{color:c.line}},
+             y:{grid:{color:c.grid}, ticks:{color:c.muted, font:{family:c.mono}}, border:{color:c.line}} } };
 }
 function alpha(hex, a){ const m=/^#([0-9a-f]{6})$/i.exec(hex); if(!m) return hex; const n=parseInt(m[1],16); return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`; }
 
@@ -17,7 +17,7 @@ function render(){
   const season=$("season").value, months = season==="all"?null:new Set(season.split(",").map(Number));
   const noTrail=$("no-trail").checked;
   const runs = RUNS.filter(r => (!months || months.has(r._m)) && !(noTrail && r._trail));
-  const c = {accent:tok("--accent"),a2:tok("--accent-2"),a3:tok("--accent-3"),ink:tok("--ink"),muted:tok("--muted"),line:tok("--line"),surface:tok("--surface"),grid:alpha(tok("--line"),.6)};
+  const c = {a1:tok("--accent-1"),a2:tok("--accent-2"),a3:tok("--accent-3"),ink:tok("--ink"),muted:tok("--muted"),line:tok("--line"),surface:tok("--surface"),mono:tok("--f-mono"),grid:alpha(tok("--line"),.6)};
 
   // per-year aggregates
   const years = {};
@@ -73,7 +73,7 @@ function render(){
   o.scales.y = {...o.scales.y, reverse:true, ticks:{...o.scales.y.ticks, callback:v=>fmtPace(v)}, title:{display:true,text:"min/km",color:c.muted}};
   o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${fmtPace(ctx.parsed.y)} /km`, title:items=>items.length?String(Math.floor(items[0].parsed.x)):""};
   chart("c-eff", {type:"scatter", data:{datasets:[
-    {label:"Run", data:effPts, pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.accent,.28), borderColor:"transparent"},
+    {label:"Run", data:effPts, pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.a1,.28), borderColor:"transparent"},
     {label:"Yearly median", type:"line", data:effYears.map(Y=>({x:Y.y+.5,y:Y.effMed})), borderColor:c.ink, backgroundColor:c.ink, borderWidth:2.5, pointRadius:4, tension:.25}
   ]}, options:o});
 
@@ -82,14 +82,14 @@ function render(){
   o.scales.y.title = {display:true,text:"VDOT",color:c.muted};
   o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} (${fmtTime(ctx.dataset.times[ctx.dataIndex])})`};
   const lab = ys.map(Y=>String(Y.y));
-  const ds = [["5k","5 km",c.accent],["10k","10 km",c.a2],["hm","Half",c.a3]].map(([kk,l,col])=>({label:l, data:ys.map(Y=>Y.vdot[kk]??null), times:ys.map(Y=>Y.best[kk]), borderColor:col, backgroundColor:col, spanGaps:true, pointRadius:3.5, borderWidth:2, tension:.2}));
+  const ds = [["5k","5 km",c.a1],["10k","10 km",c.a2],["hm","Half",c.a3]].map(([kk,l,col])=>({label:l, data:ys.map(Y=>Y.vdot[kk]??null), times:ys.map(Y=>Y.best[kk]), borderColor:col, backgroundColor:col, spanGaps:true, pointRadius:3.5, borderWidth:2, tension:.2}));
   chart("c-vdot", {type:"line", data:{labels:lab, datasets:ds}, options:o});
 
   // volume
   o = baseOpts(c);
   o.scales.y.title = {display:true,text:"km",color:c.muted};
   o.plugins.tooltip.callbacks = {label:ctx=>`${nf.format(ctx.parsed.y)} km`};
-  chart("c-vol", {type:"bar", data:{labels:lab, datasets:[{data:ys.map(Y=>Math.round(Y.km)), backgroundColor:alpha(c.accent,.75), borderRadius:3}]}, options:o});
+  chart("c-vol", {type:"bar", data:{labels:lab, datasets:[{data:ys.map(Y=>Math.round(Y.km)), backgroundColor:alpha(c.a1,.75), borderRadius:3}]}, options:o});
 
   // VO2max
   const vo2Pts = runs.filter(r=>r.vo2).map(r=>({x:r._x,y:r.vo2}));
@@ -134,11 +134,11 @@ function render(){
   };
   const decPts = runs.filter(r=>r._dec!=null).map(r=>({x:r._x, y:Math.max(-10, Math.min(25, r._dec))}));
   $("dec-panel").hidden = !decPts.length;
-  if (decPts.length) trend("c-dec", decPts, ys.filter(Y=>Y.decMed!=null).map(Y=>({x:Y.y+.5,y:Y.decMed})), c.accent, "% drift", v=>v.toFixed(0)+"%", {min:-10, max:25},
+  if (decPts.length) trend("c-dec", decPts, ys.filter(Y=>Y.decMed!=null).map(Y=>({x:Y.y+.5,y:Y.decMed})), c.a1, "% drift", v=>v.toFixed(0)+"%", {min:-10, max:25},
     [{label:"5% line", type:"line", data:[{x:xMin,y:5},{x:xMax,y:5}], borderColor:c.muted, borderDash:[5,4], borderWidth:1.5, pointRadius:0, pointHitRadius:0}]);
   const cadPts = runs.filter(r=>r.cad>100).map(r=>({x:r._x, y:r.cad}));
   $("cad-panel").hidden = !cadPts.length;
-  if (cadPts.length) trend("c-cad", cadPts, ys.filter(Y=>Y.cadMed).map(Y=>({x:Y.y+.5,y:Y.cadMed})), c.accent, "steps/min", v=>v.toFixed(0));
+  if (cadPts.length) trend("c-cad", cadPts, ys.filter(Y=>Y.cadMed).map(Y=>({x:Y.y+.5,y:Y.cadMed})), c.a1, "steps/min", v=>v.toFixed(0));
   const stPts = runs.filter(r=>r.stride>0).map(r=>({x:r._x, y:r.stride/100}));
   $("stride-panel").hidden = !stPts.length;
   if (stPts.length) trend("c-stride", stPts, ys.filter(Y=>Y.strideMed).map(Y=>({x:Y.y+.5,y:Y.strideMed})), c.a3, "m per step", v=>v.toFixed(2));
@@ -153,9 +153,9 @@ function render(){
     o.plugins.tooltip.callbacks = {label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}`, title:items=>items.length?String(Math.floor(items[0].parsed.x)):""};
     const teMed = key => ys.map(Y=>{ const v=median(teRuns.filter(r=>r._y===Y.y && r[key]!=null).map(r=>r[key])); return v==null?null:{x:Y.y+.5,y:v}; }).filter(Boolean);
     chart("c-te", {type:"scatter", data:{datasets:[
-      {label:"Aerobic", data:teRuns.map(r=>({x:r._x,y:r.te})), pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.accent,.3), borderColor:"transparent"},
+      {label:"Aerobic", data:teRuns.map(r=>({x:r._x,y:r.te})), pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.a1,.3), borderColor:"transparent"},
       {label:"Anaerobic", data:teRuns.filter(r=>r.teAn!=null).map(r=>({x:r._x,y:r.teAn})), pointRadius:2.2, pointHoverRadius:4, backgroundColor:alpha(c.a2,.35), borderColor:"transparent"},
-      {label:"Aerobic, yearly median", type:"line", data:teMed("te"), borderColor:c.accent, backgroundColor:c.accent, borderWidth:2.5, pointRadius:4, tension:.25},
+      {label:"Aerobic, yearly median", type:"line", data:teMed("te"), borderColor:c.a1, backgroundColor:c.a1, borderWidth:2.5, pointRadius:4, tension:.25},
       {label:"Anaerobic, yearly median", type:"line", data:teMed("teAn"), borderColor:c.a2, backgroundColor:c.a2, borderWidth:2.5, pointRadius:4, tension:.25}
     ]}, options:o});
   }

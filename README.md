@@ -5,7 +5,7 @@ Measure how your running fitness changed over the years using your own Garmin Co
 It has two parts:
 
 - **`garmin_grab.py`** is an incremental exporter. It logs into Garmin Connect, downloads the GPX of every run it hasn't seen before, fetches your daily resting heart rate, and writes one compact `runs.json`.
-- **`index.html`** is the analysis page. Open it in a browser, drop in `runs.json`, and get the trends. Everything runs locally, and nothing is uploaded.
+- **`index.html`** is the analysis page. Open it in a browser, drop `runs.json` in the Data tab, and get the trends in Analysis. Everything runs locally, and nothing is uploaded.
 
 ## What the analysis shows
 
@@ -43,7 +43,7 @@ python garmin_grab.py
 
 The first run asks for your Garmin email, password and MFA code. Tokens are saved in `~/.garminconnect`, so later runs need nothing.
 
-Then open the analysis page at https://davidebisio.github.io/garmin-run-progress/ (or the release's `index.html`, saved locally) and drop in `garmin_export/runs.json`.
+Then open the analysis page at https://davidebisio.github.io/garmin-run-progress/app/ (or the release's `index.html`, saved locally) and drop `garmin_export/runs.json` in the Data tab.
 
 From a clone, `make install` and `make grab` do the same (see [Development](#development)).
 
@@ -78,7 +78,7 @@ The page also accepts raw `.gpx` files directly (select many at once), but witho
 
 ## Development
 
-The code lives in `src/`: the grabber package in `src/garmin_grab/` and the page's HTML, CSS and per-section scripts in `src/page/`. `tools/build.py` bundles them into `dist/garmin_grab.py` and `dist/index.html`, which are not committed: CI deploys them to GitHub Pages from `main` and attaches them to each release. Building and testing need only Python and Node 20.11+.
+The code lives in `src/`: the grabber package in `src/garmin_grab/` and the page's HTML, CSS and per-section scripts in `src/page/`. `tools/build.py` bundles them into `dist/garmin_grab.py` and `dist/index.html`, which are not committed: the Pages workflow publishes the page at `/app/` of the project site (`site/`, Astro + site-kit, at https://davidebisio.github.io/garmin-run-progress/), and each release attaches both files. Building and testing need only Python and Node 20.11+; the site needs Node 22.23.4+ (CI uses 24).
 
 ```text
 make install   create .venv and install the Garmin library
@@ -87,7 +87,7 @@ make rebuild   rebuild runs.json from local files, no network
 make dev       serve the unbuilt page on localhost:8000
 make build     build dist/garmin_grab.py and dist/index.html
 make test      build, then run the grabber and page tests
-make deploy    test, git push (CI deploys main to Pages)
+make deploy    test, git push (pushing main deploys the site and app to Pages)
 make release   VERSION=v1.2.0: tag and push (CI publishes the release)
 ```
 

@@ -2,10 +2,16 @@
 """Build the two shipped files from src/ into dist/ (not committed):
 
     dist/garmin_grab.py  the src/garmin_grab/ package bundled into one script
-    dist/index.html      src/page/ with styles.css and js/*.js inlined and the
+    dist/index.html      src/page/ as one self-contained file: vendor/tokens.css and
+                         styles.css, the vendored Chart.js and js/*.js inlined, and the
                          bundled grabber embedded (for "Copy script" and the zip)
 
-CI deploys dist/ to GitHub Pages and attaches both files to each release.
+The page makes no third-party requests, so the release's index.html works opened
+from disk. The build fails if any remote script, stylesheet, font or CSS import, or
+any local .js/.css file it does not inline, is left in the page.
+
+The Pages workflow copies dist/index.html into the project site at /app/; the release
+workflow attaches both files to each GitHub Release.
 
 Usage (from the repo root):
     python tools/build.py
@@ -23,10 +29,27 @@ DIST = ROOT / "dist"
 # dependency order: each module may only import from the ones before it
 MODULES = ["config", "storage", "activities", "garmin", "rhr", "gpx", "export", "cli"]
 
-CSS_LINK = '<link rel="stylesheet" href="styles.css">\n'
+# Chart.js is vendored in src/page/vendor/; this is the one place its version is recorded
+# (the build checks it against the file's license header; docs/deploy.md points here).
+CHART_VERSION = "4.4.1"
+CHART_JS = "vendor/chart.umd.min.js"
+
+# local stylesheets inlined in place, in this order (the kit's tokens before the app's styles)
+CSS_FILES = ["vendor/tokens.css", "styles.css"]
+# local classic scripts inlined in place, each as its own <script> block before the page script
+VENDOR_JS = [CHART_JS]
+
 JS_TAGS = re.compile(r'(?:<script src="js/[\w-]+\.js"></script>\n)+')
 JS_NAME = re.compile(r'<script src="js/([\w-]+)\.js"></script>')
 GRABBER = re.compile(r'(<script type="text/plain" id="grabber-src">)(.*?)(</script>)', re.S)
+
+# self-containment check on the finished page
+SCRIPT_BODY = re.compile(r"(<script\b[^>]*>).*?(</script\s*>)", re.S | re.I)
+LOADING_TAG = re.compile(r"<(?:script|link)\b[^>]*>", re.I)
+TAG_URL = re.compile(r"""(?<![\w-])(?:src|href)\s*=\s*["']?([^"'\s>]+)""", re.I)
+REMOTE = re.compile(r"^(?:https?:)?//", re.I)
+LOCAL_ASSET = re.compile(r"\.(?:m?js|css)(?:[?#].*)?$", re.I)
+CSS_REMOTE = re.compile(r"""@import\b|url\(\s*["']?(?:https?:)?//""", re.I)
 
 
 def fail(msg):
@@ -108,14 +131,55 @@ def bundle_grabber():
 
 
 # ---------------------------------------------------------------- page
+def check_self_contained(html):
+    """Fail on anything the page would fetch: remote scripts, stylesheets, fonts and other
+    <link>s (any rel), CSS imports and remote url()s, and local .js/.css files that were not
+    inlined. Links (<a href>) are fine. Inline script bodies (the vendored Chart.js, the page
+    script and the grabber's text/plain source) are text, not markup, so they are skipped."""
+    markup = SCRIPT_BODY.sub(r"\1\2", html)
+    for tag in LOADING_TAG.findall(markup):
+        for url in TAG_URL.findall(tag):
+            if REMOTE.match(url):
+                fail(f"the page must not load anything from another site: {tag}")
+            if LOCAL_ASSET.search(url):
+                fail(f"src/page/index.html loads a file the build does not inline: {tag}")
+    if m := CSS_REMOTE.search(markup):
+        fail(f"the page's CSS must not import or load remote files: {markup[m.start():m.start() + 80]!r}")
+
+
+def inline_vendor_js(html, name):
+    tag = f'<script src="{name}"></script>\n'
+    if html.count(tag) != 1:
+        fail(f"src/page/index.html must load {name} exactly once")
+    js = (PAGE / name).read_text(encoding="utf-8")
+    if "</script" in js.lower():
+        fail(f"{name} contains '</script', which would break the page")
+    if name == CHART_JS:
+        m = re.search(r"Chart\.js v([\w.-]+)", js[:500])
+        if not m or m[1] != CHART_VERSION or "MIT License" not in js[:500]:
+            fail(f"{name} must start with the Chart.js v{CHART_VERSION} MIT license header (CHART_VERSION in tools/build.py)")
+    return html.replace(tag, f"<script>\n{js.rstrip()}\n</script>\n")
+
+
 def build_page(grabber):
     if "</script" in grabber.lower():
         fail("the grabber contains '</script', which would break the page")
     html = (PAGE / "index.html").read_text(encoding="utf-8")
-    if html.count(CSS_LINK) != 1:
-        fail("src/page/index.html must link styles.css exactly once")
-    css = (PAGE / "styles.css").read_text(encoding="utf-8")
-    html = html.replace(CSS_LINK, f"<style>\n{css}</style>\n")
+    at = []
+    for name in CSS_FILES:
+        link = f'<link rel="stylesheet" href="{name}">\n'
+        if html.count(link) != 1:
+            fail(f"src/page/index.html must link {name} exactly once")
+        at.append(html.index(link))
+        css = (PAGE / name).read_text(encoding="utf-8")
+        if "</style" in css.lower():
+            fail(f"{name} contains '</style', which would break the page")
+        html = html.replace(link, f"<style>\n{css}</style>\n")
+    if at != sorted(at):
+        fail(f"src/page/index.html must link {', '.join(CSS_FILES)} in that order")
+
+    for name in VENDOR_JS:
+        html = inline_vendor_js(html, name)
 
     tags = JS_TAGS.findall(html)
     if len(tags) != 1:
@@ -123,6 +187,9 @@ def build_page(grabber):
     parts = []
     for name in JS_NAME.findall(tags[0]):
         js = (PAGE / "js" / f"{name}.js").read_text(encoding="utf-8")
+        # site-bar.js (a verbatim site-kit copy) shows "<script ...></script>" in its usage
+        # comment; "<\/script" means the same in JS comments, strings and regexes
+        js = re.sub(r"</(script)", r"<\\/\1", js, flags=re.I)
         parts.append(js.removeprefix('"use strict";\n'))
     script = '<script>\n(() => {\n"use strict";\n' + "\n".join(parts) + "})();\n</script>\n"
     html = html.replace(tags[0], script)
@@ -130,7 +197,9 @@ def build_page(grabber):
     m = GRABBER.search(html)
     if not m:
         fail("could not find the grabber-src block in src/page/index.html")
-    return html[:m.start(2)] + grabber + html[m.end(2):]
+    html = html[:m.start(2)] + grabber + html[m.end(2):]
+    check_self_contained(html)
+    return html
 
 
 def main():

@@ -7,7 +7,7 @@ Both are built from `src/` by `tools/build.py` and are not committed. Get them f
 | Where | `garmin_grab.py` | `index.html` |
 |---|---|---|
 | Latest [GitHub Release](https://github.com/DavideBisio/garmin-run-progress/releases/latest) | [download](https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/garmin_grab.py) | [download](https://github.com/DavideBisio/garmin-run-progress/releases/latest/download/index.html) |
-| GitHub Pages | "Copy script" on the page | `https://davidebisio.github.io/garmin-run-progress/` |
+| GitHub Pages | "Copy script" on the page | `https://davidebisio.github.io/garmin-run-progress/app/` (the project site and docs are at `https://davidebisio.github.io/garmin-run-progress/`) |
 | A clone | `make build` → `dist/garmin_grab.py`, or run it unbundled with `make grab` | `make build` → `dist/index.html` |
 
 ## 1. Grabber
@@ -92,32 +92,39 @@ If that doesn't help, download the latest `garmin_grab.py` and check the [python
 
 ## 2. Analysis page
 
-The page is one static file. It loads fonts from Google Fonts and Chart.js from cdnjs, so it needs internet access to display charts.
+The page is one static file with everything inlined, including Chart.js and the site-kit tokens. It makes no third-party requests (no CDN, no web fonts), so it works offline, opened from disk. `tools/build.py` fails if a remote script, stylesheet or font sneaks back in.
 
 ### Option A: open locally
 
-Download `index.html` from the latest release (or `make build` in a clone and open `dist/index.html`), then double-click it or drag it into a browser. Everything works from `file://`.
+Download `index.html` from the latest release (or `make build` in a clone and open `dist/index.html`), then double-click it or drag it into a browser. Everything works from `file://`, offline. Only the bar's link to the project site (`../`) leads nowhere there.
 
 ### Option B: GitHub Pages
 
-The [CI workflow](../.github/workflows/ci.yml) builds and tests every push and deploys `dist/` from `main`. One-time setup:
+GitHub Pages serves the project site: an Astro + [site-kit](https://github.com/DavideBisio/site-kit) landing page and the repo's own `docs/` at `https://davidebisio.github.io/garmin-run-progress/`, with the app at `https://davidebisio.github.io/garmin-run-progress/app/`. The [Pages workflow](https://github.com/DavideBisio/garmin-run-progress/blob/main/.github/workflows/pages.yml) calls site-kit's reusable `deploy-pages.yml` on every push to `main`: it runs `python tools/build.py`, copies `dist/index.html` to `site/public/app/` (`npm --prefix site run app:copy`), builds `site/` and deploys it. The [CI workflow](https://github.com/DavideBisio/garmin-run-progress/blob/main/.github/workflows/ci.yml) only tests, and builds the site to catch breakage before `main`. One-time setup:
 
 1. On GitHub: **Settings → Pages**.
 2. **Source:** GitHub Actions.
-3. Push to `main` (or run the CI workflow by hand). After a minute the page is at `https://davidebisio.github.io/garmin-run-progress/`.
+3. Push to `main` (or run the Pages workflow by hand). After a minute the site is up.
 
-The site contains `index.html` and `garmin_grab.py`. Visitors load their own `runs.json`; nothing is uploaded to GitHub, and the data stays in each visitor's browser.
+Visitors load their own `runs.json`; nothing is uploaded to GitHub, and the data stays in each visitor's browser.
+
+To work on the site locally (Node 22.23.4+): `make site-install` once, then `make site-build` (app, copy, `astro build` into `site/dist/`) and `make site-test`, or `make site-dev` for a live preview. The docs pages are the Markdown files in `docs/` as they are; links between them are rewritten to the built pages, so link other repo files with absolute GitHub URLs.
+
+### Upgrading site-kit
+
+site-kit is pinned by commit SHA, with a `# v0.1.2` comment, in `site/package.json` and `.github/workflows/pages.yml`; change both together. The app carries two verbatim copies from the kit: `src/page/vendor/tokens.css` and `src/page/js/site-bar.js`. Re-copy them together from the same kit version and update the version in their header comments.
+
+Chart.js is vendored at `src/page/vendor/chart.umd.min.js` with its MIT license header. Its version lives in one place, `CHART_VERSION` in `tools/build.py`; the build checks the file's header against it. To upgrade, replace the file with the new `chart.umd.min.js`, keep the license header, and bump `CHART_VERSION`.
 
 ### Option C: any static host
 
 Copy `index.html` (from a release or `dist/`) to Netlify, Cloudflare Pages, an S3 bucket or any web server. No server-side code or configuration is needed.
 
-If the host sets a strict Content-Security-Policy, allow:
+If the host sets a strict Content-Security-Policy, the page needs no third-party origins, only its inline code:
 
 ```text
-script-src  'unsafe-inline' https://cdnjs.cloudflare.com
-style-src   'unsafe-inline' https://fonts.googleapis.com
-font-src    https://fonts.gstatic.com
+script-src  'unsafe-inline'
+style-src   'unsafe-inline'
 ```
 
 ### Option D: claude.ai artifact
@@ -133,16 +140,17 @@ make dev                          # serve src/page on localhost:8000 while you e
 make test                         # build dist/, run all tests
 git add src tools tests docs      # name paths: never `git add -A` in a folder with your data
 git commit -m "..."
-make deploy                       # test, git push; CI tests again and deploys main to Pages
+make deploy                       # test, git push; CI tests again, pages.yml deploys main
 make release VERSION=v1.2.0       # tag and push; CI publishes the release
 ```
 
-Without `make`: `python tools/build.py`, `python -m unittest discover -s tests` and `node --test tests/page.test.mjs`; release with `git tag -a v1.2.0 -m v1.2.0 && git push origin v1.2.0`.
+Without `make`: `python tools/build.py`, `python -m unittest discover -s tests` and `node --test tests/page.test.mjs` (the site: `npm --prefix site ci`, `npm --prefix site run app:copy`, `npm --prefix site run build`, `node --test tests/site.test.mjs`); release with `git tag -a v1.2.0 -m v1.2.0 && git push origin v1.2.0`.
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| [`ci.yml`](../.github/workflows/ci.yml) | every push and pull request | `make test`; on `main` also deploys `dist/` to Pages |
-| [`release.yml`](../.github/workflows/release.yml) | a pushed `v*` tag | `make test`, then a GitHub Release with `garmin_grab.py` and `index.html` attached and generated notes |
+| [`ci.yml`](https://github.com/DavideBisio/garmin-run-progress/blob/main/.github/workflows/ci.yml) | every push and pull request | `make test`, then `make site-build site-test` |
+| [`pages.yml`](https://github.com/DavideBisio/garmin-run-progress/blob/main/.github/workflows/pages.yml) | a push to `main` | site-kit's `deploy-pages.yml`: builds the app and the site, deploys it to Pages |
+| [`release.yml`](https://github.com/DavideBisio/garmin-run-progress/blob/main/.github/workflows/release.yml) | a pushed `v*` tag | `make test`, then a GitHub Release with `garmin_grab.py` and `index.html` attached, notes pointing to the app (`/app/`) and the site (`/`), and generated notes |
 
 The page's "Download garmin_grab.py" button and the install commands above point at `releases/latest`, so they serve the grabber from the newest release, not from `main`. Cut a release after changing the grabber.
 

@@ -31,6 +31,6 @@ save rhr.json
 | Chart `#c-rhr` | Daily dots, plus a 30-day rolling median (drawn once at least 10 days are in the window) |
 | KPI "Resting heart rate" | Median of the last 30 days of data vs the 30 days one year earlier; green chip when lower |
 | Year table "Resting HR" | Median of all days in that calendar year |
-| Training "Max / resting HR" default | Median of the last 365 days (see [training](training-load-zones-consistency.md)) |
+| "Your heart rate" (Data tab) resting HR default | Median of the last 365 days (see [training](training-load-zones-consistency.md)) |
 
 The month and trail filters don't apply to resting heart rate. The panel and KPI are hidden when the file has no `rhr` array (older runs.json files or GPX imports).
