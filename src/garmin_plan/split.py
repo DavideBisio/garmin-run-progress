@@ -3,7 +3,7 @@ from .config import WEEKDAYS
 
 
 def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
-    """({weekday: km}, warnings) for the place_slots week `slots`, Monday first, km rounded to 0.1.
+    """({weekday: km}, warnings) for the place_slots week `slots`, Monday first, km to 0.1 km.
 
     L = min(long_share_cap x target, longest_km + long_over_longest_km, long_time_cap_min at E
     pace), or the E minimum (easy_min_km or easy_min_min at E pace, whichever is shorter) when that
@@ -15,7 +15,8 @@ def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
     When the easy runs are still longer than L, they stay so (warning). A remainder too small for
     any easy run is taken from L when L stays at the E minimum, else it goes to Q (a longer warm-up
     and cool-down), else to one short easy run (warning), and only in a week with L as its one run
-    does L take it past its cap (warning). The parts add up to target, none negative.
+    does L take it past its cap (warning). The parts add up to target, none negative, and after
+    rounding to target rounded to 0.1 (see _rounded), so a week heading adds up its days.
     """
     s = rules["split"]
     e_min = min(s["easy_min_km"], s["easy_min_min"] * 60 / e_pace_s_per_km)
@@ -65,4 +66,19 @@ def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
         out[d] = long_km
     for d in easy:
         out[d] = easy_km
-    return {d: round(float(km), 1) for d, km in out.items()}, warnings
+    return _rounded(out, target, of["Q"]), warnings
+
+
+def _rounded(km, target, q_days):
+    """km rounded to 0.1 so the parts add up to target rounded to 0.1 (largest remainder): Q rounds
+    on its own, as its session shows it, and the other parts share the tenths left, the largest
+    fractions first (ties: the earlier day). A 0 km day stays 0."""
+    out = {d: round(float(v), 1) for d, v in km.items()}
+    rest = [d for d in km if d not in q_days and km[d] > 0]
+    tenths = {d: round(km[d] * 10, 6) for d in rest}               # 6 places: 41.4999… is 41.5
+    left = round(round(target, 1) * 10) - sum(round(out[d] * 10) for d in q_days) - sum(int(tenths[d]) for d in rest)
+    order = sorted(rest, key=lambda d: (-(tenths[d] - int(tenths[d])), WEEKDAYS.index(d)))
+    up = set(order[:max(0, min(left, len(order)))])
+    for d in rest:
+        out[d] = (int(tenths[d]) + (d in up)) / 10
+    return out

@@ -62,7 +62,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | Field | Contents |
 |---|---|
 | `start` | The week's Monday, `YYYY-MM-DD` |
-| `target_km` | The week's planned volume, in flat-equivalent km: the volume curve's target (06; the taper's share of the last build week). It becomes the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first, so the week heading adds up its day headings) when the week has `[week]` days, when the fixer trimmed L or dropped F, and in the race week, which stops before race day |
+| `target_km` | The week's planned volume, in flat-equivalent km: the volume curve's target (06; the taper's share of the last build week), to 0.1 km; the split rounds the days so they add up to it. It becomes the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first, so the week heading adds up its day headings) when the week has `[week]` days, when the fixer trimmed L or dropped F, when the Q template can't take the split's leftover (a `split` warning), and in the race week, which stops before race day |
 | `phase` | `"base"`, `"rt"` (R + T), `"it"` (I + T), `"tm"` (T + M) or `"taper"` (06's phase calendar). Absent in a plan of the `[week]` schedule alone |
 | `deload` | `true` for the block's lighter week (×0.85 of the block, the deload Q one variant lighter). Absent as `phase` |
 | `warnings` | The week's warnings (see [Warnings](#warnings)), `[]` when it passes every check. Absent as `phase` |

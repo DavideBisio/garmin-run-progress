@@ -32,6 +32,7 @@ SPLIT_ACTIONS = [                    # text in a split.py warning -> what the pl
     ("run short", "planned one easy run under the minimum"),
     ("no other run", "put the whole week in L"),
     ("under the E minimum", "planned the week's km as one short long run"),
+    ("leftover", "planned the week as the sum of its sessions"),
 ]
 
 
@@ -125,6 +126,15 @@ class _Week:
         v, _ = size.pick_variant(t, km, self.target, c.caps, c.prof, c.rules)
         return size.fit(t, v, c.prof, c.rules, km=km)
 
+    def _q_extended(self, qw, extra):
+        """qw with the split's leftover on the Q day: a longer warm-up, else a longer first easy main
+        step (the progression run has no warm-up); None when the template has neither."""
+        if extra <= 0.05:
+            return qw
+        t = self.ctx.lib[self.q[0]]
+        return (size.fit(t, qw.variant, self.ctx.prof, self.ctx.rules, warmup_km=extra)
+                or size.fit(t, qw.variant, self.ctx.prof, self.ctx.rules, km=qw.km + extra))
+
     def layout(self, adj):
         c, days = self.ctx, {}
         qw = None
@@ -141,9 +151,12 @@ class _Week:
             if k <= 0 or (slot == "F" and adj.drop_f):
                 continue
             if slot == "Q" and not dropped:
-                extra = k - q_km
-                w = size.fit(c.lib[self.q[0]], qw.variant, c.prof, c.rules, warmup_km=extra) if extra > 0.05 else qw
-                days[d] = checks.Day(self.dates[d], "Q", w or qw, forced=self.q[2])
+                w = self._q_extended(qw, k - q_km)
+                if w is None:
+                    w = qw
+                    warns.append(f"Q: {qw.title} has no warm-up or easy step to take the week's {k - q_km:.1f} "
+                                 "km leftover")
+                days[d] = checks.Day(self.dates[d], "Q", w, forced=self.q[2])
             elif slot == "L":
                 days[d] = checks.Day(self.dates[d], "L", self._long(k))
             else:
@@ -249,7 +262,7 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None):
     c.race = prof.race["date"] if prof.race else None
     stats = recent_stats(runs, today)
     hist_ok = stats["history_days"] >= MIN_HISTORY_DAYS
-    c.daily = daily_load(runs, prof.hr_max, prof.hr_rest) if hist_ok else None
+    c.daily = daily_load(runs, prof.hr_max, prof.hr_rest, until=today) if hist_ok else None   # planned from here
     c.prev_km, c.prev_days = None, []
 
     top = [warning("phases", w, "kept the volume ramp and shortened the phases as listed") for w in phase_warns]
@@ -267,7 +280,7 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None):
     for i, pw in enumerate(cal):
         bw = select.block_week(i, deloads, every) if i < n_build else i - n_build + 1
         week = _Week(c, i, pw, targets[i], i in c.deloads, bw)
-        week.longest = max([prof.longest_8w if i < 8 else 0.0] + longs[max(0, i - 8):i])
+        week.longest = max([prof.longest_8w] + longs[max(0, i - 8):i])
         hill = _hill_swap(week)
         before = week.check(week.layout(fix.Adjust())[0])[0]
         res = fix.fix_week(lambda adj: week.layout(adj)[0], week.check, rules)
@@ -279,9 +292,12 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None):
         if race_cut:
             warns.append(warning("race_week", f"the race is on {WEEKDAYS[c.race.weekday()]} {c.race}",
                                  "planned no session from race day on; the week's km are the sessions before it"))
-        if res.adjust.trim_l_km or res.adjust.drop_f or race_cut or c.manual:
+        lost = any("leftover" in w for w in split_warns)
+        if res.adjust.trim_l_km or res.adjust.drop_f or race_cut or c.manual or lost:
             target = actual
-        longs.append(max((d.workout.km for d in days if d.slot == "L"), default=0.0))
+        long_date = week.dates[prof.long_run_day]           # L, or the [week] day that replaces it
+        longs.append(max((d.workout.km for d in days if d.slot == "L" or d.manual and d.date == long_date),
+                         default=0.0))
         if c.daily is not None:
             for k, v in projected_daily([(d.date, d.workout) for d in days], prof.hr_max, prof.hr_rest).items():
                 c.daily[k] = c.daily.get(k, 0) + v

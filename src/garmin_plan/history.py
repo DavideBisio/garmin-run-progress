@@ -91,11 +91,15 @@ def hr_max(runs):
     return half_up(peaks[min(1, len(peaks) - 1)]) if peaks else None
 
 
-def daily_load(runs, hr_max, hr_rest):
+def daily_load(runs, hr_max, hr_rest, until=None):
     """{day index: TRIMP} of every dated run, as training.js's daily map: runs on one day add up,
-    a run without HR counts 0 (its day still starts the history), resting HR is clamped to max - 20."""
+    a run without HR counts 0 (its day still starts the history), resting HR is clamped to max - 20.
+    until: a date; runs after it are left out (the planner's history ends on `today`)."""
     rest, out = min(hr_rest, hr_max - 20), {}
+    last = None if until is None else day_index(until.isoformat() if isinstance(until, date) else until)
     for day, r in dated(runs):
+        if last is not None and day > last:
+            break
         out[day] = out.get(day, 0) + trimp(r, hr_max, rest)
     return out
 

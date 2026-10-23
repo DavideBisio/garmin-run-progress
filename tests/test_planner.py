@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from garmin_plan import physiology, plan_io, planner, profile, render_md, templates  # noqa: E402
 from garmin_plan.config import WEEKDAYS  # noqa: E402
+from garmin_plan.terrain import workout_flat_km  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 GOLDEN = FIXTURES / "plan_golden.md"
@@ -51,6 +52,22 @@ def build(prof=None, runs=(), weeks=None):
 
 def summary_run(day, km, hr=140):
     return {"date": f"{day} 07:00:00", "type": "running", "dist": km * 1000, "dur": km * 370, "avgHr": hr}
+
+
+def steady_history(km=7):
+    """A run of km every other day over the 6 weeks before TODAY."""
+    return [summary_run((TODAY - timedelta(days=k)).isoformat(), km) for k in range(1, 43, 2)]
+
+
+def day_km(d):
+    """A day's km in the week's unit, as plan.md shows it (0.1 km): hill and trail sessions as
+    flat-equivalent km."""
+    w = plan_io.workout_from_dict(d["workout"])
+    return round(workout_flat_km(w), 1) if w.climb_m_per_km else plan_io.shown_km(d["workout"])
+
+
+def week_sum(wk):
+    return round(sum(day_km(d) for d in wk["days"]), 1)
 
 
 class Golden(unittest.TestCase):
@@ -171,9 +188,123 @@ class Generator(unittest.TestCase):
         plan = build(generic_profile(km_4w=25.0, longest_8w=7.0), runs=runs[:5])
         self.assertIn("acwr_skipped", {w["rule"] for w in plan["warnings"]})
 
+    def test_history_after_today_is_ignored(self):
+        # runs dated after `today` (an export newer than --today) would count twice in the planned
+        # weeks: once as history and once as projected load
+        prof = generic_profile(km_4w=25.0, longest_8w=7.0)
+        later = [summary_run((START + timedelta(days=k)).isoformat(), 15, hr=170) for k in range(-4, 14)]
+        self.assertEqual(build(prof, runs=steady_history() + later), build(prof, runs=steady_history()))
+
+    def test_planned_weeks_extend_the_history_load(self):
+        prof = generic_profile(km_4w=25.0, longest_8w=7.0)
+        rules = [[w["rule"] for w in wk["warnings"]] for wk in build(prof, runs=steady_history())["weeks"]]
+        # week 3's 7:28 ratio takes in the history and the projected weeks 1-2: over 1.3, fixed
+        self.assertIn("acwr_high", rules[2])
+        # from week 5 the 28 days are planned weeks only: without their projected load each week
+        # would be its own whole chronic load (a ratio of 4) and fail
+        self.assertFalse([r for wk in rules[4:] for r in wk if r.startswith("acwr")], rules)
+        # a lighter history makes the first week's ratio too high: the history counts
+        light = build(prof, runs=steady_history(km=2))
+        self.assertIn("acwr_high", [w["rule"] for w in light["weeks"][0]["warnings"]])
+        self.assertNotIn("acwr_high", rules[0])
+
     def test_race_before_the_plan(self):
         with self.assertRaises(planner.PhaseError):
             build(hm_runner(race={"date": TODAY + timedelta(days=2), "distance_m": 5000, "goal_s": None}))
+
+
+class Consistency(unittest.TestCase):
+    """A generated week's heading adds up its days, and each day is what the split gave it."""
+
+    def assert_weeks_add_up(self, plan):
+        for wk in plan["weeks"]:
+            with self.subTest(week=wk["start"]):
+                self.assertEqual(wk["target_km"], week_sum(wk))
+
+    def test_golden_weeks_add_up(self):
+        self.assert_weeks_add_up(build())
+
+    def test_q_leftover_without_a_warmup(self):
+        # 10 weeks to a 10 km race, 12 km a week, longest run 6 km: the T + M block's second week
+        # (11 km) holds a 5 km progression run and a 4.95 km L (45 %), and the 1.05 km left goes to
+        # the Q day. The progression run has no warm-up: its easy block takes the km
+        race = {"date": START + timedelta(weeks=9, days=6), "distance_m": 10000, "goal_s": None}
+        plan = build(generic_profile(km_4w=12.0, longest_8w=6.0, days=["tue", "thu", "sun"], race=race))
+        self.assert_weeks_add_up(plan)
+        wk = plan["weeks"][7]
+        q = next(d["workout"] for d in wk["days"] if d["slot"] == "Q")
+        self.assertEqual((wk["phase"], q["id"], wk["target_km"]), ("tm", "progression", 11.0))
+        self.assertEqual([d["workout"]["km"] for d in wk["days"]], [6.1, 4.9])
+        self.assertEqual(q["steps"][0]["meters"], 4100)                 # the easy block: 3 km + 1.1 km
+
+    def test_q_leftover_nowhere_to_go(self):
+        # a Q template with neither a warm-up nor an easy main step can't take the leftover: the
+        # week is the sum of its sessions and says so
+        lib = json.loads(json.dumps(LIB))
+        lib["progression"]["main"][0]["pace"] = "T"
+        race = {"date": START + timedelta(weeks=9, days=6), "distance_m": 10000, "goal_s": None}
+        prof = generic_profile(km_4w=12.0, longest_8w=6.0, days=["tue", "thu", "sun"], race=race)
+        plan = planner.build_plan(prof, [], lib, RULES, TODAY, None, generated=GENERATED)
+        self.assert_weeks_add_up(plan)
+        wk = plan["weeks"][7]
+        self.assertEqual(wk["target_km"], 9.9)                          # 5 km Q + 4.9 km L
+        self.assertIn("leftover", " ".join(w["detail"] for w in wk["warnings"] if w["rule"] == "split"))
+
+    def test_manual_long_run_counts_as_the_longest(self):
+        # a [week] long run on the long-run day replaces L: from week 9, when the profile's longest
+        # run leaves the 8-week window, L's cap must still come from it, not collapse to the E
+        # minimum and push the generated easy runs up
+        week = {"sun": {"id": "steady_long", "variant": 3, "line": 'sun = "steady_long:3"'}}
+        manual = build(hm_runner(week=week))["weeks"]
+        plain = build()["weeks"]
+        for i in range(1, 15):
+            with self.subTest(week=manual[i]["start"]):
+                easy = [d["workout"]["km"] for d in manual[i]["days"] if d["slot"] in ("E", "F")]
+                self.assertLessEqual(max(easy), 10.0)
+                self.assertAlmostEqual(manual[i]["target_km"], plain[i]["target_km"], delta=4.0)
+
+
+class FixPath(unittest.TestCase):
+    """The fixer end to end: what it did shows in plan.json and plan.md, and the week adds up."""
+
+    def test_fixed_week(self):
+        plan = build(generic_profile(km_4w=25.0, longest_8w=7.0), runs=steady_history())
+        md = render_md.render_plan(plan)
+        wk = plan["weeks"][2]
+        fixed = [w for w in wk["warnings"] if w["action"].startswith("fixed: ")]
+        self.assertEqual([w["rule"] for w in fixed], ["acwr_high"])
+        w = fixed[0]
+        self.assertRegex(w["detail"], r"^7:28-day load ratio \d\.\d\d, over 1\.3$")
+        self.assertIn("L 1.0 km shorter (week 29.0 -> 28.0 km)", w["action"])
+        self.assertIn(render_md.fmt_warning(w), md)
+        self.assertIn(f"## Week of {wk['start']} - 28.0 km", md)
+        self.assertEqual(wk["target_km"], week_sum(wk))
+
+    def test_trimmed_and_dropped(self):
+        # a light history under 30 km a week on five days: L is trimmed and F dropped
+        prof = generic_profile(km_4w=30.0, longest_8w=12.0, days=["tue", "wed", "thu", "sat", "sun"])
+        plan = build(prof, runs=steady_history(km=6), weeks=3)
+        md = render_md.render_plan(plan)
+        fixed = [(wk, w) for wk in plan["weeks"] for w in wk["warnings"] if w["action"].startswith("fixed: ")]
+        self.assertTrue(fixed)
+        for wk, w in fixed:
+            with self.subTest(week=wk["start"], rule=w["rule"]):
+                self.assertTrue(w["detail"])
+                self.assertRegex(w["action"], r"L \d+\.\d km shorter")
+                self.assertTrue(w["action"].endswith(f" -> {wk['target_km']:.1f} km)"), w["action"])
+                self.assertIn(render_md.fmt_warning(w), md)
+                self.assertEqual(wk["target_km"], week_sum(wk))
+
+    def test_stopped_after_max_iter(self):
+        rules = json.loads(json.dumps(RULES))
+        rules["fix"]["max_iter"] = 1
+        plan = planner.build_plan(generic_profile(km_4w=25.0, longest_8w=7.0), steady_history(), LIB, rules,
+                                  TODAY, None, generated=GENERATED)
+        wk = plan["weeks"][2]
+        w = next(w for w in wk["warnings"] if w["rule"] == "acwr_high")
+        self.assertEqual(w["action"], "stopped after 1 fixes (Q strides variant 4 -> 3); still failing")
+        self.assertIn(render_md.fmt_warning(w), render_md.render_plan(plan))
+        self.assertEqual(wk["target_km"], week_sum(wk))
 
 
 class Render(unittest.TestCase):

@@ -43,7 +43,7 @@ Unusable available days (no day for Q at 48 h from L), a race date before the pl
    | M (also L's marathon-pace blocks) | 20 % |
 
    When even the smallest variant is over its cap or the budget (low volume), it is used anyway with a `forced_size` note: a known exception, never a violation, so the fixer doesn't loop on it.
-5. **Split** (06). The week's km go to L, Q (at its instantiated km) and the E and F runs. A leftover too small for an easy run becomes a longer **warm-up** on the Q day, so the day's km and the workout's km agree.
+5. **Split** (06). The week's km go to L, Q (at its instantiated km) and the E and F runs, each rounded to 0.1 km so the days add up to the week heading. A leftover too small for an easy run becomes a longer **warm-up** on the Q day, or a longer first easy step when the template has no warm-up (the progression run), so the day's km and the workout's km agree; a Q with neither keeps its size, the week becomes the sum of its sessions and a `split` warning says so. L's cap uses the longest long run of the last 8 weeks (L, or a `[week]` day on the long-run day), never under the profile's `longest_8w`.
 6. **Fitting**. E and F runs are the `easy` template, L the chosen long-run template, both stretched to the split's exact km with `instantiate` overrides (the easy part of a progression or half-marathon long run takes the difference; its marathon-pace part stays). A long run that doesn't fit (a 13 km progression run in an 11 km slot) falls back to the next candidate, `steady_long`.
 7. **Checks, then fixes**, below. `[week]` days then replace their weekday's session.
 
@@ -57,7 +57,7 @@ Their climbing is part of 80/20: a hilly long run spends an hour or more at Z2�
 
 - **Flat-equivalent km** (`terrain.py`). A hill or trail session's volume is counted with Minetti's cost of running, the factor the page's grade-adjusted pace uses (`metrics.gap_factor`, clamped at ±30 %): half the distance climbs and half descends, each at `climb_m_per_km` × km over half the distance. 40 m/km of climbing (trail) counts ×1.08; 20 m/km (hilly) ×1.02.
 - **Projected TRIMP** (`load.py`). Each step counts its duration at the midpoint of its HR target (else its pace zone's usual zone: E and jogs Z2, T Z4 …) through the page's Banister `trimp`, with resting HR clamped to max − 20 as the page does; repeats count n times, their last recovery once less when skipped.
-- **Load ratio** (`history.daily_load`, `history.acwr`): the page's daily TRIMP of every run, then the last 7 days' load over a quarter of the last 28 days'. The planned weeks are appended to the real history, so the ratio of week 1 is real history plus the plan. With less than 28 days of history in `runs.json` the check is skipped for the whole plan, with one `acwr_skipped` warning.
+- **Load ratio** (`history.daily_load`, `history.acwr`): the page's daily TRIMP of every run, then the last 7 days' load over a quarter of the last 28 days'. The planned weeks are appended to the real history up to today (runs dated after `--today` are left out, not counted twice), so the ratio of week 1 is real history plus the plan. With less than 28 days of history in `runs.json` the check is skipped for the whole plan, with one `acwr_skipped` warning.
 
 ## Checks
 
@@ -101,7 +101,7 @@ Each warning is `{rule, detail, action}` in `plan.json`: the plan-wide ones at t
 | `phases` | plan | Too few weeks to the race: the phases shortened, in a fixed order |
 | `feasibility` | plan | The goal is too far for the weeks left (below) |
 | `acwr_skipped` | plan | Under 28 days of history |
-| `split` | week | The split dropped Q, ran an easy run short, or left easy runs longer than L |
+| `split` | week | The split dropped Q, ran an easy run short, left easy runs longer than L, or had a leftover the Q template can't take |
 | `forced_size` | week | The smallest variant, over its cap, used anyway |
 | `hill_swap` | week | A hilly or trail long run left out for 80/20 |
 | `race_week` | week | No session from race day on |

@@ -123,11 +123,11 @@ Generated 2024-06-05T08:00:00 from profile `1d43b694b1bf`. Durations are estimat
 
 ## Week of 2024-07-08 - 32.4 km · Base
 
-### Tue 2024-07-09 · Easy Run - 5.7 km (~36 min)
+### Tue 2024-07-09 · Easy Run - 5.8 km (~37 min)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 5.7 km (~36 min) | Continuous |
+| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 5.8 km (~37 min) | Continuous |
 
 ### Thu 2024-07-11 · Hill Repeats - 6.3 km (~43 min)
 
@@ -175,11 +175,11 @@ Generated 2024-06-05T08:00:00 from profile `1d43b694b1bf`. Durations are estimat
 | :---- | :---- | :---- | :---- | :---- |
 | **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 5.3 km (~34 min) | Continuous |
 
-### Sun 2024-07-21 · Steady Long Run - 15.7 km (~1 h 39)
+### Sun 2024-07-21 · Steady Long Run - 15.8 km (~1 h 40)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 15.7 km (~1 h 39) | Even effort throughout |
+| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 15.8 km (~1 h 40) | Even effort throughout |
 
 ## Week of 2024-07-22 - 37.6 km · R + T
 
@@ -215,11 +215,11 @@ Generated 2024-06-05T08:00:00 from profile `1d43b694b1bf`. Durations are estimat
 
 ## Week of 2024-07-29 - 27.5 km · R + T, deload
 
-### Tue 2024-07-30 · Easy Run - 9.5 km (~1 h 00)
+### Tue 2024-07-30 · Easy Run - 9.4 km (~1 h 00)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 9.5 km (~1 h 00) | Continuous |
+| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 9.4 km (~1 h 00) | Continuous |
 
 ### Thu 2024-08-01 · Cruise Tempo - 5.7 km (~33 min)
 
@@ -298,11 +298,11 @@ Generated 2024-06-05T08:00:00 from profile `1d43b694b1bf`. Durations are estimat
 
 ## Week of 2024-08-19 - 40.6 km · T + M
 
-### Tue 2024-08-20 · Easy Run - 7.6 km (~48 min)
+### Tue 2024-08-20 · Easy Run - 7.7 km (~49 min)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 7.6 km (~48 min) | Continuous |
+| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 7.7 km (~49 min) | Continuous |
 
 ### Thu 2024-08-22 · Cruise Tempo - 7.0 km (~40 min)
 
@@ -328,11 +328,11 @@ Generated 2024-06-05T08:00:00 from profile `1d43b694b1bf`. Durations are estimat
 
 ## Week of 2024-08-26 - 29.7 km · T + M, deload
 
-### Tue 2024-08-27 · Easy Run - 9.4 km (~1 h 00)
+### Tue 2024-08-27 · Easy Run - 9.3 km (~59 min)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 9.4 km (~1 h 00) | Continuous |
+| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 9.3 km (~59 min) | Continuous |
 
 ### Thu 2024-08-29 · Progression Run - 7.0 km (~41 min)
 

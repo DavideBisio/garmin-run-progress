@@ -299,6 +299,19 @@ class Split(unittest.TestCase):
                         if not over_l:
                             self.assertLessEqual(km[d], L)
 
+    def test_parts_add_up_to_the_rounded_target(self):
+        # each part rounds to 0.1 km and the parts still add up to the target rounded to 0.1 km:
+        # the plan.md heading is the sum of its days
+        layouts = [{"tue": "E", "thu": "Q", "sun": "L"}, {"tue": "E", "wed": "Q", "thu": "E", "sun": "L"},
+                   {"tue": "E", "wed": "Q", "thu": "E", "sat": "F", "sun": "L"},
+                   {"mon": "E", "tue": "F", "wed": "Q", "thu": "E", "sat": "E", "sun": "L"}]
+        targets = [6 + t * 0.37 for t in range(120)]
+        for slots, target, longest, q_km in itertools.product(layouts, targets, (0, 8.3, 15), (5.0, 5.69, 6.35)):
+            with self.subTest(slots=slots, target=target, longest=longest, q_km=q_km):
+                km, _ = split.split_week(target, slots, longest, q_km, RULES, 371)
+                self.assertEqual(round(sum(km.values()), 1), round(target, 1))
+                self.assertTrue(all(round(v, 1) == v for v in km.values()), km)
+
     def test_long_run_caps(self):
         # share cap binds at low volume: 0.45 x 20 = 9 < 10 + 2
         self.assertEqual(split.split_week(20, self.THREE, 10, 5, RULES, 360),
@@ -367,10 +380,10 @@ class Split(unittest.TestCase):
         # 14 - 6.3 - 5 = 2.7 km: L can't give 2.3 km and stay at 5 km, and is at its cap: Q takes it
         self.assertEqual(split.split_week(14, two_e, 8, 5, RULES, 360),
                          ({"tue": 0.0, "wed": 7.7, "thu": 0.0, "sun": 6.3}, []))
-        # 30 min at a slow E pace (7:30/km) is 4 km, so 8.3 km makes two runs of 4.15 km
+        # 30 min at a slow E pace (7:30/km) is 4 km, so 8.3 km makes two runs of 4.15 km: rounded
+        # to 0.1 km they still add up to 8.3, the first one taking the odd 0.1 km
         km, _ = split.split_week(26, two_e, 10, 6, RULES, 450)
-        self.assertAlmostEqual(km["tue"], 4.15, delta=0.06)
-        self.assertEqual(km["tue"], km["thu"])
+        self.assertEqual((km["tue"], km["thu"]), (4.2, 4.1))
         self.assertEqual(km["sun"], 11.7)
 
     def test_single_run_week(self):
