@@ -10,7 +10,7 @@
 - **Volume curve:**
   - The start is the 4-week average from `runs.json`.
   - Blocks have 4 weeks: ×1.00, ×1.08, ×1.16, then a deload at ×0.85.
-  - The next block starts from the previous block's week 2, which is roughly +10 % per block. The ramp and the deload period are configurable.
+  - The next block starts from the previous block's week 2, which is +8 % per block (week 1 of the first block is the start volume itself). The ramp, the deload and the deload period are configurable.
 - **Phases:**
   - Counted back from the race date: Base (E + strides/hills), then R + T, then I + T, then T + M, then a 2-week taper.
   - With no race, the planner cycles Base and R + T.
@@ -27,9 +27,10 @@
 ```text
 src/garmin_plan/
   skeleton.py  place_slots(available_days, long_day, rules) -> {weekday: slot}
-  volume.py    block_curve(start, weeks, ramp, deload_every) -> [target]
-  phases.py    phase_calendar(today, race_date, distance) -> [(week_start, phase)]
-  split.py     split_week(target, slots, history, rules) -> {weekday: km}
+  volume.py    block_curve(start, weeks, ramp, deload, deload_every, floor) -> [target]
+               align_deloads(weeks, deload_every, phase_starts) -> [deload week index]
+  phases.py    phase_calendar(today, race_date, distance_m, rules) -> ([(week_start, phase, partial)], warnings)
+  split.py     split_week(target, slots, longest_km, q_km, rules, e_pace) -> {weekday: km}
   data/rules.toml  caps, ramp, deload, phase lengths per race distance, E minimum
 ```
 
@@ -37,18 +38,20 @@ src/garmin_plan/
 - **Volume units** stay abstract (`km` or `min`) in `volume.py`, ready for the minute-based beginner plans in 08.
 - A plan can start on any weekday. Its first week is partial and isn't counted for the ramp.
 
-Example result for a generic profile (Tue/Wed/Thu/weekend available, 16 km starting volume):
+Example result for a generic profile (Tue/Wed/Thu/Sat/Sun available, long run on Sunday, 16 km starting volume, longest recent run 8 km, VDOT 40, a 5 km Q):
 
 ```text
-| Mon  | Tue | Wed | Thu | Fri  | Sat/Sun |
-| rest | Q   | F   | E   | rest | L       |
+| Mon  | Tue | Wed | Thu | Fri  | Sat | Sun |
+| rest | E   | F   | Q   | rest | E   | L   |
 
-Wk  Phase  km   Q    E    F    L
-1   Base   18   5.3  5.0  –    8.0
-2   Base   20   6.0  5.0  –    9.0
-3   Base   21   6.0  5.5  –    9.5
-4   Base   16   5.0  4.0  –    7.0   (deload)
+Wk  Phase  km    Q    E (Tue)  E (Sat)  F   L
+1   base   16.0  5.0  4.9      –        –   6.1
+2   base   17.3  5.0  4.9      –        –   7.4
+3   base   18.6  5.0  5.2      –        –   8.4
+4   base   13.6  5.0  –        –        –   8.6   (deload)
 ```
+
+Week 1 is the start volume, then ×1.08, ×1.16 and the ×0.85 deload. E pace at VDOT 40 is about 6:11/km, so the E minimum is 30 min (4.9 km), shorter than 5 km. At this volume only one easy run fits: L gives up km so it reaches the minimum (weeks 1–3), and in the deload week the remainder is too small for any easy run and goes to L. F stays off until the easy runs would be longer than L.
 
 No GUI in this section.
 
@@ -70,8 +73,8 @@ No GUI in this section.
 
 ## Completion checklist
 
-- [ ] The low-frequency L cap of 45 % (Daniels says 25–30 %) is a setting with a comment explaining why. Without it, a 3-runs-a-week plan gets a tiny long run.
-- [ ] Deloads line up with phase boundaries where possible, so a phase doesn't start with a lighter week.
-- [ ] A starting volume near 0, after a break, is clamped to a floor here; 08 handles detraining properly.
-- [ ] A "Sat/Sun" long run uses the preferred day, with the other weekend day as a fallback, and moving it doesn't break the 48 h rule.
-- [ ] Phase lengths per race distance are written down together with their source, in `rules.toml`.
+- [x] The low-frequency L cap of 45 % (Daniels says 25–30 %) is a setting with a comment explaining why. Without it, a 3-runs-a-week plan gets a tiny long run.
+- [x] Deloads line up with phase boundaries where possible, so a phase doesn't start with a lighter week.
+- [x] A starting volume near 0, after a break, is clamped to a floor here; 08 handles detraining properly.
+- [x] A "Sat/Sun" long run uses the preferred day, with the other weekend day as a fallback, and moving it doesn't break the 48 h rule.
+- [x] Phase lengths per race distance are written down together with their source, in `rules.toml`.

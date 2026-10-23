@@ -57,7 +57,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | `target_km` | The week's planned volume. With the manual `[week]` schedule it is the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first), so the week heading adds up its day headings; the weekly skeleton (06) sets it from the volume progression |
 | `days` | One entry per session, by date |
 | `days[].date` | `YYYY-MM-DD`, local date |
-| `days[].slot` | The session's role in the week (06: quality, long, easy …); `null` with the manual schedule |
+| `days[].slot` | The session's role in the week from the weekly skeleton (06): `"L"` long run, `"Q"` quality, `"E"` easy or `"F"` flex (an easy run that is the first dropped when the volume is short; an F day with no run has no entry). `null` with the manual schedule |
 | `days[].workout` | The resolved workout |
 
 ## Workout

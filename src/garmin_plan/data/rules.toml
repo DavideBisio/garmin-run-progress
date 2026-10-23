@@ -27,3 +27,85 @@ R = [5, 5]
 # Recovery jog: the slow end of E plus this many s/km. Duration estimates only: jog steps carry
 # an HR target (Z2), not a pace target.
 jog_offset_s = 30
+
+[skeleton]
+# Weekly slots (skeleton.py). With fewer run days than this the week has no Q: L and E only, the
+# long run being the week's one hard day (08's beginner level also runs 0 Q).
+q_min_days = 3
+# From this many run days one non-hard day is F (flex): the first run dropped when the volume is
+# short, so at least one E always stays.
+f_min_days = 4
+
+[volume]
+# Volume curve (volume.py), 4-week blocks of x1.00, x1.08, x1.16, then a deload at x0.85. Each
+# step adds `ramp` of the block's base; Daniels' rule of thumb is to hold a load 3-4 weeks before
+# raising it, and 07 checks week-on-week rises of at most 10 %.
+ramp = 0.08
+deload = 0.85
+deload_every = 4
+# The next block starts from this week of the previous block: week 2, so +8 % per block.
+next_block_from_week = 2
+# A 4-week average near 0 after a break is clamped up to this; 08 handles detraining properly.
+start_floor_km = 10
+# Volume unit: "km" (08's beginner level runs in "min")
+unit = "km"
+
+[split]
+# Week split (split.py). Long run cap as a share of the week. Daniels caps L at 25-30 % of the
+# weekly volume, but that is written for 5+ runs a week: a 3-runs-a-week plan would get a long run
+# shorter than its easy runs, so the cap here is 45 % (08 sets it per level).
+long_share_cap = 0.45
+# L grows from the longest run of the last 8 weeks by at most this many km.
+long_over_longest_km = 2
+# Daniels: L no longer than 150 min (2.5 h) whatever the volume.
+long_time_cap_min = 150
+# Shortest E run worth putting on: 5 km or 30 min at E pace, whichever is shorter.
+easy_min_km = 5
+easy_min_min = 30
+
+[phases]
+# Phase calendar (phases.py): base (E + strides/hills), rt (R + T), it (I + T), tm (T + M) and the
+# taper. Daniels' Running Formula builds a 24-week season from four 6-week phases (I foundation,
+# II early quality with R, III transition quality with I, the hardest, IV final quality with T and
+# race pace); here the taper is the last 2 weeks of phase IV. With fewer weeks Daniels fills the
+# phases in the priority order I, IV, II, III, so they are shortened in the reverse order.
+shorten_order = ["it", "rt", "tm", "base"]
+# With no race the planner alternates these phases, no_race_weeks each (one 4-week block).
+no_race_cycle = ["base", "rt"]
+no_race_weeks = 4
+
+[phases.5k]
+# 5K: Daniels' 6/6/6/6 weeks, phase IV split into 4 weeks of T + race pace and a 2-week taper.
+distance_m = 5000
+base = 6
+rt = 6
+it = 6
+tm = 4
+taper = 2
+
+[phases.10k]
+# 10K: as 5K, one week of R moved to T + race pace (Daniels: R matters most up to 5K).
+distance_m = 10000
+base = 6
+rt = 5
+it = 6
+tm = 5
+taper = 2
+
+[phases.hm]
+# Half marathon: two more weeks from R to T + M, the paces closest to the race (Daniels).
+distance_m = 21097.5
+base = 6
+rt = 4
+it = 6
+tm = 6
+taper = 2
+
+[phases.m]
+# Marathon: Daniels' marathon plans put M and T work over the last ~8 weeks; R and I get less.
+distance_m = 42195
+base = 6
+rt = 3
+it = 5
+tm = 8
+taper = 2
