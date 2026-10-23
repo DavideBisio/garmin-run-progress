@@ -2,12 +2,14 @@
 import math
 import sys
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from garmin_plan import model, physiology, profile, select, size, templates, volume  # noqa: E402
+from garmin_plan import history, load, metrics, model, physiology, profile, select, size, templates, terrain  # noqa: E402,E501
+from garmin_plan import volume  # noqa: E402
 
 RULES = physiology.load_rules()
 LIB = templates.load_templates()
@@ -212,6 +214,109 @@ class Rotation(unittest.TestCase):
         self.assertEqual(q("rt", 1, level="beginner"), "r_220")        # nothing fits: the lowest level
         self.assertEqual(select.candidates("rt", 2, "L", RULES, library=LIB),
                          ["progression_long", "steady_long"])
+
+
+def minetti(i):
+    """Minetti's cost of running (J/kg/m) at grade i, written out again for the expected numbers."""
+    i = max(-0.3, min(0.3, i))
+    return 155.4 * i ** 5 - 30.4 * i ** 4 - 43.3 * i ** 3 + 46.3 * i ** 2 + 19.5 * i + 3.6
+
+
+class Terrain(unittest.TestCase):
+    def test_flat_equivalent(self):
+        # half the distance climbs and half descends, each at climb / (half the distance)
+        self.assertEqual(terrain.flat_equivalent_km(10, 0, 0), 10)
+        self.assertAlmostEqual(terrain.flat_equivalent_km(10, 200, 200), 10.2056, places=4)     # 4 % grades
+        self.assertAlmostEqual(terrain.flat_equivalent_km(10, 400, 400), 10.8197, places=4)     # 8 %
+        self.assertAlmostEqual(terrain.flat_equivalent_km(10, 200, 200),
+                               5 * (minetti(0.04) + minetti(-0.04)) / 3.6, places=9)
+        self.assertAlmostEqual(terrain.flat_equivalent_km(1, 1000, 1000), 2.0891, places=4)   # clamped at 30 %
+        self.assertAlmostEqual(terrain.flat_equivalent_km(10, 400, 0),
+                               5 * (minetti(0.08) + minetti(0)) / 3.6, places=9)              # climb only
+        self.assertEqual(terrain.flat_equivalent_km(0, 100, 100), 0)
+
+    def test_workouts(self):
+        w = work("trail_long", 1)                                       # 40 m/km of climbing
+        self.assertAlmostEqual(terrain.workout_flat_km(w),
+                               terrain.flat_equivalent_km(w.km, 40 * w.km, 40 * w.km))
+        self.assertAlmostEqual(terrain.workout_flat_km(w) / w.km, 1.0820, places=3)
+        self.assertAlmostEqual(terrain.workout_flat_km(work("hilly_long", 1)) / work("hilly_long", 1).km,
+                               1.0206, places=3)
+        self.assertEqual(terrain.workout_flat_km(work("easy", 2)), 5.0)   # flat: unchanged
+
+
+def summary_run(day, minutes, hr):
+    return {"date": f"{day} 07:00:00", "type": "running", "dist": 5000, "dur": minutes * 60, "avgHr": hr}
+
+
+class Load(unittest.TestCase):
+    def test_step_trimp_through_metrics(self):
+        w = work("cruise_tempo", 2)
+        warm = w.parts[0]                                               # E, Z2 134-148
+        want = metrics.trimp({"moving": warm.seconds, "avgHr": 141}, 190, 50)
+        self.assertAlmostEqual(load.step_trimp(warm, 190, 50), want)
+        rep = w.parts[1]
+        tempo, jog = rep.steps                                          # T Z4 162-176, jog Z2
+        self.assertAlmostEqual(load.step_trimp(tempo, 190, 50),
+                               metrics.trimp({"moving": tempo.seconds, "avgHr": 169}, 190, 50))
+        total = (load.step_trimp(warm, 190, 50) + 3 * (load.step_trimp(tempo, 190, 50) + load.step_trimp(jog, 190, 50))
+                 + load.step_trimp(w.parts[2], 190, 50))
+        self.assertAlmostEqual(load.workout_trimp(w, 190, 50), total)
+
+    def test_repeat_counts_and_last_rest(self):
+        w = work("cruise_tempo", 5)                                     # 1 x 5000 m: no recovery
+        steps = load.flat_steps(w)
+        self.assertEqual([(s.role, n) for s, n in steps], [("warmup", 1), ("rep", 1), ("recovery", 0),
+                                                            ("cooldown", 1)])
+        self.assertAlmostEqual(sum(s.seconds * n for s, n in steps), w.seconds)
+        w = work("r_220", 3)
+        self.assertAlmostEqual(sum(s.seconds * n for s, n in load.flat_steps(w)), w.seconds)
+
+    def test_hr_from_the_zone(self):
+        # no HR target (open): the pace zone's usual HR zone; no zone either: no load
+        s = model.Step("rep", "Run", "dist", 1000, zone="E", pace=model.PaceRange(360, 380))
+        self.assertEqual(load.hr_mid(s, 190, 50), 141)
+        self.assertEqual(load.hr_mid(model.Step("rep", "Run", "time", 600, est_pace=400), 190, 50), None)
+        self.assertEqual(load.step_trimp(model.Step("rep", "Run", "time", 600, est_pace=400), 190, 50), 0)
+        trail = work("trail_long", 1)
+        self.assertEqual(load.hr_mid(trail.parts[1], 190, 50), (120 + 162) / 2)    # Z3 cap: Z1 low to Z3 high
+
+    def test_projected_daily(self):
+        d = date(2024, 6, 11)
+        days = [(d, work("easy", 2)), (d, work("easy", 1)), (d + timedelta(days=2), work("r_220", 1))]
+        got = load.projected_daily(days, 190, 50)
+        i = metrics.day_index(d.isoformat())
+        self.assertEqual(sorted(got), [i, i + 2])
+        self.assertAlmostEqual(got[i], load.workout_trimp(work("easy", 2), 190, 50)
+                               + load.workout_trimp(work("easy", 1), 190, 50))
+
+
+class Acwr(unittest.TestCase):
+    def test_daily_load(self):
+        runs = [summary_run("2024-05-01", 40, 140), summary_run("2024-05-01", 20, 150),
+                summary_run("2024-05-03", 30, 0), {"date": "bad", "dur": 600, "avgHr": 150}]
+        daily = history.daily_load(runs, 190, 50)
+        i = metrics.day_index("2024-05-01")
+        self.assertEqual(sorted(daily), [i, i + 2])                      # every dated run, even at 0 load
+        self.assertAlmostEqual(daily[i], metrics.trimp(runs[0], 190, 50) + metrics.trimp(runs[1], 190, 50))
+        self.assertEqual(daily[i + 2], 0)
+        # the page clamps resting HR to max - 20 before computing TRIMP
+        self.assertAlmostEqual(history.daily_load(runs[:1], 150, 140)[i], metrics.trimp(runs[0], 150, 130))
+
+    def test_matches_the_page_formula(self):
+        # training.js: acwr(day) = sum(day-6 .. day) / (sum(day-27 .. day) / 4), null before 28 days
+        start = metrics.day_index("2024-04-01")
+        daily = {start + k: float(10 + k % 7 * 3 + k // 5) for k in range(0, 40) if k % 3}
+        day = start + 39
+        week = sum(daily.get(d, 0) for d in range(day - 6, day + 1))
+        month = sum(daily.get(d, 0) for d in range(day - 27, day + 1))
+        self.assertAlmostEqual(history.acwr(daily, day), week / (month / 4))
+        self.assertGreater(min(daily), start)                           # the first run is on day 1
+        first = min(daily)
+        self.assertIsNotNone(history.acwr(daily, first + 27))          # exactly 28 days
+        self.assertIsNone(history.acwr(daily, first + 26))             # short history: None
+        self.assertIsNone(history.acwr({}, day))
+        self.assertIsNone(history.acwr({first: 0.0, first + 30: 0.0}, first + 30))    # no chronic load
 
 
 if __name__ == "__main__":

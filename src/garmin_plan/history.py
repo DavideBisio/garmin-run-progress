@@ -1,9 +1,9 @@
-"""What runs.json says about recent training: weekly volume, recent VDOT, resting and max HR."""
+"""What runs.json says about recent training: weekly volume, recent VDOT, resting and max HR, daily load."""
 import math
 from datetime import date
 
 from .config import MIN_HISTORY_DAYS
-from .metrics import best_efforts, day_index, hr_peak, run_km, week_of
+from .metrics import best_efforts, day_index, hr_peak, run_km, trimp, week_of
 from .physiology import vdot
 
 VDOT_DISTS = {"5k": 5000, "10k": 10000, "hm": 21097.5}   # 1 km overstates VDOT, as on the page
@@ -89,3 +89,22 @@ def hr_max(runs):
     peaks = sorted((p for p in (hr_peak(r) or r.get("maxHr") or 0 for _, r in dated(runs))
                     if 120 < p < 230), reverse=True)
     return half_up(peaks[min(1, len(peaks) - 1)]) if peaks else None
+
+
+def daily_load(runs, hr_max, hr_rest):
+    """{day index: TRIMP} of every dated run, as training.js's daily map: runs on one day add up,
+    a run without HR counts 0 (its day still starts the history), resting HR is clamped to max - 20."""
+    rest, out = min(hr_rest, hr_max - 20), {}
+    for day, r in dated(runs):
+        out[day] = out.get(day, 0) + trimp(r, hr_max, rest)
+    return out
+
+
+def acwr(daily, day):
+    """7:28-day load ratio on `day` as training.js's acwr: the last 7 days' load over a quarter of
+    the last 28 days'. None before 28 days of history (from the first day in `daily`) or without
+    any load in the 28 days."""
+    if not daily or day - 27 < min(daily):
+        return None
+    chronic = sum(daily.get(d, 0) for d in range(day - 27, day + 1)) / 4
+    return sum(daily.get(d, 0) for d in range(day - 6, day + 1)) / chronic if chronic > 0 else None
