@@ -55,11 +55,20 @@ def _split_warning(w):
     return warning("split", w, next((a for p, a in SPLIT_ACTIONS if p in w), "kept the split as shown"))
 
 
+def _cycle_start(prof, start):
+    """The Monday the no-race phase cycle started: the last plan's (progress.cycle_start), else start
+    (a first plan, a restart after a break, or a plan from before it was recorded)."""
+    cyc = (prof.progress or {}).get("cycle_start")
+    return cyc if cyc and cyc <= start and not prof.layoff else start
+
+
 def _calendar(prof, rules, start, weeks):
-    """(phase weeks, warnings, full weeks to the race): the whole calendar, truncated later."""
+    """(phase weeks, warnings, full weeks to the race): the whole calendar, truncated later. Without
+    a race the phase cycle goes on from where the last plan's was (its deloads stay put)."""
     race = prof.race
     if race is None:
-        cal, warns = phase_calendar(start, None, None, rules, weeks or None)
+        offset = (start - _cycle_start(prof, start)).days // 7
+        cal, warns = phase_calendar(start, None, None, rules, weeks or None, offset=offset)
         return cal, warns, len(cal)
     if race["date"] < start:
         raise PhaseError(f"the race on {race['date']} is before the plan's first week (Monday {start}); "
@@ -435,7 +444,8 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
             "profile_hash": profile_hash(prof, rules),
             "levels": {"volume": prof.volume_level, "quality": prof.quality_level,
                        "reasons": {axis: prof.level_reasons.get(axis, "") for axis in ("volume", "quality")}},
-            "progress": {"block_start": block.isoformat(),
+            "progress": {"plan_start": start.isoformat(), "block_start": block.isoformat(),
+                         "cycle_start": _cycle_start(prof, start).isoformat(),
                          "run_walk_stage": min(reached, len(library[c.rw]["ladder"])) if c.rw else None,
                          "time_trials": [{**t, "vdot": round(t["vdot"], 2)}
                                          for t in (prof.progress or {}).get("time_trials", [])],

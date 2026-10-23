@@ -15,7 +15,7 @@ from .physiology import hr_zones, load_rules, pace_zones
 from . import push as garmin_push
 from .phases import PhaseError
 from .plan_io import read_plan, write_plan
-from .planner import build_plan
+from .replan import replan
 from .profile import ProfileError, load_profile
 from .render_md import fmt_pace, fmt_time, render_plan  # noqa: F401  (fmt_* used to live here)
 from .skeleton import SkeletonError
@@ -75,7 +75,8 @@ def show_profile(p, path):
 
 
 def resolve_profile(args):
-    """(export dir, Profile, runs) for --export / --today; profile errors exit with 'error: ...'."""
+    """(export dir, Profile, runs, the last plan.json or None) for --export / --today; profile errors
+    exit with 'error: ...'."""
     out = Path(args.export)
     runs, rhr = load_runs(out / RUNS)
     prev = None                         # the last plan: its levels, progress and time trials
@@ -91,30 +92,31 @@ def resolve_profile(args):
         sys.exit(f"error: {e}")
     for w in p.warnings:
         print(f"warning: {w}", file=sys.stderr)
-    return out, p, runs
+    return out, p, runs, prev
 
 
 def cmd_profile(args):
-    out, p, _ = resolve_profile(args)
+    out, p, *_ = resolve_profile(args)
     show_profile(p, out / PROFILE)
 
 
 def cmd_plan(args):
-    out, p, runs = resolve_profile(args)
+    out, p, runs, prev = resolve_profile(args)
     try:
         rules = load_rules()
-        plan = build_plan(p, runs, load_templates(), rules, args.today or date.today(), args.weeks)
+        plan = replan(prev, p, runs, load_templates(), rules, args.today or date.today(), args.weeks)
     except (ProfileError, TemplateError, SkeletonError, PhaseError) as e:
         sys.exit(f"error: {e}")
     write_plan(plan, out / PLAN_JSON)
     (out / PLAN_MD).write_text(render_plan(plan), encoding="utf-8", newline="\n")
-    km = sum(w["target_km"] for w in plan["weeks"])
+    new = [w for w in plan["weeks"] if w["start"] >= plan["progress"].get("plan_start", "")]
+    km = sum(w["target_km"] for w in new)
     total = f"{km:.1f} km"
-    if plan["weeks"] and all(w.get("unit") == "min" for w in plan["weeks"]):
-        total = f"{sum(w['target_min'] for w in plan['weeks'])} min (~{km:.1f} km)"
-    n = len(plan["warnings"]) + sum(len(w["warnings"]) for w in plan["weeks"])
-    print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {len(plan['weeks'])} week(s) from "
-          f"{plan['weeks'][0]['start']}, {total}" + (f"; {n} warning(s), listed in plan.md" if n else ""))
+    if new and all(w.get("unit") == "min" for w in new):
+        total = f"{sum(w['target_min'] for w in new)} min (~{km:.1f} km)"
+    n = len(plan["warnings"]) + sum(len(w.get("warnings") or []) for w in new)
+    print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {len(new)} week(s) from "
+          f"{new[0]['start']}, {total}" + (f"; {n} warning(s), listed in plan.md" if n else ""))
 
 
 def cmd_push(args):

@@ -45,18 +45,19 @@ def _allocate(n, lengths, order, key):
                    f"{', '.join(cuts)} (weeks, in that order; the ramp is not compressed)"]
 
 
-def phase_calendar(today, race_date, distance_m, rules, weeks=None):
+def phase_calendar(today, race_date, distance_m, rules, weeks=None, offset=0):
     """([PhaseWeek(start, phase, partial)], warnings) from the Monday of today's week.
 
     With a race the calendar ends on the race week (or after `weeks` weeks if fewer); with no
-    race it cycles [phases] no_race_cycle for `weeks` weeks (one cycle by default).
+    race it cycles [phases] no_race_cycle for `weeks` weeks (one cycle by default), the first week
+    `offset` weeks into the cycle (a re-plan carries on the cycle of the plans before it).
     """
     p = rules["phases"]
     first = today - timedelta(days=today.weekday())
     if race_date is None:
         cycle, per = p["no_race_cycle"], p["no_race_weeks"]
         n = weeks or len(cycle) * per
-        names, warnings = [cycle[(i // per) % len(cycle)] for i in range(n)], []
+        names, warnings = [cycle[((i + offset) // per) % len(cycle)] for i in range(n)], []
     else:
         if race_date < today:
             raise PhaseError(f"the race date {race_date} is before today ({today})")
