@@ -32,3 +32,9 @@
 | Aerobic decoupling | [features/aerobic-decoupling.md](features/aerobic-decoupling.md) |
 | Cadence, stride length, Training Effect | [features/form-and-training-effect.md](features/form-and-training-effect.md) |
 | Training load, load ratio, zones, consistency | [features/training-load-zones-consistency.md](features/training-load-zones-consistency.md) |
+
+**Planner (`garmin_plan`)**
+
+| Feature | Document |
+|---|---|
+| Runner profile, Daniels paces, HR zones | [features/plan-profile.md](features/plan-profile.md) |

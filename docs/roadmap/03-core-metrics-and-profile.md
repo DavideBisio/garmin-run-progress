@@ -58,9 +58,11 @@ src/garmin_plan/
 
 ## Completion checklist
 
-- [ ] `git check-ignore garmin_export/profile.toml` confirms the profile is never committed.
-- [ ] `hr_zones` gives exactly the bpm of the page's `hrrZones` (01), including rounding. The parity vectors include it.
-- [ ] The resting HR default uses the same median-of-365-days rule as `state.js`, so the page and the planner show the same value.
-- [ ] VDOT derived from training runs (not races) understates fitness. The output marks it as `derived (training efforts)`, and a race or time-trial value set in the profile wins.
-- [ ] A new user with fewer than 4 weeks of data gets defaults and warnings, not an exception.
-- [ ] `docs/architecture.md` gains a `garmin_plan` module table, and there's a new `docs/features/plan-profile.md`.
+- [x] `git check-ignore garmin_export/profile.toml` confirms the profile is never committed.
+- [x] `hr_zones` gives exactly the bpm of the page's `hrrZones` (01), including rounding. The parity vectors include it.
+- [x] The resting HR default uses the same median-of-365-days rule as `state.js`, so the page and the planner show the same value.
+- [x] VDOT derived from training runs (not races) understates fitness. The output marks it as `derived (training efforts)`, and a race or time-trial value set in the profile wins.
+- [x] A new user with fewer than 4 weeks of data gets defaults and warnings, not an exception.
+- [x] `docs/architecture.md` gains a `garmin_plan` module table, and there's a new `docs/features/plan-profile.md`.
+
+Shipped: `src/garmin_plan/` (`config`, `physiology`, `metrics`, `history`, `profile`, `cli`) with `data/rules.toml`, `make plan-profile`, and `tests/test_plan.py` plus `tests/metrics.test.mjs` on the shared `tests/fixtures/metric_vectors.json`. The parity test loads `src/page/js/metrics.js`, which the build inlines verbatim, because in `dist/` the functions sit inside the page IIFE. The Daniels fixture checks M, T, I and R within ±2 s/km and E inside the published E range, since Daniels gives E as a range. See [plan profile](../features/plan-profile.md).

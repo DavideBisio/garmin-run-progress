@@ -6,7 +6,7 @@ import { getCollection, type CollectionEntry } from 'astro:content';
 // docs/roadmap/ itself redirects to the roadmap README (astro.config.mjs).
 const OVERVIEW = ['readme', 'architecture', 'runs-json-format', 'deploy'];
 
-// Same order as the tables in docs/README.md: the grabber, then the analysis page.
+// Same order as the tables in docs/README.md: the grabber, the analysis page, then the planner.
 const FEATURES = [
   'incremental-grabber',
   'gpx-to-stream',
@@ -20,6 +20,7 @@ const FEATURES = [
   'aerobic-decoupling',
   'form-and-training-effect',
   'training-load-zones-consistency',
+  'plan-profile',
 ];
 
 type Doc = CollectionEntry<'docs'>;
