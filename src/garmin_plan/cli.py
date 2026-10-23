@@ -26,7 +26,10 @@ def load_runs(path):
     if not path.exists():
         print(f"warning: {path} not found, deriving nothing from history", file=sys.stderr)
         return [], []
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        sys.exit(f"error: {path}: can't read runs.json ({e})")
     return data.get("runs") or [], data.get("rhr") or []
 
 

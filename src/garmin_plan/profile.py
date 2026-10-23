@@ -134,7 +134,12 @@ def load_profile(path, runs, rhr=(), today=None):
     else:
         long_day = DEFAULT_LONG_RUN_DAY if DEFAULT_LONG_RUN_DAY in days else days[-1]
         sources["long_run_day"] = "default"
-    hills, sources["hill_days"] = (_day_list(raw, "hill_days"), "set") if "hill_days" in raw else ([], "default")
+        warnings.append(f"long_run_day: not set, using {long_day}")
+    if "hill_days" in raw:
+        hills, sources["hill_days"] = _day_list(raw, "hill_days"), "set"
+    else:
+        hills, sources["hill_days"] = [], "default"
+        warnings.append("hill_days: not set, using none (no hill sessions)")
     race, sources["race"] = (parse_race(raw["race"]), "set") if "race" in raw else (None, "default")
 
     return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills,

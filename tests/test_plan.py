@@ -79,6 +79,11 @@ class MetricParity(unittest.TestCase):
             self.assertTrue(math.isclose(got, v["expected"], rel_tol=1e-12, abs_tol=1e-9),
                             (v["run"]["date"], got, v["expected"]))
 
+    def test_trimp_without_heart_rate_reserve(self):
+        # hr_max == hr_rest would divide by zero (NaN in the JS); the port returns 0
+        self.assertEqual(metrics.trimp(run("2024-05-01", 5, avgHr=150), 150, 150), 0.0)
+        self.assertEqual(metrics.trimp(stream_run("2024-05-01", 5, 1500), 150, 150), 0.0)
+
 
 class Physiology(unittest.TestCase):
     def test_paces_match_daniels(self):
@@ -88,7 +93,7 @@ class Physiology(unittest.TestCase):
             for zone in "MTIR":
                 self.assertLessEqual(abs(got[zone] - want[zone]), tol, f"VDOT {v} {zone}: {got[zone]:.1f}")
             fast, slow = want["E"]
-            self.assertTrue(fast - tol <= got["E"] <= slow + tol, f"VDOT {v} E: {got['E']:.1f}")
+            self.assertTrue(fast < got["E"] < slow, f"VDOT {v} E: {got['E']:.1f}")
 
     def test_race_time_inverts_vdot(self):
         for v in (30.0, 45.5, 60.0):
@@ -188,6 +193,8 @@ class Profile(unittest.TestCase):
         self.assertTrue(all(s == "default" for s in prof.sources.values()), prof.sources)
         self.assertTrue(any("hr_max" in w for w in prof.warnings))
         self.assertTrue(any("vdot" in w for w in prof.warnings))
+        self.assertIn("long_run_day: not set, using sun", prof.warnings)
+        self.assertTrue(any(w.startswith("hill_days: not set") for w in prof.warnings), prof.warnings)
 
     def test_short_history_gets_defaults(self):
         runs = weekly(20, every=1) + [stream_run((TODAY - timedelta(days=2)).isoformat(), 5, 1200)]
@@ -209,9 +216,17 @@ class Profile(unittest.TestCase):
         self.assertEqual(prof.days, ["tue", "thu", "sat"])
         self.assertEqual(prof.long_run_day, "sat")   # default sun is not available: the last day is used
         self.assertEqual(prof.hill_days, ["thu"])
+        self.assertIn("long_run_day: not set, using sat", prof.warnings)
+        self.assertFalse(any(w.startswith(("days", "hill_days")) for w in prof.warnings), prof.warnings)
 
 
 class Cli(unittest.TestCase):
+    def profile(self, d, check=True):
+        env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+        return subprocess.run([sys.executable, "-m", "garmin_plan", "profile", "--export", d,
+                               "--today", TODAY.isoformat()],
+                              capture_output=True, text=True, env=env, check=check)
+
     def test_profile_command(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
@@ -219,16 +234,24 @@ class Cli(unittest.TestCase):
             (out / "runs.json").write_text(json.dumps({"format": "garmin-runs/1", "runs": runs,
                                                        "rhr": [["2024-06-01", 48]]}), encoding="utf-8")
             (out / "profile.toml").write_text("hr_max = 191\n", encoding="utf-8")
-            env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
-            res = subprocess.run([sys.executable, "-m", "garmin_plan", "profile", "--export", d,
-                                  "--today", TODAY.isoformat()],
-                                 capture_output=True, text=True, env=env, check=True)
-        self.assertIn("191 bpm", res.stdout)
-        self.assertIn("set", res.stdout)
-        self.assertIn("derived (training efforts)", res.stdout)
-        self.assertIn("default", res.stdout)
+            res = self.profile(d)
+        # "  <label:18><value:24><source>"
+        rows = {ln[2:20].strip(): (ln[20:44].strip(), ln[44:]) for ln in res.stdout.splitlines()
+                if ln.startswith("  ") and len(ln) > 44}
+        self.assertEqual(rows["HR max"], ("191 bpm", "set"))
+        self.assertEqual(rows["Days"], ("tue, thu, sat, sun", "default"))
+        self.assertTrue(rows["VDOT"][1].startswith("derived (training efforts)"), rows["VDOT"])
         self.assertIn("Z1", res.stdout)
         self.assertIn("warning", res.stderr)
+
+    def test_unreadable_runs_json(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "runs.json").write_text('{"runs": [', encoding="utf-8")
+            res = self.profile(d, check=False)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertTrue(res.stderr.startswith("error: "), res.stderr)
+        self.assertIn("runs.json", res.stderr)
+        self.assertNotIn("Traceback", res.stderr)
 
 
 if __name__ == "__main__":

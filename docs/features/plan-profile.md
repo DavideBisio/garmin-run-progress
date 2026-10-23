@@ -33,7 +33,7 @@ For each field: the value in `profile.toml` (`set`), else derived from `runs.jso
 | `km_4w`, `km_12w` | Average km per Monday-based week over the last 4 / 12 full weeks before this one; weeks without runs count as 0 | 0 |
 | `runs_per_week` | Runs in the last 4 full weeks / 4 | 0 |
 | `longest_8w` | Longest run in the last 56 days | 0 |
-| `days`, `long_run_day` | – | tue, thu, sat, sun; long run sun (else the last available day) |
+| `days`, `long_run_day`, `hill_days` | – | tue, thu, sat, sun; long run sun (else the last available day); no hill days |
 
 Runs without a GPS stream (treadmill, indoor) count in the volume by their summary distance, as on the page. Weeks follow the date part of `date`, so a run at 23:59 on Sunday stays in that week.
 
@@ -51,13 +51,15 @@ With `VO2(v) = −4.60 + 0.182258·v + 0.000104·v²` (v in m/min) and `%max(t) 
 | M | Predicted marathon race pace: `race_time` bisects `vdot(42195, t) = VDOT` |
 | R | I pace minus 6 s per 400 m (15 s/km) |
 
+M follows Daniels' race-equivalency table (the predicted marathon pace), not the M column of his training-pace table, which is slower at low VDOT (about 7:03/km against 6:51/km at VDOT 30).
+
 The fractions are calibrated against Daniels' published tables for VDOT 30, 40, 50 and 60 (`tests/fixtures/daniels_paces.json`):
 
 | `f` | Value | Fit |
 |---|---|---|
 | E | 0.69 | Inside the published E range at all four VDOTs |
-| T | 0.88 | Within 1 s/km |
-| I | 0.975 | Within 1.5 s/km |
+| T | 0.88 | Within 0.5 s/km |
+| I | 0.975 | Within 1.2 s/km |
 
 At VDOT 50 that gives E 5:11, M 4:31, T 4:15, I 3:55, R 3:40 per km.
 

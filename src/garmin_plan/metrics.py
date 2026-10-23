@@ -12,6 +12,7 @@ from .physiology import hr_zones, vdot  # noqa: F401  (vdot and hrrZones live in
 DISTS = [("1k", 1000), ("5k", 5000), ("10k", 10000), ("hm", 21097.5)]
 _DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 _EPOCH = date(1970, 1, 1).toordinal()
+_BEFORE_MONTH = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]   # days before each month, non-leap
 
 
 def minetti(i):
@@ -24,14 +25,21 @@ def gap_factor(g):
 
 
 def day_index(date_str):
-    """Days since 1970-01-01 of the date part of 'YYYY-MM-DD[ HH:MM:SS]' (decYear(..).day)."""
+    """Days since 1970-01-01 of the date part of 'YYYY-MM-DD[ HH:MM:SS]' (decYear(..).day).
+
+    Mirrors JS Date.UTC: impossible dates roll over (2024-02-30 -> 2024-03-01, month 13 -> next
+    January, day 00 -> the last day of the month before) and years 0000-0099 mean 1900-1999.
+    """
     m = _DATE.match(date_str or "")
     if not m:
         return None
-    try:
-        return date(int(m[1]), int(m[2]), int(m[3])).toordinal() - _EPOCH
-    except ValueError:
-        return None
+    y, mo, d = int(m[1]), int(m[2]) - 1, int(m[3])
+    if y <= 99:
+        y += 1900
+    y, mo = y + mo // 12, mo % 12
+    leap = y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)
+    jan1 = 365 * (y - 1) + (y - 1) // 4 - (y - 1) // 100 + (y - 1) // 400 + 1   # date(y, 1, 1).toordinal()
+    return jan1 + _BEFORE_MONTH[mo] + (mo > 1 and leap) + d - 1 - _EPOCH
 
 
 def week_of(day):
@@ -98,7 +106,13 @@ def best_efforts(run):
 
 
 def trimp(run, hr_max, hr_rest):
-    """Banister TRIMP: minutes x HRr x 0.64 e^(1.92 HRr)."""
+    """Banister TRIMP: minutes x HRr x 0.64 e^(1.92 HRr).
+
+    hr_max == hr_rest gives 0.0; the JS divides by zero there (NaN at hr == rest, else 0 or 1).
+    """
+    if hr_max == hr_rest:
+        return 0.0
+
     def f(hr):
         x = max(0, min(1, (hr - hr_rest) / (hr_max - hr_rest)))
         return x * 0.64 * math.exp(1.92 * x) / 60
