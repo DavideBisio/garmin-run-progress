@@ -162,7 +162,7 @@ def promote(current, stats, levels, *, block_start, compliance=None):
                 notes.append(f"{axis}: {current[axis]} -> {level} after {lay['days_off']} days off ({why[axis]})")
         return out, notes
     if compliance is None:
-        notes.append("Q compliance not checked: the adaptation loop (roadmap 09) counts the sessions done")
+        notes.append("Q compliance not checked: no Q session of the last block to count (match.q_compliance)")
     elif compliance < d["compliance"]:
         notes.append(f"{compliance * 100:.0f} % of the planned Q sessions done, under {d['compliance'] * 100:.0f} %: "
                      "no promotion this block")

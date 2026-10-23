@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import history, levels, progress
+from . import history, levels, match, progress
 from .config import DEFAULT_DAYS, DEFAULT_LONG_RUN_DAY, DEFAULTS, MIN_HISTORY_DAYS, WEEKDAYS
+from .physiology import load_rules
 from .templates import LEVELS
 
 RACE_DISTANCES = {"5k": 5000, "10k": 10000, "hm": 21097.5, "half": 21097.5, "m": 42195, "marathon": 42195}
@@ -170,7 +171,8 @@ def _levels(raw, stats, vals, sources, lay, runs, today, data, plan, carried):
     """(volume_level, quality_level, reasons): profile.toml's, else levels.detect on the resolved
     numbers (after a break: the restart volume, and the runs a week, the consistency and the longest
     run, at the VDOT factor, from before it), moved on from the last plan's levels by levels.promote
-    at the block's start that the last plan's progress counts (carried, progress.carry)."""
+    at the block's start that the last plan's progress counts (carried, progress.carry), held back
+    when under [detect] compliance of the last block's Q sessions were run (match.q_compliance)."""
     longest = vals["longest_8w"]
     if lay and sources["longest_8w"] == "derived":      # the 8 weeks to today may hold no run at all
         longest = stats["longest_before"] * lay["vdot_factor"]
@@ -189,8 +191,10 @@ def _levels(raw, stats, vals, sources, lay, runs, today, data, plan, carried):
         prev = None                                   # no plan, a manual one, or one from before 08
     if prev:
         monday = today + timedelta(days=7 - today.weekday())        # the new plan's first week
+        compliance = match.q_compliance(plan, runs, today, monday, load_rules(), vals["hr_max"], vals["hr_rest"])
         got, notes = levels.promote({"volume": prev["volume"], "quality": prev["quality"]}, dstats, data,
-                                    block_start=carried is None or carried["block_start"] == monday)
+                                    block_start=carried is None or carried["block_start"] == monday,
+                                    compliance=compliance)
     out, reasons = [], {}
     short = stats["history_days"] < MIN_HISTORY_DAYS
     for key, level, why in zip(("volume_level", "quality_level"), found[:2], (found[2]["volume"], found[2]["quality"])):

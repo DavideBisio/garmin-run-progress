@@ -656,6 +656,30 @@ class Promotion(unittest.TestCase):
             self.assertEqual(up.volume_level, "intermediate")
             self.assertIn("novice -> intermediate", up.level_reasons["volume"])
 
+    def test_q_compliance_holds_promotion_back(self):
+        # 36 km a week, but none of the last block's Q sessions run (no run within a day of them):
+        # under [detect] compliance, no promotion at the block's start (roadmap 09)
+        prev = build(generic_profile(km_4w=20.0, longest_8w=8.0, volume_level="novice", quality_level="novice"),
+                     weeks=8)
+        q_day = next(WEEKDAYS[date.fromisoformat(d["date"]).weekday()] for d in prev["weeks"][0]["days"]
+                     if d["slot"] == "Q")
+        at = date.fromisoformat(prev["weeks"][4]["start"]) - timedelta(days=2)
+
+        def runs_on(days):
+            out = [summary_run(at - timedelta(days=k), 9) for k in range(1, 85)
+                   if WEEKDAYS[(at - timedelta(days=k)).weekday()] in days]
+            return sorted(out, key=lambda r: r["date"])
+
+        i = WEEKDAYS.index(q_day)
+        away = [d for d in WEEKDAYS if min((WEEKDAYS.index(d) - i) % 7, (i - WEEKDAYS.index(d)) % 7) > 1][:4]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "profile.toml"
+            path.write_text("hr_max = 190\nhr_rest = 50\n", encoding="utf-8")
+            held = profile.load_profile(path, runs_on(away), [], at, plan=prev)
+            self.assertEqual(held.volume_level, "novice")
+            done = profile.load_profile(path, runs_on([q_day] + away[:3]), [], at, plan=prev)
+            self.assertEqual(done.volume_level, "intermediate")
+
 
 BEGINNER_TOML = ('hr_max = 190\nhr_rest = 50\nvolume_level = "beginner"\nquality_level = "beginner"\n'
                  'days = ["tue", "thu", "sat"]\nlong_run_day = "sat"\n'
@@ -704,7 +728,11 @@ class Progress(unittest.TestCase):
         # the block keeps P0's deload, and the week after it starts the next block
         self.assertEqual(next(wk["start"] for wk in p2["weeks"] if wk["deload"]), "2024-07-01")
         at = date(2024, 7, 3)
-        prof3, p3 = replan(DETECTED_TOML, training(12, 4, 9, end=at), at, p2)
+        # the block's Q sessions run as planned: Q compliance (roadmap 09) lets the promotion through
+        q_runs = [summary_run(date.fromisoformat(d["date"]), d["workout"]["km"])
+                  for wk in p2["weeks"] for d in wk["days"] if d["slot"] == "Q" and d["date"] < at.isoformat()]
+        runs3 = sorted(training(12, 4, 9, end=at) + q_runs, key=lambda r: r["date"])
+        prof3, p3 = replan(DETECTED_TOML, runs3, at, p2)
         self.assertEqual(prof3.volume_level, "intermediate")
         self.assertEqual(p3["progress"]["block_start"], "2024-07-08")
 

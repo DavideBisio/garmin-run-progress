@@ -97,17 +97,16 @@ def q_sessions(runs, today, hr_max, hr_rest, weeks=8):
     the whole moving time when the average HR is at Z4 or above."""
     now = day_index(today.isoformat() if isinstance(today, date) else today)
     z4 = hr_zones(hr_max, hr_rest)[2]
-    n = 0
-    for d, r in dated(runs):
-        if not now - 7 * weeks < d <= now:
-            continue
-        if hr_ok(r):
-            t, h = r["t"], r["hr"]
-            secs = sum(t[i] - t[i - 1] for i in range(1, len(t)) if 0 < t[i] - t[i - 1] <= 30 and h[i] >= z4)
-        else:
-            secs = (r.get("moving") or r.get("dur") or 0) if (r.get("avgHr") or 0) >= z4 else 0
-        n += secs >= Q_MIN_S
-    return n
+    return sum(z4_seconds(r, z4) >= Q_MIN_S for d, r in dated(runs) if now - 7 * weeks < d <= now)
+
+
+def z4_seconds(r, z4):
+    """Seconds of a run at z4 bpm or above: from the HR stream when it has one (gaps over 30 s
+    skipped, as trimp), else the whole moving time when the average HR is at z4 or above."""
+    if hr_ok(r):
+        t, h = r["t"], r["hr"]
+        return sum(t[i] - t[i - 1] for i in range(1, len(t)) if 0 < t[i] - t[i - 1] <= 30 and h[i] >= z4)
+    return (r.get("moving") or r.get("dur") or 0) if (r.get("avgHr") or 0) >= z4 else 0
 
 
 def time_trials(runs, days, today, recorded=()):

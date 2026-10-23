@@ -188,3 +188,8 @@ trim_l_km = 1.0
 # is "ambitious", more is "unrealistic". The planner only warns: paces stay at the current VDOT.
 realistic_weeks = 6
 ambitious_weeks = 4
+
+[adapt]
+# The adaptation loop (roadmap 09). Matching (match.py): a run
+# under this share of both the planned distance and the planned time makes the session partial.
+partial = 0.70
