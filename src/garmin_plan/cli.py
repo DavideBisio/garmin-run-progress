@@ -12,9 +12,12 @@ from pathlib import Path
 from .config import EXPORT_DIR, PLAN_JSON, PLAN_MD, PROFILE, PUSH_STATE, RUNS
 from .physiology import hr_zones, load_rules, pace_zones
 from . import push as garmin_push
-from .plan_io import build_plan, read_plan, write_plan
+from .phases import PhaseError
+from .plan_io import read_plan, write_plan
+from .planner import build_plan
 from .profile import ProfileError, load_profile
 from .render_md import fmt_pace, fmt_time, render_plan  # noqa: F401  (fmt_* used to live here)
+from .skeleton import SkeletonError
 from .templates import TemplateError, load_templates
 
 
@@ -65,7 +68,7 @@ def show_profile(p, path):
 
 
 def resolve_profile(args):
-    """(export dir, Profile) for --export / --today; profile errors exit with 'error: ...'."""
+    """(export dir, Profile, runs) for --export / --today; profile errors exit with 'error: ...'."""
     out = Path(args.export)
     runs, rhr = load_runs(out / RUNS)
     try:
@@ -74,26 +77,27 @@ def resolve_profile(args):
         sys.exit(f"error: {e}")
     for w in p.warnings:
         print(f"warning: {w}", file=sys.stderr)
-    return out, p
+    return out, p, runs
 
 
 def cmd_profile(args):
-    out, p = resolve_profile(args)
+    out, p, _ = resolve_profile(args)
     show_profile(p, out / PROFILE)
 
 
 def cmd_plan(args):
-    out, p = resolve_profile(args)
+    out, p, runs = resolve_profile(args)
     try:
         rules = load_rules()
-        plan = build_plan(p, load_templates(), rules, args.today or date.today(), args.weeks)
-    except (ProfileError, TemplateError) as e:
+        plan = build_plan(p, runs, load_templates(), rules, args.today or date.today(), args.weeks)
+    except (ProfileError, TemplateError, SkeletonError, PhaseError) as e:
         sys.exit(f"error: {e}")
     write_plan(plan, out / PLAN_JSON)
     (out / PLAN_MD).write_text(render_plan(plan), encoding="utf-8", newline="\n")
     km = sum(w["target_km"] for w in plan["weeks"])
-    print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {args.weeks} week(s) from "
-          f"{plan['weeks'][0]['start']}, {km:.1f} km")
+    n = len(plan["warnings"]) + sum(len(w["warnings"]) for w in plan["weeks"])
+    print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {len(plan['weeks'])} week(s) from "
+          f"{plan['weeks'][0]['start']}, {km:.1f} km" + (f"; {n} warning(s), listed in plan.md" if n else ""))
 
 
 def cmd_push(args):
@@ -140,8 +144,11 @@ def main(argv=None):
                    help="print the resolved runner profile and where each value came from"
                    ).set_defaults(run=cmd_profile)
     pl = sub.add_parser("plan", parents=[shared],
-                        help="write plan.json and plan.md from the [week] table in profile.toml")
-    pl.add_argument("--weeks", type=positive_int, default=1, help="weeks to plan, from the Monday after today")
+                        help="generate plan.json and plan.md from profile.toml and runs.json "
+                             "([week] days override the generated ones)")
+    pl.add_argument("--weeks", type=positive_int, default=None,
+                    help="weeks to plan from the Monday after today (default: to the race week, or 8 "
+                         "without a race; with a race it only shortens the plan)")
     pl.set_defaults(run=cmd_plan)
     pu = sub.add_parser("push", parents=[shared],
                         help="upload plan.json's future sessions to Garmin Connect and schedule them")

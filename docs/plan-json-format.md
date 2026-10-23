@@ -1,6 +1,6 @@
 # plan.json format
 
-`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`.
+`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`. The generator (07) added `warnings` and each week's `phase`, `deload` and `warnings`; readers that don't know them ignore them, so the version stays `1`.
 
 The file holds **resolved** workouts: every step carries its pace and HR ranges in numbers, so readers need neither the templates (`src/garmin_plan/data/workouts.toml`) nor the profile.
 
@@ -9,10 +9,17 @@ The file holds **resolved** workouts: every step carries its pace and HR ranges 
   "version": 1,
   "generated": "2026-10-23T11:00:00",
   "profile_hash": "b924fafb9b64…",
+  "warnings": [
+    { "rule": "feasibility", "detail": "the goal needs VDOT 43.4, 3.4 above the current 40.0, in 16 weeks: ambitious …",
+      "action": "kept the paces at the current VDOT …" }
+  ],
   "weeks": [
     {
       "start": "2024-06-10",
       "target_km": 28.0,
+      "phase": "base",
+      "deload": false,
+      "warnings": [],
       "days": [
         {
           "date": "2024-06-11",
@@ -47,6 +54,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | `version` | `1`. A breaking change bumps it; readers reject versions they don't know |
 | `generated` | Local time the plan was written, `YYYY-MM-DDTHH:MM:SS` |
 | `profile_hash` | sha256 (hex) of what the resolved steps depend on: VDOT, HR max and rest, and the resolved zones (each pace zone's range to 0.01 s/km, the jog pace, the bpm of Z1–Z5). A different hash for today's profile means the steps are stale |
+| `warnings` | Plan-wide warnings: phases shortened for a near race, goal feasibility, no load-ratio check for want of history. Absent in a plan of the `[week]` schedule alone |
 | `weeks` | Monday-based weeks, oldest first |
 
 ## Weeks and days
@@ -54,11 +62,24 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | Field | Contents |
 |---|---|
 | `start` | The week's Monday, `YYYY-MM-DD` |
-| `target_km` | The week's planned volume. With the manual `[week]` schedule it is the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first), so the week heading adds up its day headings; the weekly skeleton (06) sets it from the volume progression |
+| `target_km` | The week's planned volume, in flat-equivalent km: the volume curve's target (06; the taper's share of the last build week). It becomes the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first, so the week heading adds up its day headings) when the week has `[week]` days, when the fixer trimmed L or dropped F, and in the race week, which stops before race day |
+| `phase` | `"base"`, `"rt"` (R + T), `"it"` (I + T), `"tm"` (T + M) or `"taper"` (06's phase calendar). Absent in a plan of the `[week]` schedule alone |
+| `deload` | `true` for the block's lighter week (×0.85 of the block, the deload Q one variant lighter). Absent as `phase` |
+| `warnings` | The week's warnings (see [Warnings](#warnings)), `[]` when it passes every check. Absent as `phase` |
 | `days` | One entry per session, by date |
 | `days[].date` | `YYYY-MM-DD`, local date |
-| `days[].slot` | The session's role in the week from the weekly skeleton (06): `"L"` long run, `"Q"` quality, `"E"` easy or `"F"` flex (an easy run that is the first dropped when the volume is short; an F day with no run has no entry). `null` with the manual schedule |
+| `days[].slot` | The session's role in the week from the weekly skeleton (06): `"L"` long run, `"Q"` quality, `"E"` easy or `"F"` flex (an easy run that is the first dropped when the volume is short; an F day with no run has no entry). `null` for a `[week]` day (the manual schedule overrides the generated day) |
 | `days[].workout` | The resolved workout |
+
+## Warnings
+
+Each warning says which rule fired and what the planner did about it; `plan.md` lists them under `## Warnings` and under their week.
+
+| Field | Contents |
+|---|---|
+| `rule` | The rule: a check (`easy_share`, `hard_count`, `hard_adjacent`, `volume_rise`, `acwr_high`, `acwr_low`, `long_share`), a note (`acwr_skipped`, `forced_size`), or a planning step (`split`, `phases`, `feasibility`, `hill_swap`, `race_week`) |
+| `detail` | What happened, with the numbers |
+| `action` | What the planner did: the fix it applied (`fixed: Q cruise_tempo variant 5 -> 4`), or why it left it |
 
 ## Workout
 

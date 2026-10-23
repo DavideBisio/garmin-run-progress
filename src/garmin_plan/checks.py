@@ -12,6 +12,7 @@ from .templates import ZONE_HR, zone_span
 from .terrain import workout_flat_km
 
 HARD_KINDS = ("L", "hill", "trail")      # long runs are hard days whatever their zones (skeleton.HARD)
+SLACK_KM = 0.2                           # the split rounds each run to 0.1 km: km limits allow for it
 
 
 @dataclass
@@ -98,7 +99,7 @@ def check_week(days, rules, *, e_min, hr_max, hr_rest, prev_km=None, prev_days=(
         out.append(Violation("hard_adjacent", "hard sessions on consecutive days: "
                                               + "; ".join(f"{_wd(a)} and {_wd(b)}" for a, b in pairs)))
     km = week_km(days)
-    if prev_km and "volume_rise" not in exempt and km > prev_km * (1 + c["max_rise"]) + 0.05:
+    if prev_km and "volume_rise" not in exempt and km > prev_km * (1 + c["max_rise"]) + SLACK_KM:
         out.append(Violation("volume_rise", f"{km:.1f} km is {_pct(km / prev_km - 1)} over last week's "
                                             f"{prev_km:.1f} km, more than {_pct(c['max_rise'])}"))
     ratio = None
@@ -118,7 +119,7 @@ def check_week(days, rules, *, e_min, hr_max, hr_rest, prev_km=None, prev_days=(
     cap = rules["split"]["long_share_cap"]
     for d in days:
         long_km = workout_flat_km(d.workout)
-        if d.slot == "L" and km and long_km > max(cap * km, e_min) + 0.05:
+        if d.slot == "L" and km and long_km > max(cap * km, e_min) + SLACK_KM:
             out.append(Violation("long_share", f"L is {long_km:.1f} km, {_pct(long_km / km)} of the week's "
                                                f"{km:.1f} km, over the {_pct(cap)} cap"))
     notes += [Violation("forced_size", d.forced) for d in days if d.forced]

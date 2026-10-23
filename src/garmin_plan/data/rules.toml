@@ -49,6 +49,10 @@ next_block_from_week = 2
 start_floor_km = 10
 # Volume unit: "km" (08's beginner level runs in "min")
 unit = "km"
+# Taper weeks (the last 2, planner.py) as a share of the last build week that isn't a deload. The
+# taper meta-analysis of Bosquet et al. (2007) found a 41-60 % volume cut over about 2 weeks, with
+# the intensity kept, works best: 0.7, then 0.5 in the race week.
+taper = [0.7, 0.5]
 
 [split]
 # Week split (split.py). Long run cap as a share of the week. Daniels caps L at 25-30 % of the
@@ -137,6 +141,8 @@ E = "R"
 level = "intermediate"
 # The deload week's Q is this many ladder variants lighter than what its volume allows.
 deload_lighter = 1
+# Template of the E and F runs, and of a Q day the week can't hold: sized to the split's km.
+E = "easy"
 
 [rotation.base]
 # Daniels phase I: easy running plus strides, or short hill repeats on a hill day (his R

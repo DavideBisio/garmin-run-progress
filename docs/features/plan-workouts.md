@@ -1,6 +1,6 @@
 # Planner workouts, renderer and manual schedule
 
-The planner's sessions come from a template library, `src/garmin_plan/data/workouts.toml`. A template plus a size variant plus your [profile](plan-profile.md) gives a resolved workout: concrete pace and HR ranges, distance, estimated duration and hard km. `python -m garmin_plan plan --weeks N` (or `make plan ARGS="--weeks 4"`) writes those workouts to `garmin_export/plan.json` ([format](../plan-json-format.md)) and `garmin_export/plan.md` from a `[week]` table in `profile.toml`. Modules: `garmin_plan.model`, `templates`, `render_md`, `plan_io`.
+The planner's sessions come from a template library, `src/garmin_plan/data/workouts.toml`. A template plus a size variant plus your [profile](plan-profile.md) gives a resolved workout: concrete pace and HR ranges, distance, estimated duration and hard km. The [plan generator](plan-generator.md) picks and sizes them week by week; `python -m garmin_plan plan` (or `make plan`) writes the plan to `garmin_export/plan.json` ([format](../plan-json-format.md)) and `garmin_export/plan.md`, and a `[week]` table in `profile.toml` overrides the days it lists. Modules: `garmin_plan.model`, `templates`, `render_md`, `plan_io`.
 
 ## Templates
 
@@ -12,6 +12,7 @@ The planner's sessions come from a template library, `src/garmin_plan/data/worko
 | `cruise_tempo` | T | novice | 2, 3, 4 × 1200 m, 2 × 3000 m, 1 × 5000 m; 60 s jog between reps |
 | `vo2_intervals` | I | intermediate | 5 × 600 m, 6 × 800 m, 5 and 6 × 1000 m |
 | `easy` | E | beginner | 4, 5, 6, 7, 8, 10 km |
+| `strides` | E | novice | 3, 4, 5, 6 km easy, then 4, 6, 6, 8 × 100 m strides at R, 100 m jog; 1 km cool-down |
 | `progression` | M | novice | E then M: 3 + 2, 3.5 + 3.5, 4 + 5 km |
 | `steady_long` | L | novice | 10, 12, 14, 16, 18 km |
 | `progression_long` | L | intermediate | E, M, E: 8 + 3 + 2, 10.5 + 3.5 + 3.5, 12 + 5 + 3 km |
@@ -48,7 +49,8 @@ recovery = { time = 60 }
 - **Defaults:** a recovery without `pace` or `effort` is a jog at Z2. A pace zone without `hr` gets its usual HR zone: E Z2, M Z3, T Z4, I and R Z4-5.
 - **Estimates:** a time-ended step needs `est_pace` for its distance (a jog uses the jog pace). A distance-ended step without a pace target needs `est_pace` for its duration. A lap-button step needs `est_time` and `est_dist`. `est_pace` is a zone (`E`, `jog`), a zone plus or minus seconds per km (`I+30`), or an absolute `M:SS`.
 - **Hard km:** steps at M, T, I or R pace, plus steps marked `hard = true` (the hill reps).
-- `climb_m_per_km` (hill and trail templates) is the climbing the session expects, for the terrain checks in 07.
+- `climb_m_per_km` (hill and trail templates) is the climbing the session expects; the generator counts their volume as flat-equivalent km (Minetti, [plan generator](plan-generator.md#volume-and-load)).
+- **Overrides:** `instantiate(..., overrides={"d": 7300})` replaces a ladder value for one workout, and `{"warmup": 3500}` or `{"cooldown": …}` the warm-up or cool-down step's distance (m) or time (s); 0 leaves the step out. The generator sizes easy and long runs to the split's km this way, and puts the split's leftover on the Q day into a longer warm-up.
 
 Hill and trail sessions use HR or open targets and end on time or the lap button, because terrain sets the pace. A trail run's climbs and descents are one timed step under an HR cap, with the guidance in the comment.
 
@@ -99,7 +101,7 @@ Numbers are rounded only when rendering. Write the output as UTF-8: `↳` is not
 
 ## Manual schedule (`[week]`)
 
-Until the weekly skeleton (06) chooses sessions, `profile.toml` maps weekdays to `template:variant`:
+The [plan generator](plan-generator.md) plans every available day; `profile.toml` can pin any weekday to a `template:variant`:
 
 ```toml
 [week]
@@ -108,7 +110,7 @@ thu = "easy:3"
 sun = "steady_long:1"
 ```
 
-`make plan ARGS="--weeks 4"` (or `python -m garmin_plan plan --weeks 4`) plans 4 weeks starting on the Monday after today (`--today YYYY-MM-DD` to pretend otherwise). Every week repeats `[week]`, `target_km` is the sum of the week's sessions as `plan.md` shows them (each workout's km rounded to 0.1 first, so the week heading equals the sum of its day headings) and `slot` stays `null`. It writes `garmin_export/plan.json` and `garmin_export/plan.md`.
+Each listed day replaces the generated session of that weekday in every week (or adds one on a day the generator leaves free), with `slot` `null`. The fixer never changes these days, but the checks still count them and may warn. A week with `[week]` days has `target_km` = the sum of its sessions as `plan.md` shows them (each workout's km rounded to 0.1 first, so the week heading equals the sum of its day headings). `plan_io.build_plan` still builds a plan of the `[week]` days alone (the Garmin export's tests use it); without a `[week]` table its weeks have no sessions.
 
 An unknown template, a variant outside the ladder or a value not shaped `template:variant` stops with `error: …` and quotes the line as written in `profile.toml`. `tomllib` has no line numbers, so the profile keeps the raw line of each `[week]` key. Any line starting with `[` (another `[table]`, a dotted `[week.x]` or an `[[array]]` table) ends the `[week]` section.
 

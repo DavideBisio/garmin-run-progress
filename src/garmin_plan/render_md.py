@@ -11,6 +11,7 @@ from .plan_io import workout_from_dict
 
 ZONE_NAMES = {"E": "Easy", "M": "Marathon", "T": "Threshold", "I": "Interval", "R": "Repetition"}
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+PHASE_NAMES = {"base": "Base", "rt": "R + T", "it": "I + T", "tm": "T + M", "taper": "Taper"}
 
 
 def fmt_pace(s):
@@ -106,14 +107,38 @@ def render_workout(w, prefix=""):
     return "\n".join(out) + "\n"
 
 
+def fmt_warning(w):
+    """'- **rule**: detail. Planner: action.': which rule fired and what the planner did."""
+    return f"- **{esc(w['rule'])}**: {esc(w['detail'])}. Planner: {esc(w['action'])}."
+
+
+def _heading(wk):
+    """'## Week of 2024-06-10 - 30.0 km', plus ' · Base' and ', deload' for generated weeks."""
+    out = f"## Week of {wk['start']} - {wk['target_km']:.1f} km"
+    if wk.get("phase"):
+        out += f" · {PHASE_NAMES[wk['phase']]}" + (", deload" if wk.get("deload") else "")
+    return out
+
+
 def render_plan(plan):
-    """plan.md from a plan dict (plan_io's format): a section per week, a workout per day."""
+    """plan.md from a plan dict (plan_io's format): the plan's warnings, then a section per week
+    (its phase, its warnings), a workout per day. Without warnings or phases (the manual schedule)
+    nothing of them shows."""
     out = ["# Training plan", "",
            f"Generated {plan['generated']} from profile `{plan['profile_hash'][:12]}`. "
            "Durations are estimates at the middle of each pace range; recovery jogs at the slow end of "
            "Easy plus 30 s/km.", ""]
+    flagged = [wk for wk in plan["weeks"] if wk.get("warnings")]
+    if plan.get("warnings") or flagged:
+        out += ["## Warnings", ""]
+        out += [fmt_warning(w) for w in plan.get("warnings", [])]
+        out += [f"- Week of {wk['start']}: {', '.join(dict.fromkeys(w['rule'] for w in wk['warnings']))} "
+                "(see the week)" for wk in flagged]
+        out.append("")
     for wk in plan["weeks"]:
-        out += [f"## Week of {wk['start']} - {wk['target_km']:.1f} km", ""]
+        out += [_heading(wk), ""]
+        if wk.get("warnings"):
+            out += [fmt_warning(w) for w in wk["warnings"]] + [""]
         if not wk["days"]:
             out += ["No sessions.", ""]
         for d in wk["days"]:

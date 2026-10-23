@@ -51,7 +51,7 @@ rebuild: ## rebuild runs.json from local files, no network
 plan-profile: ## print the runner profile (garmin_export/profile.toml + runs.json)
 	$(PY) -m garmin_plan profile $(ARGS)
 
-plan: ## write garmin_export/plan.json and plan.md from profile.toml's [week] (ARGS="--weeks 4")
+plan: ## generate garmin_export/plan.json and plan.md from profile.toml and runs.json (ARGS="--weeks 4")
 	$(PY) -m garmin_plan plan $(ARGS)
 
 push: $(VENV_PY) ## upload and schedule plan.json's future sessions on Garmin (ARGS="--weeks 2 --dry-run")

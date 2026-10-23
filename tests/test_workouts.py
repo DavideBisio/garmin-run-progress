@@ -295,8 +295,8 @@ class Schedule(unittest.TestCase):
                 self.build(f"[week]\n{line}\n")
             if "funday" not in line:
                 self.assertIn(line, str(cm.exception))
-        with self.assertRaises(profile.ProfileError):
-            self.build("")      # no [week] table
+        # no [week] table: no manual sessions (the generator, planner.py, plans the days)
+        self.assertEqual([w["days"] for w in self.build("")["weeks"]], [[], []])
 
     def test_plan(self):
         plan = self.build(WEEK)

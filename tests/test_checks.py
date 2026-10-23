@@ -160,10 +160,10 @@ class Fixer(unittest.TestCase):
         res = fix.fix_week(self.builder(long_km=18), self.check(), RULES)
         self.assertEqual(res.violations, [])
         self.assertFalse(res.stopped)
-        # L <= 45 % of (15.7 km + L): 12.8 km, so 6 trims of 1 km
-        self.assertEqual(res.actions, ["trim_l"] * 6)
-        self.assertAlmostEqual(res.days[-1].workout.km, 12.0)
-        self.assertEqual(res.adjust.trim_l_km, 6.0)
+        # L <= 45 % of (15.7 km + L), plus 0.2 km for the split's rounding: 13.2 km, so 5 trims of 1 km
+        self.assertEqual(res.actions, ["trim_l"] * 5)
+        self.assertAlmostEqual(res.days[-1].workout.km, 13.0)
+        self.assertEqual(res.adjust.trim_l_km, 5.0)
 
     def test_order_shrink_q_first(self):
         # easy share: Q shrinks until the week passes (variant 2), L stays

@@ -1,4 +1,4 @@
-"""plan.json: build a plan from the [week] schedule, and read and write it (docs/plan-json-format.md).
+"""plan.json: the [week] schedule, workout <-> dict, and reading and writing it (docs/plan-json-format.md).
 
 The file holds resolved steps (pace and HR ranges, estimates), so the Garmin export (05) and the
 page (10) need neither the templates nor the profile.
@@ -78,18 +78,10 @@ def first_monday_after(today):
     return today + timedelta(days=7 - today.weekday())
 
 
-def build_plan(prof, library, rules, today, weeks, generated=None):
-    """The plan dict for `weeks` weeks of profile.toml's [week] schedule, from the Monday after today.
-
-    Every week repeats [week]; target_km is the sum of that week's sessions as plan.md shows them
-    (each workout's km rounded to 0.1 first, so the week heading adds up its day headings) and slot
-    stays null (the weekly skeleton, 06, fills both in). An unknown template or variant raises
-    ProfileError quoting the [week] line.
-    """
-    if not prof.week:
-        raise ProfileError('profile.toml has no [week] table; add one such as [week] tue = "easy:1" '
-                           "(see docs/features/plan-workouts.md)")
-    week = {}
+def manual_days(prof, library, rules):
+    """{weekday: Workout} of profile.toml's [week] schedule, Monday first; {} without one. An unknown
+    template or variant raises ProfileError quoting the [week] line."""
+    out = {}
     for day, e in prof.week.items():
         t = library.get(e["id"])
         if t is None:
@@ -97,7 +89,19 @@ def build_plan(prof, library, rules, today, weeks, generated=None):
         n = len(t["ladder"])
         if not 1 <= e["variant"] <= n:
             raise ProfileError(f"[week]: {e['id']} has variants 1-{n}, got {e['variant']}, in line: {e['line']}")
-        week[day] = workout_to_dict(instantiate(t, e["variant"], prof, rules))
+        out[day] = instantiate(t, e["variant"], prof, rules)
+    return out
+
+
+def build_plan(prof, library, rules, today, weeks, generated=None):
+    """The plan dict for `weeks` weeks of profile.toml's [week] schedule alone, from the Monday after
+    today (the generator, planner.build_plan, fills in the other days).
+
+    Every week repeats [week]; target_km is the sum of that week's sessions as plan.md shows them
+    (each workout's km rounded to 0.1 first, so the week heading adds up its day headings) and slot
+    stays null. Without a [week] table the weeks have no sessions.
+    """
+    week = {d: workout_to_dict(w) for d, w in manual_days(prof, library, rules).items()}
     target = round(sum(shown_km(w) for w in week.values()), 1)
     start = first_monday_after(today)
     out = []
