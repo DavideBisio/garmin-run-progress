@@ -122,6 +122,26 @@
 | :---- | :---- | :---- | :---- | :---- |
 | **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 10.0 km (~1 h 03) | Continuous |
 
+### Easy Run with Strides - 4.8 km (~30 min)
+
+| Lap | Pace range | FC range | Duration | Comment |
+| :---- | :---- | :---- | :---- | :---- |
+| **Easy run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 3.0 km (~19 min) |  |
+| **Repeat 4x** |  |  | 800 m (~4:35) | Strides: quick and relaxed, never a sprint |
+| ↳ **Stride** | Repetition 4:21 - 4:31 /km | Zone 4-5 162 - 190 bpm | 100 m (~27 s) | Go by pace: HR reacts too slowly on short reps |
+| ↳ **Recovery** | Jog | Zone 2 134 - 148 bpm | 100 m (~42 s) | Walk or jog back, fully recovered |
+| **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
+
+### Easy Run with Strides - 8.6 km (~54 min)
+
+| Lap | Pace range | FC range | Duration | Comment |
+| :---- | :---- | :---- | :---- | :---- |
+| **Easy run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 6.0 km (~38 min) |  |
+| **Repeat 8x** |  |  | 1.6 km (~9:10) | Strides: quick and relaxed, never a sprint |
+| ↳ **Stride** | Repetition 4:21 - 4:31 /km | Zone 4-5 162 - 190 bpm | 100 m (~27 s) | Go by pace: HR reacts too slowly on short reps |
+| ↳ **Recovery** | Jog | Zone 2 134 - 148 bpm | 100 m (~42 s) | Walk or jog back, fully recovered |
+| **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
+
 ### Progression Run - 5.0 km (~30 min)
 
 | Lap | Pace range | FC range | Duration | Comment |

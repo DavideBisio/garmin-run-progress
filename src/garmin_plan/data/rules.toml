@@ -109,3 +109,64 @@ rt = 3
 it = 5
 tm = 8
 taper = 2
+
+[caps]
+# Session sizing (size.py): the largest ladder variant whose hard portion fits under its cap and
+# whose total fits the slot. The hard portion is the reps at M, T, I or R pace and the hill reps,
+# never the warm-up, cool-down or recoveries. [share of the week, at most km], after Daniels'
+# Running Formula: R at most 5 % of the weekly volume and 8 km, I at most 8 % and 10 km, T at
+# most 10 %, M at most 20 % (his 29 km M limit is beyond every ladder here, so it's left out).
+R = [0.05, 8]
+I = [0.08, 10]
+T = [0.10]
+M = [0.20]
+# Kinds whose hard steps fall under another kind's cap: the long runs' marathon-pace blocks under
+# M, hill reps under R (they take the R session's place), an easy run's strides under R.
+L = "M"
+hill = "R"
+E = "R"
+
+[rotation]
+# Session choice (select.py). Each phase lists, per week of the 4-week block, the templates for Q
+# and L in order of preference. The planner takes the first one the runner's level allows and,
+# for L, the first one the slot's km can hold. Q alternates A (the phase's first quality type:
+# R, I or T) in weeks 1 and 3 and B (T or M) in week 2 and the deload week; L goes steady,
+# progression, longest (the block's biggest week), then short and easy in the deload.
+# Q_hill and L_hill replace Q and L when that day is one of the profile's hill_days.
+# Stopgap until 08's runner levels: every runner counts as this level.
+level = "intermediate"
+# The deload week's Q is this many ladder variants lighter than what its volume allows.
+deload_lighter = 1
+
+[rotation.base]
+# Daniels phase I: easy running plus strides, or short hill repeats on a hill day (his R
+# substitute), and one hilly long run per block.
+Q = [["strides"], ["strides"], ["strides"], ["strides"]]
+Q_hill = [["hill_repeats"], [], ["hill_repeats"], []]
+L = [["steady_long"], ["steady_long"], ["steady_long"], ["steady_long"]]
+L_hill = [[], [], ["hilly_long"], []]
+
+[rotation.rt]
+# Daniels phase II: R for speed and economy (A), T (B). The progression long run is
+# intermediate-level and needs a long enough slot, else the steady one.
+Q = [["r_300", "r_220"], ["cruise_tempo"], ["r_ladder", "r_220"], ["cruise_tempo"]]
+Q_hill = [["hill_repeats"], [], ["hill_repeats"], []]
+L = [["steady_long"], ["progression_long", "steady_long"], ["steady_long"], ["steady_long"]]
+L_hill = [[], [], ["hilly_long"], []]
+
+[rotation.it]
+# Daniels phase III, the hardest: I (A), T (B); the long hill session moves to the trail.
+Q = [["vo2_intervals", "cruise_tempo"], ["cruise_tempo"], ["vo2_intervals", "cruise_tempo"], ["cruise_tempo"]]
+L = [["steady_long"], ["progression_long", "steady_long"], ["steady_long"], ["steady_long"]]
+L_hill = [[], [], ["trail_long"], []]
+
+[rotation.tm]
+# Daniels phase IV: T (A) and M (B), the race paces; the longest run is the half-marathon one
+# when the slot holds it. No hill swaps: this phase is race-specific.
+Q = [["cruise_tempo"], ["progression"], ["cruise_tempo"], ["progression"]]
+L = [["steady_long"], ["progression_long", "steady_long"], ["hm_long", "steady_long"], ["steady_long"]]
+
+[rotation.taper]
+# The 2 taper weeks: a short T session, then strides in the race week; steady long runs.
+Q = [["cruise_tempo"], ["strides"]]
+L = [["steady_long"], ["steady_long"]]

@@ -108,6 +108,22 @@ main = [ { label = "Run", pace = "E", dist = "d", note = "Continuous" } ]
 ladder = [ { d = 4000 }, { d = 5000 }, { d = 6000 }, { d = 7000 }, { d = 8000 }, { d = 10000 } ]
 
 [[workout]]
+id = "strides"
+title = "Easy Run with Strides"
+kind = "E"
+min_level = "novice"
+# the base phase's quality session (Daniels phase I: E running plus strides); the easy run is the
+# warm-up, so a longer warm-up makes the whole session longer
+warmup = { label = "Easy run", pace = "E", dist = "d" }
+cooldown = { pace = "E", dist = 1000 }
+ladder = [ { d = 3000, n = 4 }, { d = 4000, n = 6 }, { d = 5000, n = 6 }, { d = 6000, n = 8 } ]
+[[workout.main]]
+repeat = "n"
+note = "Strides: quick and relaxed, never a sprint"
+rep = { label = "Stride", pace = "R", dist = 100, note = "Go by pace: HR reacts too slowly on short reps" }
+recovery = { dist = 100, note = "Walk or jog back, fully recovered" }
+
+[[workout]]
 id = "progression"
 title = "Progression Run"
 kind = "M"
