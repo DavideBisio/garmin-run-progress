@@ -4,7 +4,7 @@ import { getCollection, type CollectionEntry } from 'astro:content';
 // instead of in frontmatter. Groups appear in this order: Overview, Features, Roadmap.
 // A README.md is published at <dir>/readme/ (the kit's .md link rewriting expects that);
 // docs/roadmap/ itself redirects to the roadmap README (astro.config.mjs).
-const OVERVIEW = ['readme', 'architecture', 'runs-json-format', 'deploy'];
+const OVERVIEW = ['readme', 'architecture', 'runs-json-format', 'plan-json-format', 'deploy'];
 
 // Same order as the tables in docs/README.md: the grabber, the analysis page, then the planner.
 const FEATURES = [
@@ -21,6 +21,7 @@ const FEATURES = [
   'form-and-training-effect',
   'training-load-zones-consistency',
   'plan-profile',
+  'plan-workouts',
 ];
 
 type Doc = CollectionEntry<'docs'>;

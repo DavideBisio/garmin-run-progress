@@ -45,7 +45,8 @@ The page only needs `runs.json`, so other sources can feed it: anything that wri
 
 ```text
 src/garmin_grab/        grabber package (python -m garmin_grab from src/)
-src/garmin_plan/        training planner package (python -m garmin_plan from src/; not bundled), data/rules.toml
+src/garmin_plan/        training planner package (python -m garmin_plan from src/; not bundled)
+src/garmin_plan/data/   generic planner data: rules.toml (pace fractions, bands), workouts.toml (workout templates)
 src/page/index.html     page markup; loads vendor/tokens.css, styles.css, vendor/chart.umd.min.js and js/*.js
 src/page/styles.css     the app's CSS; its tokens alias site-kit's --sk-* tokens, plus the data-viz colors
 src/page/vendor/        tokens.css (copied from site-kit) and chart.umd.min.js (Chart.js, MIT header kept)
@@ -107,7 +108,7 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 
 ## Planner modules (`garmin_plan`)
 
-Runs from a clone (`make plan-profile`), standard library only, and is not part of the release bundle. Personal files (`profile.toml`, later `plan.json` and `plan.md`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md).
+Runs from a clone (`make plan-profile`, `make plan`), standard library only, and is not part of the release bundle. Personal files (`profile.toml`, `plan.json`, `plan.md`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md), [plan workouts](features/plan-workouts.md) and the [plan.json format](plan-json-format.md).
 
 | Module | Responsibility |
 |---|---|
@@ -115,8 +116,13 @@ Runs from a clone (`make plan-profile`), standard library only, and is not part 
 | `physiology.py` | `vo2`, `pct_max`, `vdot`, `race_time`, `pace_zones` (Daniels, fractions in `data/rules.toml`), `hr_zones` (Karvonen, as `hrrZones`) |
 | `metrics.py` | Ports of `metrics.js`: `gap_factor`, `day_index`, `week_of`, `week_start`, `best_effort`, `trimp`, and `prepare`'s `run_km`, `hr_ok`, `hr_peak` |
 | `history.py` | `weekly_km`, `recent_stats` (4/12-week volume, runs per week, longest run, recent VDOT), `resting_hr`, `hr_max` (the page's suggestions) |
-| `profile.py` | `load_profile` → `Profile` with a `set` / `derived` / `default` source per field, warnings, `ProfileError` |
-| `cli.py` | `main`: the `profile` subcommand |
-| `data/rules.toml` | Daniels pace fractions and the R-pace offset |
+| `profile.py` | `load_profile` → `Profile` with a `set` / `derived` / `default` source per field, the `[week]` schedule, warnings, `ProfileError` |
+| `model.py` | `PaceRange` (the only place pace order is handled; `to_speed`), `HrRange`, `Step`, `Repeat`, `Workout` with `km` / `seconds` / `hard_km` summed from the parts |
+| `templates.py` | `load_templates` (validates `workouts.toml`, `TemplateError`), `instantiate(template, variant, profile, rules)`, `pace_range`, `jog_pace`, `hr_range` |
+| `render_md.py` | `render_workout`, `render_plan` (markdown in the hand-written plan's format), `fmt_pace`, `fmt_time`, `fmt_est` |
+| `plan_io.py` | `build_plan` (the `[week]` schedule over N weeks), `profile_hash`, `write_plan` / `read_plan`, workout ↔ dict |
+| `cli.py` | `main`: the `profile` and `plan` subcommands (shared `--export`, `--today`) |
+| `data/rules.toml` | Daniels pace fractions, the R-pace offset, pace bands and the jog offset |
+| `data/workouts.toml` | The workout template library (stable ids) |
 
 Run objects keep the original fields from `runs.json`; derived values are stored on underscore-prefixed properties (`_x`, `_y`, `_m`, `_day`, `_g`, `_best`, `_hrOk`, `_hrPeak`, `_dec`, `_decMin`, `_km`, `_trail`).

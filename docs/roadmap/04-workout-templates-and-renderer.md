@@ -73,8 +73,10 @@ No GUI in this section.
 
 ## Completion checklist
 
-- [ ] The pace-range order is handled once in `model.py`: a slower pace means a lower speed. No caller swaps bounds.
-- [ ] Whether the last recovery in a repeat counts is decided once, and it matches Garmin's `skipLastRestStep` in 05, so the markdown and the watch show the same distance.
-- [ ] Template `id`s are stable and documented as such. They end up in `plan.json` and in Garmin workout names, so renaming one orphans pushed workouts.
-- [ ] The rendered tables still read well on GitHub and in VS Code preview, including `|` escaping in comments.
-- [ ] The existing personal `training_plan.md` workouts (220 m reps, ladder, cruise tempo, VO2 intervals, progression, long runs, hill repeats, trail run) can all be expressed as templates. Add a step feature if one can't.
+- [x] The pace-range order is handled once in `model.py`: a slower pace means a lower speed. No caller swaps bounds.
+- [x] Whether the last recovery in a repeat counts is decided once, and it matches Garmin's `skipLastRestStep` in 05, so the markdown and the watch show the same distance.
+- [x] Template `id`s are stable and documented as such. They end up in `plan.json` and in Garmin workout names, so renaming one orphans pushed workouts.
+- [x] The rendered tables still read well on GitHub and in VS Code preview, including `|` escaping in comments.
+- [x] The existing personal `training_plan.md` workouts (220 m reps, ladder, cruise tempo, VO2 intervals, progression, long runs, hill repeats, trail run) can all be expressed as templates. Add a step feature if one can't.
+
+Shipped: `src/garmin_plan/` `model`, `templates`, `render_md` and `plan_io`, with `data/workouts.toml` (13 templates) and `[bands]` in `data/rules.toml`, a `[week]` table in `profile.toml`, `python -m garmin_plan plan --weeks N` and `make plan`, and `tests/test_workouts.py` with the golden file `tests/fixtures/workouts_golden.md`. The last recovery counts (`skip_last_rest = false`, which 05 maps to `skipLastRestStep`). The main set is a list of steps and repeats, so the ladder and progression runs need no special type, and a ladder value of 0 leaves an optional block out (the half-marathon run's marathon-pace version). Trail climbs and descents are one timed step under an HR cap, with the guidance in the comment. HR targets use whole zones and spans. See [plan workouts](../features/plan-workouts.md) and the [plan.json format](../plan-json-format.md).

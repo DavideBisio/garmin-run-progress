@@ -1,0 +1,231 @@
+# Workout template library (generic, committed). Schema: docs/features/plan-workouts.md.
+#
+# Template ids are STABLE: they are written into plan.json and into the names of the workouts
+# pushed to Garmin, so renaming one orphans workouts already on the calendar. Add a new id instead.
+#
+# Each [[workout]]: id, title, kind (E, L, R, T, I, M, hill, trail), min_level (beginner, novice,
+# intermediate, advanced), optional warmup and cooldown steps, main (steps and repeat blocks, run
+# in order: an inline array, or one [[workout.main]] table per block) and a ladder of size
+# variants, smallest first. Variants are 1-based; a ladder entry may override the title.
+# A string value such as dist = "d" is a ladder variable; every ladder entry must define it.
+# A variable of 0 leaves that step or repeat out (optional blocks).
+#
+# Steps: one end (dist in m, time in s, or lap = true), and a target: pace (E, M, T, I, R, jog),
+# hr (Z1 … Z5, a span such as Z4-5, a cap such as Z3 cap, or open), both, or an effort text.
+# Defaults: a recovery without pace or effort is a jog at Z2; a pace zone without hr gets its
+# usual HR zone (E Z2, M Z3, T Z4, I and R Z4-5). Time-ended steps need est_pace for the distance
+# estimate (jog excepted), lap-button steps need est_time and est_dist.
+#
+# TOML 1.0 inline tables can't span lines: longer blocks use [[workout.main]] tables, which must
+# come after the workout's other keys.
+
+# ---------------------------------------------------------------- speed and repetition
+
+[[workout]]
+id = "r_220"
+title = "220 m Repetitions"
+kind = "R"
+min_level = "novice"
+warmup = { pace = "E", dist = 1500 }
+cooldown = { pace = "E", dist = 1000 }
+ladder = [ { n = 6 }, { n = 8 }, { n = 10 }, { n = 12 } ]
+[[workout.main]]
+repeat = "n"
+rep = { pace = "R", dist = 220, note = "Go by pace: HR reacts too slowly on short reps" }
+recovery = { dist = 180 }
+
+[[workout]]
+id = "r_300"
+title = "300 m Repetitions"
+kind = "R"
+min_level = "intermediate"
+warmup = { pace = "E", dist = 1500 }
+cooldown = { pace = "E", dist = 1000 }
+ladder = [ { n = 6 }, { n = 8 }, { n = 10 } ]
+[[workout.main]]
+repeat = "n"
+rep = { pace = "R", dist = 300, note = "Go by pace: HR reacts too slowly on short reps" }
+recovery = { dist = 200 }
+
+[[workout]]
+id = "r_ladder"
+title = "Repetition Ladder"
+kind = "R"
+min_level = "intermediate"
+warmup = { pace = "E", dist = 1500 }
+cooldown = { pace = "E", dist = 1000 }
+ladder = [ { n = 1, a = 200, b = 300, c = 400 }, { n = 1, a = 300, b = 400, c = 500 },
+           { n = 2, a = 200, b = 300, c = 400 } ]
+[[workout.main]]
+repeat = "n"
+note = "Each recovery jog matches its rep's distance"
+steps = [
+    { label = "Rep 1", pace = "R", dist = "a" }, { role = "recovery", dist = "a" },
+    { label = "Rep 2", pace = "R", dist = "b" }, { role = "recovery", dist = "b" },
+    { label = "Rep 3", pace = "R", dist = "c" }, { role = "recovery", dist = "c" },
+    { label = "Rep 4", pace = "R", dist = "b" }, { role = "recovery", dist = "b" },
+    { label = "Rep 5", pace = "R", dist = "a" }, { role = "recovery", dist = "a" },
+]
+
+# ---------------------------------------------------------------- threshold and VO2max
+
+[[workout]]
+id = "cruise_tempo"
+title = "Cruise Tempo"
+kind = "T"
+min_level = "novice"
+warmup = { pace = "E", dist = 2000 }
+cooldown = { pace = "E", dist = 1000 }
+ladder = [ { n = 2, d = 1200 }, { n = 3, d = 1200 }, { n = 4, d = 1200 },
+           { n = 2, d = 3000 }, { n = 1, d = 5000 } ]
+[[workout.main]]
+repeat = "n"
+rep = { label = "Tempo", pace = "T", dist = "d" }
+recovery = { time = 60 }
+
+[[workout]]
+id = "vo2_intervals"
+title = "VO2max Intervals"
+kind = "I"
+min_level = "intermediate"
+warmup = { pace = "E", dist = 2000 }
+cooldown = { pace = "E", dist = 1000 }
+ladder = [ { n = 5, d = 600, r = 200 }, { n = 6, d = 800, r = 400 }, { n = 5, d = 1000, r = 400 },
+           { n = 6, d = 1000, r = 400 } ]
+[[workout.main]]
+repeat = "n"
+rep = { label = "Interval", pace = "I", dist = "d" }
+recovery = { dist = "r" }
+
+# ---------------------------------------------------------------- aerobic and endurance
+
+[[workout]]
+id = "easy"
+title = "Easy Run"
+kind = "E"
+min_level = "beginner"
+main = [ { label = "Run", pace = "E", dist = "d", note = "Continuous" } ]
+ladder = [ { d = 4000 }, { d = 5000 }, { d = 6000 }, { d = 7000 }, { d = 8000 }, { d = 10000 } ]
+
+[[workout]]
+id = "progression"
+title = "Progression Run"
+kind = "M"
+min_level = "novice"
+main = [ { label = "Easy", pace = "E", dist = "e" }, { label = "Marathon pace", pace = "M", dist = "m" } ]
+ladder = [ { e = 3000, m = 2000 }, { e = 3500, m = 3500 }, { e = 4000, m = 5000 } ]
+
+[[workout]]
+id = "steady_long"
+title = "Steady Long Run"
+kind = "L"
+min_level = "novice"
+main = [ { label = "Long run", pace = "E", dist = "d", note = "Even effort throughout" } ]
+ladder = [ { d = 10000 }, { d = 12000 }, { d = 14000 }, { d = 16000 }, { d = 18000 } ]
+
+[[workout]]
+id = "progression_long"
+title = "Progression Long Run"
+kind = "L"
+min_level = "intermediate"
+main = [
+    { label = "Easy", pace = "E", dist = "e" },
+    { label = "Marathon pace", pace = "M", dist = "m" },
+    { label = "Easy finish", pace = "E", dist = "f", note = "Relaxed" },
+]
+ladder = [ { e = 8000, m = 3000, f = 2000 }, { e = 10500, m = 3500, f = 3500 },
+           { e = 12000, m = 5000, f = 3000 } ]
+
+[[workout]]
+id = "hm_long"
+title = "Half-Marathon Long Run"
+kind = "L"
+min_level = "intermediate"
+# the last variant is the optional marathon-pace version of the 21 km run (n = 0 leaves it out)
+ladder = [ { a = 16000, n = 0 }, { a = 18000, n = 0 }, { a = 21000, n = 0 },
+           { a = 12000, n = 3, title = "Half-Marathon Long Run with MP Blocks" } ]
+[[workout.main]]
+label = "Long run"
+pace = "E"
+dist = "a"
+note = "Even effort"
+[[workout.main]]
+repeat = "n"
+note = "Marathon-pace blocks in place of the last steady km"
+steps = [ { label = "MP block", pace = "M", dist = 2000 },
+          { label = "Steady", role = "recovery", pace = "E", dist = 1000 } ]
+
+# ---------------------------------------------------------------- hill and trail
+# HR or open targets (terrain sets the pace), ending on time or the lap button; est_pace and
+# est_time / est_dist only feed the totals. climb_m_per_km is the climbing the session expects.
+
+[[workout]]
+id = "hill_repeats"
+title = "Hill Repeats"
+kind = "hill"
+min_level = "intermediate"
+climb_m_per_km = 15
+warmup = { pace = "E", dist = 2000, note = "On flat ground, to the bottom of the slope" }
+cooldown = { pace = "E", dist = 2000 }
+ladder = [ { n = 5, t = 30, rt = 75, rd = 100 }, { n = 6, t = 45, rt = 90, rd = 140 },
+           { n = 8, t = 45, rt = 90, rd = 140 }, { n = 10, t = 60, rt = 120, rd = 190 } ]
+[[workout.main]]
+repeat = "n"
+note = "Moderate slope, about 5-8%"
+[workout.main.rep]
+label = "Uphill"
+effort = "Hard effort"
+hr = "Z4-5"
+time = "t"
+est_pace = "I+30"
+hard = true
+note = "Quick, short steps; drive the arms"
+[workout.main.recovery]
+label = "Back down"
+effort = "Walk or jog gently down"
+hr = "Z2"
+lap = true
+est_time = "rt"
+est_dist = "rd"
+note = "Press lap at the bottom, once recovered"
+
+[[workout]]
+id = "hilly_long"
+title = "Hilly Long Run"
+kind = "hill"
+min_level = "intermediate"
+climb_m_per_km = 20
+warmup = { pace = "E", dist = 2000, note = "On flat ground" }
+cooldown = { pace = "E", dist = 2000 }
+ladder = [ { t = 2400, n = 4 }, { t = 3600, n = 4 }, { t = 4800, n = 6 } ]
+[[workout.main]]
+label = "Rolling terrain"
+effort = "By effort"
+hr = "Z2-3"
+time = "t"
+est_pace = "E+30"
+note = "Keep climbs below the top of Zone 3, walk the steep ones; let the descents flow"
+[[workout.main]]
+repeat = "n"
+note = "Gentle slope, for the legs' braking strength"
+steps = [
+    { label = "Downhill", effort = "Relaxed and controlled", hr = "Z2", dist = 200, est_pace = "E" },
+    { label = "Back up", role = "recovery", effort = "Walk or jog back up", hr = "Z2", dist = 200, est_pace = "12:00" },
+]
+
+[[workout]]
+id = "trail_long"
+title = "Trail Long Run"
+kind = "trail"
+min_level = "intermediate"
+climb_m_per_km = 40
+warmup = { pace = "E", time = 900, est_pace = "E", note = "On easy terrain" }
+cooldown = { effort = "Easy jog or walk", hr = "Z2", time = 600, est_pace = "E+60" }
+ladder = [ { t = 4800 }, { t = 6000 }, { t = 7200 } ]
+[[workout.main]]
+label = "Trail"
+effort = "By effort"
+hr = "Z3 cap"
+time = "t"
+est_pace = "E+90"
+note = "Hike the climbs once HR reaches the cap; light, quick feet on technical descents; recover on the flats"

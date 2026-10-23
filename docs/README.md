@@ -4,6 +4,7 @@
 |---|---|
 | [Architecture](architecture.md) | The two components, how data flows between them, design choices |
 | [runs.json format](runs-json-format.md) | The file contract between the grabber and the page |
+| [plan.json format](plan-json-format.md) | The planner's output: resolved workouts for the Garmin export and the page |
 | [Deploy](deploy.md) | Running locally, GitHub Pages, scheduling the grabber, releasing changes |
 | [Source layout and build](architecture.md#source-layout-and-build) | `src/`, `tools/build.py`, tests, Makefile |
 | [Roadmap](roadmap/README.md) | The training plan generator, section by section (00–10) |
@@ -38,3 +39,4 @@
 | Feature | Document |
 |---|---|
 | Runner profile, Daniels paces, HR zones | [features/plan-profile.md](features/plan-profile.md) |
+| Workout templates, markdown renderer, manual `[week]` schedule | [features/plan-workouts.md](features/plan-workouts.md) |

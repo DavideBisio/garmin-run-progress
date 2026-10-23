@@ -12,3 +12,18 @@ T = 0.88
 I = 0.975
 # R pace is I pace minus this many seconds per 400 m
 R_faster_per_400_s = 6
+
+[bands]
+# Workout pace targets: each zone's point pace (above) widened to a range, as
+# [faster, slower] seconds per km. E: Daniels gives E as a range and the point pace sits near its
+# fast end, so the band reaches mostly slower; [2, 20] keeps the whole range inside the published
+# E range at VDOT 30/40/50/60 (tests/fixtures/daniels_paces.json). M/T/I/R are points in Daniels'
+# tables; the bands give a few seconds either side so the watch doesn't alert on GPS noise.
+E = [2, 20]
+M = [5, 10]
+T = [3, 7]
+I = [3, 5]
+R = [5, 5]
+# Recovery jog: the slow end of E plus this many s/km. Duration estimates only: jog steps carry
+# an HR target (Z2), not a pace target.
+jog_offset_s = 30

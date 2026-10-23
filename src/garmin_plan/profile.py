@@ -12,6 +12,9 @@ RACE_DISTANCES = {"5k": 5000, "10k": 10000, "hm": 21097.5, "half": 21097.5, "m":
 NUMBERS = ("hr_max", "hr_rest", "vdot", "km_4w", "km_12w", "runs_per_week", "longest_8w")
 FULL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 _GOAL = re.compile(r"^(?:(\d+):)?(\d{1,2}):(\d{2})$")
+_WEEK_VALUE = re.compile(r"^([a-z][a-z0-9_]*):(\d+)$")
+_SECTION = re.compile(r"^\s*\[\s*([^\[\]]+?)\s*\]\s*(?:#.*)?$")
+_KEY = re.compile(r"""^\s*(?:"([^"]*)"|'([^']*)'|([A-Za-z0-9_-]+))\s*=""")
 
 
 class ProfileError(ValueError):
@@ -31,6 +34,7 @@ class Profile:
     days: list = field(default_factory=lambda: list(DEFAULT_DAYS))
     long_run_day: str = DEFAULT_LONG_RUN_DAY
     hill_days: list = field(default_factory=list)
+    week: dict = field(default_factory=dict)  # day -> {"id", "variant", "line"} from [week]
     vdot_from: tuple | None = None       # ("10k", "2024-05-01") when derived
     sources: dict = field(default_factory=dict)   # field -> "set" | "derived" | "default"
     warnings: list = field(default_factory=list)
@@ -92,6 +96,41 @@ def parse_race(raw):
     return {"date": raw["date"], "distance_m": dist_m, "goal_s": parse_goal(goal) if goal is not None else None}
 
 
+def _week_lines(text):
+    """{key: stripped source line} for the keys of the [week] table (tomllib has no line numbers)."""
+    lines, section = {}, None
+    for ln in text.splitlines():
+        m = _SECTION.match(ln)
+        if m:
+            section = m[1].strip().strip('"')
+            continue
+        k = _KEY.match(ln)
+        if section == "week" and k:
+            lines.setdefault(next(g for g in k.groups() if g is not None), ln.strip())
+    return lines
+
+
+def parse_week(raw, text=""):
+    """[week] day = "template:variant" -> {day: {"id", "variant", "line"}}, Monday first.
+
+    The template and variant are checked against the library when the plan is built
+    (plan_io.build_plan); errors quote `line`, the entry as written in profile.toml.
+    """
+    if not isinstance(raw, dict):
+        raise ProfileError('[week] must be a table of day = "template:variant", such as tue = "easy:1"')
+    lines, out = _week_lines(text), {}
+    for key, v in raw.items():
+        line = lines.get(key) or f"{key} = {v!r}"
+        day = _day(key, f"[week] (line: {line})")
+        if day in out:
+            raise ProfileError(f"[week]: {day} is listed twice, in line: {line}")
+        m = _WEEK_VALUE.match(v.strip().lower()) if isinstance(v, str) else None
+        if not m:
+            raise ProfileError(f'[week]: expected "template:variant" such as "easy:1", in line: {line}')
+        out[day] = {"id": m[1], "variant": int(m[2]), "line": line}
+    return {d: out[d] for d in WEEKDAYS if d in out}
+
+
 def load_profile(path, runs, rhr=(), today=None):
     """Resolve every field: profile.toml ("set"), else runs.json ("derived"), else a default.
 
@@ -141,7 +180,10 @@ def load_profile(path, runs, rhr=(), today=None):
         hills, sources["hill_days"] = [], "default"
         warnings.append("hill_days: not set, using none (no hill sessions)")
     race, sources["race"] = (parse_race(raw["race"]), "set") if "race" in raw else (None, "default")
+    week, sources["week"] = {}, "default"
+    if "week" in raw:
+        week, sources["week"] = parse_week(raw["week"], Path(path).read_text(encoding="utf-8")), "set"
 
-    return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills,
+    return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills, week=week,
                    vdot_from=stats["vdot_from"] if sources["vdot"] == "derived" else None,
                    sources=sources, warnings=warnings)

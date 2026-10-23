@@ -17,7 +17,13 @@ hill_days = ["sat"]       # days with hill access
 date = 2027-04-11         # a TOML date, no quotes
 distance = "hm"           # 5k, 10k, hm (half), m (marathon), or km as a number
 goal = "1:35:00"          # optional, H:MM:SS or MM:SS
+
+[week]                    # manual schedule for make plan: day = "template:variant"
+tue = "cruise_tempo:2"
+sun = "steady_long:1"
 ```
+
+`[week]` is read by `make plan`; see [plan workouts](plan-workouts.md#manual-schedule-week).
 
 The derived numbers (`km_4w`, `km_12w`, `runs_per_week`, `longest_8w`) can be set too, for example after a break the data doesn't explain.
 
