@@ -54,16 +54,17 @@ def _main_step(w, step):
     return next(p for p in w.parts if not isinstance(p, Repeat) and p.label == label and p.role == "rep")
 
 
-def fit(template, variant, profile, rules, *, km=None, seconds=None, warmup_km=0.0):
+def fit(template, variant, profile, rules, *, km=None, seconds=None, warmup_km=0.0, values=None):
     """The variant resized for one slot, or None when it can't be.
 
     km / seconds: the filler step (see _filler) takes the difference, so the run is km long or lasts
     `seconds` (the hill and trail swaps keep the time budget of the long run they replace); None
     when that would leave the filler at 0 or less. warmup_km: that much more warm-up (the split's
-    leftover on the Q day). Values are rounded to whole metres and seconds.
+    leftover on the Q day). values: ladder values set first (the run/walk repeat count). Values are
+    rounded to whole metres and seconds.
     """
-    w = instantiate(template, variant, profile, rules)
-    over = {}
+    w = instantiate(template, variant, profile, rules, overrides=values)
+    over = dict(values or {})
     if km is not None or seconds is not None:
         f = _filler(template)
         if f is None:
@@ -82,4 +83,4 @@ def fit(template, variant, profile, rules, *, km=None, seconds=None, warmup_km=0
             return None
         pace = s.seconds / s.meters * 1000
         over["warmup"] = round(s.value + (warmup_km * 1000 if s.end == "dist" else warmup_km * pace))
-    return instantiate(template, variant, profile, rules, overrides=over) if over else w
+    return instantiate(template, variant, profile, rules, overrides=over) if over != (values or {}) else w

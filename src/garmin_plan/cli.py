@@ -39,7 +39,7 @@ def show_profile(p, path):
         src = p.sources[key]
         if key == "vdot" and src == "derived":
             k, day = p.vdot_from
-            src = f"derived (training efforts): best {k} on {day}"
+            src = f"derived: {k} on {day}" if "trial" in k else f"derived (training efforts): best {k} on {day}"
             if p.layoff:
                 src += f", x{p.layoff['vdot_factor']:g} after {p.layoff['days_off']} days off"
         print(f"  {label:<18}{value:<24}{src}")
@@ -63,6 +63,7 @@ def show_profile(p, path):
     line("Hill days", ", ".join(p.hill_days) or "none", "hill_days")
     line("Volume level", p.volume_level, "volume_level")
     line("Quality level", p.quality_level, "quality_level")
+    line("Volume unit", p.unit or "the level's", "unit")
     print(f"\nLevels: {describe(p.volume_level, p.quality_level, p.level_reasons)}")
 
     print(f"\nPace zones at VDOT {p.vdot:.1f} (min/km)")
@@ -78,7 +79,11 @@ def resolve_profile(args):
     out = Path(args.export)
     runs, rhr = load_runs(out / RUNS)
     try:
-        p = load_profile(out / PROFILE, runs, rhr, args.today)
+        prev = read_plan(out / PLAN_JSON) if (out / PLAN_JSON).exists() else None   # its time trial
+    except (OSError, UnicodeDecodeError, ValueError):
+        prev = None
+    try:
+        p = load_profile(out / PROFILE, runs, rhr, args.today, plan=prev)
     except ProfileError as e:
         sys.exit(f"error: {e}")
     for w in p.warnings:
@@ -101,9 +106,12 @@ def cmd_plan(args):
     write_plan(plan, out / PLAN_JSON)
     (out / PLAN_MD).write_text(render_plan(plan), encoding="utf-8", newline="\n")
     km = sum(w["target_km"] for w in plan["weeks"])
+    total = f"{km:.1f} km"
+    if plan["weeks"] and all(w.get("unit") == "min" for w in plan["weeks"]):
+        total = f"{sum(w['target_min'] for w in plan['weeks'])} min (~{km:.1f} km)"
     n = len(plan["warnings"]) + sum(len(w["warnings"]) for w in plan["weeks"])
     print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {len(plan['weeks'])} week(s) from "
-          f"{plan['weeks'][0]['start']}, {km:.1f} km" + (f"; {n} warning(s), listed in plan.md" if n else ""))
+          f"{plan['weeks'][0]['start']}, {total}" + (f"; {n} warning(s), listed in plan.md" if n else ""))
 
 
 def cmd_push(args):

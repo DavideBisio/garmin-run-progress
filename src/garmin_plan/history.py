@@ -3,7 +3,7 @@ import math
 from datetime import date
 
 from .config import MIN_HISTORY_DAYS
-from .metrics import best_efforts, day_index, hr_ok, hr_peak, run_km, trimp, week_of
+from .metrics import best_effort, best_efforts, day_index, has_stream, hr_ok, hr_peak, run_km, trimp, week_of
 from .physiology import hr_zones, vdot
 
 VDOT_DISTS = {"5k": 5000, "10k": 10000, "hm": 21097.5}   # 1 km overstates VDOT, as on the page
@@ -101,6 +101,23 @@ def q_sessions(runs, today, hr_max, hr_rest, weeks=8):
             secs = (r.get("moving") or r.get("dur") or 0) if (r.get("avgHr") or 0) >= z4 else 0
         n += secs >= Q_MIN_S
     return n
+
+
+def time_trial_vdot(runs, plan, today):
+    """(VDOT, "YYYY-MM-DD") of the latest time trial up to today: a run with a GPS stream on a day
+    plan.json planned a time trial (kind tt), from its best 2 km (metrics.best_effort; the page's
+    best-effort distances don't include 2 km). None when there is none."""
+    now = today.isoformat() if isinstance(today, date) else str(today)
+    days = {d["date"] for wk in (plan or {}).get("weeks", []) for d in wk.get("days", [])
+            if (d.get("workout") or {}).get("kind") == "tt" and d["date"] <= now}
+    out = None
+    for _, r in dated(runs):
+        day = r["date"][:10]
+        if day in days and has_stream(r):
+            s = best_effort(r["t"], r["d"], 2000)
+            if s and (out is None or day >= out[1]):
+                out = (vdot(2000, s), day)
+    return out
 
 
 def resting_hr(rhr):

@@ -442,5 +442,123 @@ class Plans(unittest.TestCase):
         self.assertNotEqual(h, plan_io.profile_hash(generic_profile(volume_level="novice"), RULES))
         self.assertNotEqual(h, plan_io.profile_hash(generic_profile(quality_level="novice"), RULES))
 
+
+def steps_of(workout):
+    for s in workout["steps"]:
+        yield from (s["steps"] if s["type"] == "repeat" else [s])
+
+
+def beginner(**kw):
+    vals = dict(vdot=30.0, km_4w=6.0, longest_8w=3.0, days=["tue", "thu", "sat"], long_run_day="sat",
+                volume_level="beginner", quality_level="beginner")
+    vals.update(kw)
+    return generic_profile(**vals)
+
+
+class BeginnerPlans(unittest.TestCase):
+    def setUp(self):
+        self.plan = build(beginner(), weeks=12)
+
+    def test_volume_in_minutes(self):
+        for wk in self.plan["weeks"]:
+            with self.subTest(week=wk["start"]):
+                self.assertEqual(wk["unit"], "min")
+                self.assertIsInstance(wk["target_min"], int)
+                self.assertEqual(wk["target_min"], sum(int(d["workout"]["seconds"] / 60 + 0.5) for d in wk["days"]))
+                self.assertEqual(wk["target_km"], round(sum(plan_io.shown_km(d["workout"]) for d in wk["days"]), 1))
+                self.assertTrue(all(18 <= d["workout"]["seconds"] / 60 <= 75 for d in wk["days"]), wk["days"])
+        mins = [wk["target_min"] for wk in self.plan["weeks"] if not wk["deload"]]
+        self.assertGreater(mins[-1], mins[0])                       # the volume grows
+        deloads = [i for i, wk in enumerate(self.plan["weeks"]) if wk["deload"]]
+        self.assertEqual(deloads[:2], [2, 5])                       # every 3rd week, moved off phase starts
+        self.assertTrue(all(2 <= b - a <= 4 for a, b in zip(deloads, deloads[1:])), deloads)
+        md = render_md.render_plan(self.plan)
+        self.assertRegex(md, r"(?m)^## Week of 2024-06-10 - \d+ min \(~\d+\.\d km\) · Base$")
+        self.assertRegex(md, r"(?m)^### Tue 2024-06-11 · .+ - \d+ min \(~\d+\.\d km\)$")
+
+    def test_no_pace_targets(self):
+        for wk in self.plan["weeks"]:
+            for d in wk["days"]:
+                for s in steps_of(d["workout"]):
+                    with self.subTest(day=d["date"], step=s["label"]):
+                        self.assertIsNone(s["pace_s_per_km"])
+                        self.assertTrue(s["effort"] or s["zone"] == "jog", s)
+
+    def test_run_walk_ladder(self):
+        # the easy runs climb the run/walk ladder, one step a build week, from 8 x (2 min + 1 min walk)
+        first = next(d["workout"] for d in self.plan["weeks"][0]["days"] if d["slot"] == "E")
+        self.assertEqual((first["id"], first["variant"]), ("run_walk", 1))
+        rep = next(s for s in first["steps"] if s["type"] == "repeat")
+        self.assertEqual([(x["label"], x["value"]) for x in rep["steps"]], [("Run", 120), ("Walk", 60)])
+        # a week's longest run takes the week's variant (a short easy run may step one back)
+        top = [max(d["workout"]["variant"] for d in wk["days"] if d["workout"]["id"] == "run_walk")
+               for wk in self.plan["weeks"] if any(d["workout"]["id"] == "run_walk" for d in wk["days"])]
+        self.assertEqual(top, sorted(top))
+        self.assertEqual(top[-1], len(LIB["run_walk"]["ladder"]))
+        last = LIB["run_walk"]["ladder"][-1]
+        self.assertEqual((last["n"], last["c"]), (0, 1800))                    # 30 minutes continuous
+        later = {d["workout"]["id"] for d in self.plan["weeks"][-1]["days"]}
+        self.assertTrue(later & {"easy_time", "long_time"}, later)               # past the ladder
+
+    def test_time_trial(self):
+        tts = [(i, d) for i, wk in enumerate(self.plan["weeks"]) for d in wk["days"] if d["workout"]["kind"] == "tt"]
+        self.assertEqual(len(tts), 1)
+        i, d = tts[0]
+        self.assertIn(i, (1, 2, 3))                                             # weeks 2-4
+        self.assertEqual((d["workout"]["id"], d["slot"]), ("time_trial", "Q"))
+        self.assertNotIn("hard_count", [w["rule"] for w in self.plan["weeks"][i]["warnings"]])
+        # a beginner with two run days has no Q day: the time trial takes an easy day
+        two = build(beginner(days=["wed", "sat"]), weeks=4)
+        self.assertEqual([d["workout"]["id"] for d in two["weeks"][2]["days"]].count("time_trial"), 1)
+        # no time trial for a runner with a quality level
+        nov = build(beginner(quality_level="novice"), weeks=6)
+        self.assertFalse([d for wk in nov["weeks"] for d in wk["days"] if d["workout"]["kind"] == "tt"])
+
+    def test_time_trial_fills_vdot(self):
+        day = next(date.fromisoformat(d["date"]) for wk in self.plan["weeks"] for d in wk["days"]
+                   if d["workout"]["kind"] == "tt")
+        runs = sorted(training(5, 3, 3, end=day) + [stream_run(day, 2, 660)], key=lambda r: r["date"])
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "profile.toml"
+            path.write_text("hr_max = 190\nhr_rest = 50\n", encoding="utf-8")
+            prof = profile.load_profile(path, runs, [], day + timedelta(days=1), plan=self.plan)
+            self.assertAlmostEqual(prof.vdot, physiology.vdot(2000, 660), places=6)
+            self.assertEqual((prof.sources["vdot"], prof.vdot_from), ("derived", ("2 km time trial", day.isoformat())))
+            self.assertNotEqual(prof.quality_level, "beginner")
+            # the same effort on another day, or no plan, isn't a time trial
+            moved = [dict(r, date=f"{day + timedelta(days=1)} 07:00:00") if "t" in r else r for r in runs]
+            other = profile.load_profile(path, moved, [], day + timedelta(days=2), plan=self.plan)
+            self.assertEqual(other.sources["vdot"], "default")
+            self.assertEqual(profile.load_profile(path, runs, [], day + timedelta(days=1)).sources["vdot"], "default")
+
+    def test_unit(self):
+        km = build(beginner(unit="km"), weeks=2)
+        self.assertEqual([wk["unit"] for wk in km["weeks"]], ["km", "km"])
+        self.assertNotIn("target_min", km["weeks"][0])
+        mins = build(generic_profile(km_4w=20.0, longest_8w=8.0, volume_level="novice", quality_level="novice",
+                                     unit="min"), weeks=2)
+        self.assertEqual(mins["weeks"][0]["unit"], "min")
+        self.assertNotEqual(plan_io.profile_hash(beginner(), RULES), plan_io.profile_hash(beginner(unit="km"), RULES))
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "profile.toml"
+            path.write_text('unit = "min"\n', encoding="utf-8")
+            self.assertEqual(profile.load_profile(path, [], [], TODAY).unit, "min")
+            path.write_text('unit = "miles"\n', encoding="utf-8")
+            with self.assertRaisesRegex(profile.ProfileError, "unit"):
+                profile.load_profile(path, [], [], TODAY)
+
+    def test_cli_summary_in_minutes(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text('volume_level = "beginner"\nquality_level = "beginner"\n',
+                                                  encoding="utf-8")
+            env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+            res = subprocess.run([sys.executable, "-m", "garmin_plan", "plan", "--export", d, "--today",
+                                  TODAY.isoformat(), "--weeks", "3"],
+                                 capture_output=True, text=True, env=env, check=True)
+            self.assertRegex(res.stdout, r"3 week\(s\) from 2024-06-10, \d+ min \(~\d+\.\d km\)")
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            self.assertEqual(plan["version"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

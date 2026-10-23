@@ -1,6 +1,6 @@
 # Training plan
 
-Generated 2024-06-05T08:00:00 from profile `07a4b16fb6f4`. Durations are estimates at the middle of each pace range; recovery jogs at the slow end of Easy plus 30 s/km.
+Generated 2024-06-05T08:00:00 from profile `543edfb2b41c`. Durations are estimates at the middle of each pace range; recovery jogs at the slow end of Easy plus 30 s/km.
 
 Runner levels: volume: intermediate; quality: intermediate.
 

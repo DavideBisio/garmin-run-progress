@@ -233,7 +233,8 @@ class Consistency(unittest.TestCase):
         # (11 km) holds a 5 km progression run and a 4.95 km L (45 %), and the 1.05 km left goes to
         # the Q day. The progression run has no warm-up: its easy block takes the km
         race = {"date": START + timedelta(weeks=9, days=6), "distance_m": 10000, "goal_s": None}
-        plan = build(generic_profile(km_4w=12.0, longest_8w=6.0, days=["tue", "thu", "sun"], race=race))
+        plan = build(generic_profile(km_4w=12.0, longest_8w=6.0, days=["tue", "thu", "sun"], race=race,
+                                     quality_level="intermediate"))          # M sessions from intermediate
         self.assert_weeks_add_up(plan)
         wk = plan["weeks"][7]
         q = next(d["workout"] for d in wk["days"] if d["slot"] == "Q")
@@ -247,7 +248,8 @@ class Consistency(unittest.TestCase):
         lib = json.loads(json.dumps(LIB))
         lib["progression"]["main"][0]["pace"] = "T"
         race = {"date": START + timedelta(weeks=9, days=6), "distance_m": 10000, "goal_s": None}
-        prof = generic_profile(km_4w=12.0, longest_8w=6.0, days=["tue", "thu", "sun"], race=race)
+        prof = generic_profile(km_4w=12.0, longest_8w=6.0, days=["tue", "thu", "sun"], race=race,
+                               quality_level="intermediate")
         plan = planner.build_plan(prof, [], lib, RULES, TODAY, None, generated=GENERATED)
         self.assert_weeks_add_up(plan)
         wk = plan["weeks"][7]

@@ -14,7 +14,7 @@ from .config import DATA_DIR
 from .model import ROLES, HrRange, PaceRange, Repeat, Step, Workout
 from .physiology import hr_zones, pace_zones
 
-KINDS = ("E", "L", "R", "T", "I", "M", "hill", "trail")
+KINDS = ("E", "L", "R", "T", "I", "M", "hill", "trail", "tt")      # tt: time trial (08)
 LEVELS = ("beginner", "novice", "intermediate", "advanced")
 PACE_ZONES = ("E", "M", "T", "I", "R")
 HARD_ZONES = ("M", "T", "I", "R")

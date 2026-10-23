@@ -11,7 +11,7 @@ from .model import Workout
 from .templates import ZONE_HR, zone_span
 from .terrain import workout_flat_km
 
-HARD_KINDS = ("L", "hill", "trail")      # long runs are hard days whatever their zones (skeleton.HARD)
+HARD_KINDS = ("L", "hill", "trail", "tt")     # long runs and time trials are hard days whatever their zones
 SLACK_KM = 0.2                           # the split rounds each run to 0.1 km: km limits allow for it
 
 

@@ -6,6 +6,11 @@ calendar and the volume curve set its phase, deload and km; the skeleton places 
 the rotation picks Q and L; Q is sized first, the split shares the km, E and L are fitted to
 them; then the checks run and the fixer shrinks Q, trims L or drops F. profile.toml's [week]
 days replace the generated ones and are never changed. Warnings are {rule, detail, action}.
+
+The runner's levels (08, levels.py) set the numbers. A plan in minutes (a beginner's) is planned in
+km all the same, converted at the middle of the E pace range: its weeks show the minutes their
+sessions add up to. A beginner's easy and long runs climb the run/walk ladder first, and their plan
+has a time trial for a first VDOT.
 """
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -14,9 +19,10 @@ from . import checks, fix, levels, select, size, skeleton
 from .config import MIN_HISTORY_DAYS, WEEKDAYS
 from .history import daily_load, recent_stats
 from .load import projected_daily
+from .model import Repeat
 from .phases import PhaseError, phase_calendar
 from .physiology import pace_zones, vdot
-from .plan_io import VERSION, first_monday_after, manual_days, profile_hash, shown_km, workout_to_dict
+from .plan_io import VERSION, first_monday_after, manual_days, profile_hash, shown_km, shown_min, workout_to_dict
 from .skeleton import place_slots
 from .split import split_week
 from .templates import instantiate, pace_range
@@ -26,6 +32,7 @@ from .volume import align_deloads, block_curve, settings
 __all__ = ["build_plan", "PhaseError"]
 
 TIME_KINDS = ("hill", "trail")       # long-run swaps sized to the time budget of the L they replace
+WALK_MIN_S = 120                     # a run/walk session's brisk walk warm-up, at least (when it repeats)
 SPLIT_ACTIONS = [                    # text in a split.py warning -> what the planner did, first match
     ("Q dropped", "made the Q day an easy run (or a rest day)"),
     ("longer than L", "kept the easy runs longer than L: the L caps come first"),
@@ -57,16 +64,16 @@ def _calendar(prof, rules, start, weeks):
     return cal, warns, len(cal)
 
 
-def _targets(prof, cal, rules):
+def _targets(prof, cal, rules, floor_km):
     """(km per week, deload week indices). The build weeks follow the block curve with deloads off
-    the phase starts; taper weeks are [volume] taper shares of the last build week that isn't a deload."""
+    the phase starts, from at least floor_km; taper weeks are [volume] taper shares of the last
+    build week that isn't a deload."""
     every = rules["volume"]["deload_every"]
     build = [w.phase for w in cal if w.phase != "taper"]
     starts = [i for i in range(1, len(build)) if build[i] != build[i - 1]]
     deloads = align_deloads(len(build), every, starts)
-    out = block_curve(prof.km_4w, len(build), **settings(rules), deloads=deloads)
-    peak = next((out[i] for i in range(len(out) - 1, -1, -1) if i not in deloads),
-                max(prof.km_4w, rules["volume"]["start_floor"]))
+    out = block_curve(prof.km_4w, len(build), **{**settings(rules), "floor": floor_km}, deloads=deloads)
+    peak = next((out[i] for i in range(len(out) - 1, -1, -1) if i not in deloads), max(prof.km_4w, floor_km))
     taper = rules["volume"]["taper"]
     out += [peak * taper[min(k, len(taper) - 1)] for k in range(len(cal) - len(build))]
     return out, deloads
@@ -75,9 +82,11 @@ def _targets(prof, cal, rules):
 class _Week:
     """One week's inputs and its layout(adjust) -> (days, split warnings), the fixer's build()."""
 
-    def __init__(self, ctx, i, pw, target, deload, bw):
+    def __init__(self, ctx, i, pw, target, deload, bw, stage=1):
         self.ctx, self.i, self.pw, self.target, self.deload, self.bw = ctx, i, pw, target, deload, bw
         c = ctx
+        # the run/walk variant of the week's E and L runs, None past the ladder or without one
+        self.rw = stage if c.rw and stage <= len(c.lib[c.rw]["ladder"]) else None
         self.dates = {d: pw.start + timedelta(days=WEEKDAYS.index(d)) for d in WEEKDAYS}
         self.l_day = next((d for d, s in c.slots.items() if s == "L"), None)
         self.l_hill = self.l_day in c.prof.hill_days      # build_plan turns it off when it breaks 80/20
@@ -97,9 +106,26 @@ class _Week:
             v, forced = size.pick_variant(c.lib[tid], budget, target, c.caps, c.prof, c.rules, lighter=lighter)
             self.q[d] = (tid, v, self._forced(tid, budget) if forced else "")
             budget -= workout_flat_km(instantiate(c.lib[tid], v, c.prof, c.rules))
+        self.tt_extra = False                   # the time trial is a hard day on top of the Q days
+        if c.tt and i == c.tt_week - 1:
+            self._time_trial(q_days)
         # a Q day the rotation leaves empty (Q2 in a deload) is an easy one
-        self.slots = {d: "E" if s == "Q" and d not in self.q else s for d, s in c.slots.items()}
+        self.slots = {d: "Q" if d in self.q else "E" if s == "Q" else s for d, s in c.slots.items()}
 
+    def _time_trial(self, q_days):
+        """The time trial takes the week's first Q day (its other Q days are easy), else an easy day,
+        the first that is 48 h from L if there is one."""
+        c = self.ctx
+        if q_days:
+            day = q_days[0]
+        else:
+            easy = [d for d, s in c.slots.items() if s in ("E", "F")]
+            if not easy:
+                return
+            far = [d for d in easy
+                   if self.l_day is None or min(skeleton.gap(self.l_day, d), skeleton.gap(d, self.l_day)) >= 2]
+            day, self.tt_extra = (far or easy)[0], True
+        self.q = {day: (c.tt, 1, "")}
     def _forced(self, tid, budget):
         c, t = self.ctx, self.ctx.lib[tid]
         w = instantiate(t, 1, c.prof, c.rules)
@@ -111,8 +137,11 @@ class _Week:
 
     def _long(self, km):
         """The L workout for km: the rotation's first candidate that fits (hill and trail swaps at
-        the time budget of km at E pace), else the E template fitted to km."""
+        the time budget of km at E pace), else the E template fitted to km. On the run/walk ladder,
+        the week's run/walk."""
         c = self.ctx
+        if self.rw:
+            return self._easy(km)
         ids = select.candidates(self.pw.phase, self.bw, "L", c.rules, deload=self.deload, library=c.lib,
                                 hill_day=self.l_hill, level=c.level)
         for k, tid in enumerate(ids):
@@ -128,8 +157,27 @@ class _Week:
                 return w
         return self._easy(km)
 
+    def _run_walk(self, km):
+        """The week's run/walk variant (or an earlier one when the slot is too short) for the time of
+        km at E pace: the set repeated as often as the slot holds with WALK_MIN_S of brisk walk
+        first, the walk taking the rest. None when not even the first variant fits."""
+        c = self.ctx
+        t, secs = c.lib[c.rw], km * c.e_mid
+        for v in range(self.rw, 0, -1):
+            rep = next((p for p in instantiate(t, v, c.prof, c.rules).parts if isinstance(p, Repeat)), None)
+            ns = [None] if rep is None else range(max(rep.n, int(secs // (rep.seconds / rep.n))), 0, -1)
+            for n in ns:
+                w = size.fit(t, v, c.prof, c.rules, seconds=secs, values=None if n is None else {"n": n})
+                if w is not None and (n in (None, 1) or w.parts[0].value >= WALK_MIN_S):
+                    return w
+        return None
+
     def _easy(self, km):
         c = self.ctx
+        if self.rw:
+            w = self._run_walk(km)
+            if w is not None:
+                return w
         t = c.lib[c.rules["rotation"]["E"]]
         v, _ = size.pick_variant(t, km, self.target, c.caps, c.prof, c.rules)
         return size.fit(t, v, c.prof, c.rules, km=km)
@@ -179,12 +227,18 @@ class _Week:
             exempt.add("volume_rise")
         if self.deload or self.pw.phase == "taper":
             exempt.add("acwr_low")
-        v, notes = checks.check_week(days, c.rules, e_min=c.e_min, hr_max=c.prof.hr_max, hr_rest=c.prof.hr_rest,
+        v, notes = checks.check_week(days, self._rules(), e_min=c.e_min, hr_max=c.prof.hr_max, hr_rest=c.prof.hr_rest,
                                      prev_km=c.prev_km, prev_days=c.prev_days, daily=c.daily,
                                      end=self.pw.start + timedelta(days=6), exempt=exempt)
         if c.daily is None:                       # said once for the whole plan
             notes = [n for n in notes if n.code != "acwr_skipped"]
         return v, notes
+
+    def _rules(self):
+        c = self.ctx
+        if not self.tt_extra:
+            return c.rules
+        return {**c.rules, "checks": {**c.rules["checks"], "max_hard": c.rules["checks"]["max_hard"] + 1}}
 
 
 def _cap_name(kind, caps):
@@ -254,19 +308,24 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     week (the plan itself doesn't change); without one, the plan's length (default 8). rules are
     rules.toml's; the runner's levels lay level_data (levels.toml by default) over them. Raises
     ProfileError ([week]), SkeletonError (days) and PhaseError (the race date)."""
-    rules = levels.params(level_data or levels.load_levels(), prof.volume_level, prof.quality_level, rules)
+    level_data = level_data or levels.load_levels()
+    rules = levels.params(level_data, prof.volume_level, prof.quality_level, rules)
     start = first_monday_after(today)
     cal, phase_warns, n_full = _calendar(prof, rules, start, weeks)
-    targets, deloads = _targets(prof, cal, rules)
+    paces = pace_zones(prof.vdot, rules)
+    e_mid = pace_range("E", paces, rules).mid
+    floor = rules["volume"]["start_floor"]                  # in the level's own unit
+    targets, deloads = _targets(prof, cal, rules, floor * 60 / e_mid if rules["volume"]["unit"] == "min" else floor)
     c = SimpleNamespace()               # what every week shares
     c.prof, c.lib, c.rules, c.caps, c.deloads = prof, library, rules, rules["caps"], set(deloads)
-    c.level = prof.quality_level
+    c.level, c.unit = prof.quality_level, levels.unit(prof, level_data)
+    c.rw = rules["rotation"].get("run_walk")
+    c.tt, c.tt_week = rules["rotation"].get("time_trial"), rules["rotation"].get("time_trial_week")
     c.slots = place_slots(prof.days, prof.long_run_day, rules)
     n_q = sum(s == "Q" for s in c.slots.values())
     rules["checks"]["max_hard"] = n_q + 1                   # the Q days and L (levels.toml q_from_days)
     c.manual = manual_days(prof, library, rules)
-    paces = pace_zones(prof.vdot, rules)
-    c.e_pace, c.e_mid = paces["E"], pace_range("E", paces, rules).mid
+    c.e_pace, c.e_mid = paces["E"], e_mid
     s = rules["split"]
     c.e_min = min(s["easy_min_km"], s["easy_min_min"] * 60 / c.e_pace)
     c.race = prof.race["date"] if prof.race else None
@@ -295,7 +354,8 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     longs, out = [], []
     for i, pw in enumerate(cal):
         bw = select.block_week(i, deloads, every) if i < n_build else i - n_build + 1
-        week = _Week(c, i, pw, targets[i], i in c.deloads, bw)
+        builds = sum(j not in c.deloads for j in range(i))              # a deload repeats the last stage
+        week = _Week(c, i, pw, targets[i], i in c.deloads, bw, stage=max(1, builds + (i not in c.deloads)))
         week.longest = max([prof.longest_8w] + longs[max(0, i - 8):i])
         hill = _hill_swap(week)
         before = week.check(week.layout(fix.Adjust())[0])[0]
@@ -309,8 +369,8 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
             warns.append(warning("race_week", f"the race is on {WEEKDAYS[c.race.weekday()]} {c.race}",
                                  "planned no session from race day on; the week's km are the sessions before it"))
         lost = any("leftover" in w for w in split_warns)
-        if res.adjust.trim_l_km or res.adjust.drop_f or race_cut or c.manual or lost:
-            target = actual
+        if res.adjust.trim_l_km or res.adjust.drop_f or race_cut or c.manual or lost or c.unit == "min":
+            target = actual                     # a plan in minutes: the run/walk sessions fill time
         long_date = week.dates[prof.long_run_day]           # L, or the [week] day that replaces it
         longs.append(max((d.workout.km for d in days if d.slot == "L" or d.manual and d.date == long_date),
                          default=0.0))
@@ -318,8 +378,10 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
             for k, v in projected_daily([(d.date, d.workout) for d in days], prof.hr_max, prof.hr_rest).items():
                 c.daily[k] = c.daily.get(k, 0) + v
         c.prev_km, c.prev_days = checks.week_km(days), days
-        out.append({"start": pw.start.isoformat(), "target_km": target, "phase": pw.phase, "deload": i in c.deloads,
-                    "warnings": warns,
+        wk = {"start": pw.start.isoformat(), "target_km": target, "unit": c.unit}
+        if c.unit == "min":
+            wk["target_min"] = sum(shown_min(d.workout.seconds) for d in days)
+        out.append({**wk, "phase": pw.phase, "deload": i in c.deloads, "warnings": warns,
                     "days": [{"date": d.date.isoformat(), "slot": d.slot, "workout": workout_to_dict(d.workout)}
                              for d in days]})
     if weeks:

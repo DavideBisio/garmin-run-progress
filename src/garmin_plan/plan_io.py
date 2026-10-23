@@ -11,6 +11,7 @@ from pathlib import Path
 from .config import WEEKDAYS
 from .model import HrRange, PaceRange, Repeat, Step, Workout
 from .physiology import pace_zones
+from .levels import unit
 from .profile import ProfileError
 from .templates import PACE_ZONES, hr_range, instantiate, jog_pace, pace_range
 
@@ -58,11 +59,11 @@ def workout_from_dict(d):
 
 def profile_hash(prof, rules):
     """sha256 of what the resolved steps depend on: VDOT, HR max and rest, the resolved zones (pace
-    ranges in s/km to 0.01, the jog pace, HR zone bpm) and the runner's levels, which pick the
-    sessions. A changed hash means stale steps."""
+    ranges in s/km to 0.01, the jog pace, HR zone bpm), the runner's levels, which pick the sessions,
+    and the volume unit. A changed hash means stale steps."""
     paces = pace_zones(prof.vdot, rules)
     key = {"vdot": prof.vdot, "hr_max": prof.hr_max, "hr_rest": prof.hr_rest,
-           "levels": [prof.volume_level, prof.quality_level],
+           "levels": [prof.volume_level, prof.quality_level], "unit": unit(prof),
            "paces": {z: [round(r.fast_s, 2), round(r.slow_s, 2)]
                      for z in PACE_ZONES for r in [pace_range(z, paces, rules)]},
            "jog": round(jog_pace(paces, rules), 2),
@@ -74,6 +75,11 @@ def profile_hash(prof, rules):
 def shown_km(d):
     """A workout dict's km as its plan.md heading shows it (render_md: one decimal)."""
     return float(f"{workout_from_dict(d).km:.1f}")
+
+
+def shown_min(seconds):
+    """Whole minutes, as a plan in minutes shows a session (render_md)."""
+    return int(seconds / 60 + 0.5)
 
 
 def first_monday_after(today):

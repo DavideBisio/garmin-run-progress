@@ -12,9 +12,10 @@ class SkeletonError(ValueError):
     """The available days can't hold a week that keeps the placement rules."""
 
 
-def _gap(a, b):
+def gap(a, b):
     """Days from a forward to b in a repeating week, 1..7 (sun -> mon is 1)."""
     return (WEEKDAYS.index(b) - WEEKDAYS.index(a)) % 7 or 7
+
 
 
 def _score(week, long_day):
@@ -25,15 +26,15 @@ def _score(week, long_day):
     back-to-back runs as possible once F is dropped.
     """
     hard = [d for d, s in week.items() if s in HARD]
-    if any(_gap(a, b) == 1 for a, b in itertools.permutations(hard, 2)):
+    if any(gap(a, b) == 1 for a, b in itertools.permutations(hard, 2)):
         return None
     qs = [d for d, s in week.items() if s == "Q"]
-    q_dist = [min(_gap(long_day, d), _gap(d, long_day)) for d in qs]
+    q_dist = [min(gap(long_day, d), gap(d, long_day)) for d in qs]
     if any(g < 2 for g in q_dist):
         return None
-    q_apart = min((_gap(a, b) for a, b in itertools.permutations(qs, 2)), default=7)
+    q_apart = min((gap(a, b) for a, b in itertools.permutations(qs, 2)), default=7)
     runs = [d for d, s in week.items() if s != "F"]
-    crowd = sum(_gap(a, b) == 1 for a, b in itertools.permutations(runs, 2))
+    crowd = sum(gap(a, b) == 1 for a, b in itertools.permutations(runs, 2))
     return (-min(q_dist, default=7), -q_apart, crowd)
 
 

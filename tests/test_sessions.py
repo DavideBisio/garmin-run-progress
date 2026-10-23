@@ -144,7 +144,7 @@ class Overrides(unittest.TestCase):
 class Strides(unittest.TestCase):
     def test_template(self):
         t = LIB["strides"]
-        self.assertEqual((t["kind"], t["min_level"]), ("E", "novice"))
+        self.assertEqual((t["kind"], t["min_level"]), ("E", "beginner"))       # 08: strides are beginner-level
         w = work("strides", 1)
         self.assertGreater(w.hard_km, 0)
         self.assertLess(w.hard_km, 0.1 * w.km)                          # mostly an easy run

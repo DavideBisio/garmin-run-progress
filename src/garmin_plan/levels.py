@@ -16,7 +16,9 @@ from .templates import LEVELS
 DEFAULT_LEVEL = "intermediate"     # a Profile built without levels (tests, old callers)
 SECTIONS = ("volume", "split", "skeleton", "checks", "rotation")
 # keys set by the quality level; every other levels.toml key follows the volume level
-QUALITY = {"skeleton": {"q_from_days"}, "rotation": {"base", "rt", "it", "tm", "taper"}}
+QUALITY = {"skeleton": {"q_from_days"},
+           "rotation": {"base", "rt", "it", "tm", "taper", "time_trial", "time_trial_week"}}
+UNITS = ("km", "min")
 
 
 def load_levels(path=None):
@@ -55,6 +57,11 @@ def params(levels, volume_level, quality_level, rules=None):
                 dst[key] = copy.deepcopy(v[level])
     out["rotation"]["level"] = quality_level
     return out
+
+
+def unit(prof, levels=None):
+    """The plan's volume unit: profile.toml's, else the volume level's (levels.toml [volume] unit)."""
+    return prof.unit or (levels or load_levels())["volume"]["unit"][prof.volume_level]
 
 
 def _num(x):

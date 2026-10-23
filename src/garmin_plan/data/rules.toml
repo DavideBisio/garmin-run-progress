@@ -152,9 +152,10 @@ L = [["steady_long"], ["progression_long", "steady_long"], ["steady_long"], ["st
 L_hill = [[], [], ["trail_long"], []]
 
 [rotation.tm]
-# Daniels phase IV: T (A) and M (B), the race paces; the longest run is the half-marathon one
-# when the slot holds it. No hill swaps: this phase is race-specific.
-Q = [["cruise_tempo"], ["progression"], ["cruise_tempo"], ["progression"]]
+# Daniels phase IV: T (A) and M (B), the race paces (M from the intermediate level; below it, T
+# again); the longest run is the half-marathon one when the slot holds it. No hill swaps: this
+# phase is race-specific.
+Q = [["cruise_tempo"], ["progression", "cruise_tempo"], ["cruise_tempo"], ["progression", "cruise_tempo"]]
 Q2 = [["progression"], ["cruise_tempo"], ["progression"], []]
 L = [["steady_long"], ["progression_long", "steady_long"], ["hm_long", "steady_long"], ["steady_long"]]
 

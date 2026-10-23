@@ -40,6 +40,7 @@ class Profile:
     quality_level: str = levels.DEFAULT_LEVEL
     level_reasons: dict = field(default_factory=dict)   # "volume" / "quality" -> why (levels.detect)
     layoff: dict | None = None           # {days_off, vdot_factor, volume_factor, km_before} after a break
+    unit: str | None = None              # "km" or "min"; None: the volume level's (levels.unit)
     vdot_from: tuple | None = None       # ("10k", "2024-05-01") when derived
     sources: dict = field(default_factory=dict)   # field -> "set" | "derived" | "default"
     warnings: list = field(default_factory=list)
@@ -189,16 +190,20 @@ def _levels(raw, stats, vals, sources, lay, runs, today, data):
     return out[0], out[1], reasons
 
 
-def load_profile(path, runs, rhr=(), today=None):
+def load_profile(path, runs, rhr=(), today=None, plan=None):
     """Resolve every field: profile.toml ("set"), else runs.json ("derived"), else a default.
 
     A missing file or a short history never raises; each default adds a warning. Values in the
     file that can't be used raise ProfileError. After a break the derived volume and VDOT drop by
-    the layoff table, and the levels are detected from what is left (roadmap 08).
+    the layoff table, and the levels are detected from what is left (roadmap 08). plan: the last
+    plan.json, whose time trial, once run, gives the derived VDOT.
     """
     raw = read_toml(path)
     today = today or date.today()
     stats = history.recent_stats(runs, today)
+    tt = history.time_trial_vdot(runs, plan, today) if plan else None
+    if tt:
+        stats["vdot"], stats["vdot_from"] = tt[0], ("2 km time trial", tt[1])
     derived = {"hr_max": history.hr_max(runs), "hr_rest": history.resting_hr(rhr),
                **{k: stats[k] for k in NUMBERS[2:]}}
     vals, sources, warnings = {}, {}, []
@@ -242,11 +247,17 @@ def load_profile(path, runs, rhr=(), today=None):
         hills, sources["hill_days"] = [], "default"
         warnings.append("hill_days: not set, using none (no hill sessions)")
     race, sources["race"] = (parse_race(raw["race"]), "set") if "race" in raw else (None, "default")
+    unit, sources["unit"] = None, "default"
+    if "unit" in raw:
+        unit = raw["unit"].strip().lower() if isinstance(raw["unit"], str) else None
+        if unit not in levels.UNITS:
+            raise ProfileError(f"unit must be km or min, got {raw['unit']!r}")
+        sources["unit"] = "set"
     week, sources["week"] = {}, "default"
     if "week" in raw:
         week, sources["week"] = parse_week(raw["week"], Path(path).read_text(encoding="utf-8")), "set"
 
     return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills, week=week,
-                   volume_level=vol, quality_level=qual, level_reasons=reasons, layoff=lay,
+                   volume_level=vol, quality_level=qual, level_reasons=reasons, layoff=lay, unit=unit,
                    vdot_from=stats["vdot_from"] if sources["vdot"] == "derived" else None,
                    sources=sources, warnings=warnings)

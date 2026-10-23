@@ -297,6 +297,58 @@ class Payload(unittest.TestCase):
                 self.assertEqual(got, json.loads(path.read_text(encoding="utf-8")))
 
 
+class Guidance(unittest.TestCase):
+    """Beginners (08): HR caps are guidance, never the primary target that would beep all run long."""
+
+    def payload(self, tid, variant, **kw):
+        return push.to_garmin(workout(tid, variant), "[plan] Test 2024-06-16", "d", **kw)["workoutSegments"][0]
+
+    def test_time_ends_with_no_target(self):
+        steps = list(flat(self.payload("run_walk", 1, hr_guidance=True)["workoutSteps"]))
+        executable = [s for s in steps if s["type"] == "ExecutableStepDTO"]
+        self.assertTrue(executable)
+        for s in executable:
+            with self.subTest(step=s.get("description")):
+                self.assertEqual(s["endCondition"]["conditionTypeKey"], "time")
+                self.assertEqual(s["targetType"]["workoutTargetTypeKey"], "no.target")
+                self.assertNotIn("targetValueOne", s)
+                self.assertNotIn("secondaryTargetType", s)
+                self.assertRegex(s["description"], r"HR under \d+ bpm")
+        run = next(s for s in executable if s["description"].startswith("Run"))
+        self.assertIn("RPE", run["description"])
+        # the same workout without guidance: HR is the primary target, as for every other plan
+        plain = next(s for s in flat(self.payload("run_walk", 1)["workoutSteps"]) if s["type"] == "ExecutableStepDTO")
+        self.assertEqual(plain["targetType"]["workoutTargetTypeKey"], "heart.rate.zone")
+
+    def test_pace_steps_keep_their_targets(self):
+        steps = [s for s in flat(self.payload("cruise_tempo", 2, hr_guidance=True)["workoutSteps"])
+                 if s["type"] == "ExecutableStepDTO"]
+        self.assertEqual(steps[0]["targetType"]["workoutTargetTypeKey"], "pace.zone")
+        self.assertEqual(steps[0]["secondaryTargetType"]["workoutTargetTypeKey"], "heart.rate.zone")
+
+    def test_valid_payload(self):
+        p = push.to_garmin(workout("run_walk", 1), "[plan] Run/Walk 2024-06-16", "d", hr_guidance=True)
+        self.assertEqual(json.loads(json.dumps(p)), p)
+        orders = [s["stepOrder"] for s in flat(p["workoutSegments"][0]["workoutSteps"])]
+        self.assertEqual(orders, list(range(1, len(orders) + 1)))
+        self.assertEqual(p["estimatedDurationInSecs"], round(workout("run_walk", 1)["seconds"]))
+
+    def test_push_follows_the_plan_levels(self):
+        plan = make_plan(week={"sun": "run_walk:2"})
+        for levels, primary in ((None, "heart.rate.zone"), ({"volume": "beginner", "quality": "novice"}, "no.target")):
+            with self.subTest(levels=levels):
+                if levels:
+                    plan["levels"] = {**levels, "reasons": {}}
+                export = Path(tempfile.mkdtemp())
+                with contextlib.redirect_stdout(io.StringIO()):
+                    push.push(None, plan, TODAY, export, dry_run=True)
+                path = export / config.PUSH_DIR / "2024-06-16-run_walk.json"
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                first = next(s for s in flat(payload["workoutSegments"][0]["workoutSteps"])
+                             if s["type"] == "ExecutableStepDTO")
+                self.assertEqual(first["targetType"]["workoutTargetTypeKey"], primary)
+
+
 class Names(unittest.TestCase):
     def test_name(self):
         self.assertEqual(push.workout_name("Cruise Tempo", "2024-06-16"), "[plan] Cruise Tempo 2024-06-16")
