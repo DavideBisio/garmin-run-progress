@@ -9,7 +9,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .config import EXPORT_DIR, PLAN_JSON, PLAN_MD, PROFILE, RUNS
+from .config import EXPORT_DIR, PLAN_JSON, PLAN_MD, PROFILE, PUSH_STATE, RUNS
 from .physiology import hr_zones, load_rules, pace_zones
 from . import push as garmin_push
 from .plan_io import build_plan, read_plan, write_plan
@@ -105,17 +105,22 @@ def cmd_push(args):
         plan = read_plan(path)
     except (OSError, UnicodeDecodeError, ValueError) as e:
         sys.exit(f"error: {path}: can't read plan.json ({e})")
-    try:
-        if args.dry_run:
+    if args.dry_run:
+        try:
             garmin_push.push(None, plan, args.today or date.today(), out, dry_run=True, weeks=args.weeks)
-            return
-        from garmin_grab.garmin import login, with_retry   # garminconnect only for real pushes
-        g = login()
-        garmin_push.check_library(g)
+        except (garmin_push.PushError, KeyError, ValueError) as e:
+            sys.exit(f"error: {e}")
+        return
+    from garmin_grab.garmin import login, with_retry   # garminconnect only for real pushes
+    g = login()
+    garmin_push.check_library(g)
+    try:
         today = garmin_push.local_today(g, args.today)
         garmin_push.push(g, plan, today, out, weeks=args.weeks, retry=with_retry)
-    except (garmin_push.PushError, KeyError, ValueError) as e:
-        sys.exit(f"error: {e}")
+    except KeyboardInterrupt:
+        sys.exit("interrupted; re-run to resume")
+    except Exception as e:  # noqa: BLE001  (Garmin's errors, PushError, a broken plan.json: all resumable)
+        sys.exit(f"error: {e} (re-run to resume; state is in {out / PUSH_STATE})")
 
 
 def positive_int(v):

@@ -80,7 +80,7 @@
        },
        "targetValueOne": 162.0,
        "targetValueTwo": 190.0,
-       "description": "Uphill; Quick, short steps; drive the arms"
+       "description": "Moderate slope, about 5-8%; Uphill; Quick, short steps; drive the arms"
       },
       {
        "type": "ExecutableStepDTO",

@@ -4,10 +4,11 @@ Payloads are plain dicts in the shape of garminconnect's RunningWorkout.to_dict(
 g.upload_workout(dict), so neither pydantic nor garminconnect is imported here: the caller passes
 a logged-in client (garmin_grab.garmin.login) or, in the tests, a fake.
 
-Ownership: pushed workouts are named "[plan] <title> <date>". A push first removes the future
-"[plan]" workouts in its date range (unschedule, then delete), then uploads and schedules each
-session. push_state.json ({date: {workout_id, scheduled_id, name}}) is saved after every mutating
-call, so an interrupted push is resumed by running it again.
+Ownership: pushed workouts are named "[plan] <title> <date>". A push first deletes the workouts an
+interrupted push left off the calendar, then removes the future "[plan]" workouts in its date range
+(unschedule, then delete), then uploads and schedules each session. push_state.json ({date:
+{workout_id, scheduled_id, name}}) is saved after every mutating call, so an interrupted push is
+resumed by running it again.
 """
 import json
 import sys
@@ -33,11 +34,11 @@ PACE_TARGET = (6, "pace.zone")
 
 MIN_VERSION = "0.3.19"
 NEEDED = ("upload_workout", "schedule_workout", "unschedule_workout", "delete_workout",
-          "get_scheduled_workouts_by_period")
+          "get_workout_by_id", "get_scheduled_workouts_by_period")
 
 # response field names: the documented ones first, then the alternatives seen in Garmin's API
 WORKOUT_ID_KEYS = ("workoutId",)
-SCHEDULE_ID_KEYS = ("workoutScheduleId", "scheduledWorkoutId", "id")
+SCHEDULE_ID_KEYS = ("workoutScheduleId", "scheduledWorkoutId")
 DATE_KEYS = ("date", "scheduledDate", "calendarDate")
 NAME_KEYS = ("workoutName", "title")
 
@@ -90,9 +91,22 @@ def _step(s, order):
     return out
 
 
+def _add_note(steps, note):
+    """Prepend a repeat's note to the description of the first executable step in steps."""
+    for s in steps:
+        if s["type"] == "RepeatGroupDTO":
+            if _add_note(s["workoutSteps"], note):
+                return True
+            continue
+        s["description"] = "; ".join(x for x in (note, s.get("description")) if x)
+        return True
+    return False
+
+
 def _steps(parts, order):
     """(Garmin steps, next stepOrder). stepOrder runs 1, 2, ... through repeat children too. A
-    repeat of 1 is its steps, without the last recovery when skip_last_rest (as in plan.md)."""
+    repeat of 1 is its steps, without the last recovery when skip_last_rest (as in plan.md). A
+    repeat's note goes first in its first step's description."""
     out = []
     for p in parts:
         if not isinstance(p, Repeat):
@@ -101,11 +115,15 @@ def _steps(parts, order):
         elif p.n == 1:
             steps = p.steps[:-1] if p.skip_last_rest and p.steps and p.steps[-1].role == "recovery" else p.steps
             flat, order = _steps(steps, order)
+            if p.note:
+                _add_note(flat, p.note)
             out += flat
         else:
             group = {"type": "RepeatGroupDTO", "stepOrder": order, "stepType": _type(REPEAT_TYPE, "stepType", 6),
                      "numberOfIterations": p.n}
             children, order = _steps(p.steps, order + 1)
+            if p.note:
+                _add_note(children, p.note)
             group.update(workoutSteps=children, endCondition=_condition(ITERATIONS, displayable=False),
                          endConditionValue=float(p.n), smartRepeat=False, skipLastRestStep=bool(p.skip_last_rest))
             out.append(group)
@@ -173,6 +191,47 @@ def _items(resp):
     return []
 
 
+def _is_not_found(e):
+    """A 404 from garminconnect (GarminConnectNotFoundError) or anything that says so."""
+    msg = str(e).lower()
+    return "notfound" in type(e).__name__.lower() or "404" in msg or "not found" in msg
+
+
+def _get_workout(g, workout_id):
+    """The library workout, or None when Garmin no longer has it (a 404 is not retried)."""
+    try:
+        return g.get_workout_by_id(workout_id) or None
+    except Exception as e:  # noqa: BLE001  (the library's error classes aren't imported here)
+        if _is_not_found(e):
+            return None
+        raise
+
+
+def _plan_name(name):
+    return isinstance(name, str) and name.startswith(NAME_PREFIX)
+
+
+def _iso_day(v):
+    try:
+        return date.fromisoformat(str(v)[:10]).isoformat() if v is not None else None
+    except ValueError:
+        return None
+
+
+def _keys_seen(items):
+    keys = set()
+    for it in items:
+        if isinstance(it, dict):
+            keys.update(it)
+            if isinstance(it.get("workout"), dict):
+                keys.update(f"workout.{k}" for k in it["workout"])
+    return ", ".join(sorted(keys)) or "none"
+
+
+def _warn(msg):
+    print(f"warning: {msg}", file=sys.stderr)
+
+
 def load_state(path):
     if not path.exists():
         return {}
@@ -211,14 +270,10 @@ def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=tim
             for day, wd in sessions(plan, today, weeks)]
     if dry_run:
         return dry_run_files(todo, export)
-    if not todo:
-        print("Nothing to push: plan.json has no session from today on")
-        return {"pushed": 0, "removed": 0}
 
     call = retry or (lambda fn, *a: fn(*a))
     path = Path(export) / PUSH_STATE
     state = load_state(path)
-    first, last = today.isoformat(), todo[-1][0]
     removed = 0
 
     def mutate(fn, *args):
@@ -226,43 +281,92 @@ def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=tim
         sleep(delay)
         return r
 
-    # 1. resume: a workout uploaded but never scheduled (or already unscheduled) is not on the
-    #    calendar, so the listing below can't find it; delete it from the state
+    # 1. resume: a workout uploaded but never scheduled (or being removed) is not on the calendar,
+    #    so the listing below can't find it. Delete it only if Garmin still has it as a [plan] workout.
     for day in sorted(state):
         e = state[day]
-        if e.get("scheduled_id") is None:
-            if e.get("workout_id") is not None:
-                mutate(g.delete_workout, e["workout_id"])
-                removed += 1
-            del state[day]
-            save_state(state, path)
-
-    # 2. remove the future [plan] workouts in range; past ones and other names are never touched
-    deleted = set()
-    for it in _items(call(g.get_scheduled_workouts_by_period, first, last)):
-        name = response_value(it, NAME_KEYS) or ""
-        day = str(response_value(it, DATE_KEYS) or "")[:10]
-        if not name.startswith(NAME_PREFIX) or not first <= day <= last:
+        if e.get("scheduled_id") is not None:
             continue
+        wid = e.get("workout_id")
+        if wid is not None:
+            w = call(_get_workout, g, wid)
+            name = response_value(w, NAME_KEYS, nested=True) if isinstance(w, dict) else None
+            if w and _plan_name(name):
+                mutate(g.delete_workout, wid)
+                removed += 1
+            elif w:
+                _warn(f"kept workout {wid} ({name!r}): its name no longer starts with {NAME_PREFIX!r}")
+        del state[day]
+        save_state(state, path)
+
+    if not todo:
+        print("Nothing to push: plan.json has no session from today on")
+        return {"pushed": 0, "removed": removed}
+    first, last = today.isoformat(), todo[-1][0]
+
+    # 2. remove the future [plan] workouts in range; past ones and other names are never touched.
+    #    An item is ours if its name starts with [plan], or (name unreadable) its ids match the state.
+    items = _items(call(g.get_scheduled_workouts_by_period, first, last))
+    readable, found, gone, targets = False, set(), [], []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        name = response_value(it, NAME_KEYS, nested=True)
+        day = _iso_day(response_value(it, DATE_KEYS))
         sid, wid = response_value(it, SCHEDULE_ID_KEYS), response_value(it, WORKOUT_ID_KEYS, nested=True)
-        owned = [d for d, e in state.items()
-                 if (sid is not None and e.get("scheduled_id") == sid) or (wid is not None and e.get("workout_id") == wid)]
+        matched = [d for d, e in sorted(state.items()) if _plan_name(e.get("name"))
+                   and ((sid is not None and e.get("scheduled_id") == sid)
+                        or (wid is not None and e.get("workout_id") == wid))]
+        readable = readable or isinstance(name, str) or day is not None or bool(matched)
+        found.update(matched)
+        if isinstance(name, str) and not _plan_name(name):
+            if matched:           # renamed in Garmin Connect: the user keeps it
+                _warn(f"kept {name!r}: its name no longer starts with {NAME_PREFIX!r}")
+                gone += matched
+            continue
+        if name is None and not matched:
+            continue
+        day = day or (matched[0] if matched else None)
+        if day is None or not first <= day <= last:
+            continue
+        if wid is None and matched:
+            wid = state[matched[0]].get("workout_id")
+        targets.append((sid, wid, matched, day, name))
+    if items and not readable:
+        raise PushError(f"can't read Garmin's scheduled-workout listing: no name, date or known id in "
+                        f"{len(items)} item(s) (keys seen: {_keys_seen(items)})")
+    for d in sorted(state):
+        e = state[d]
+        if first <= d <= last and e.get("scheduled_id") is not None and d not in found:
+            if e.get("workout_id") is None or call(_get_workout, g, e["workout_id"]):
+                raise PushError(f"{d}: workout {e.get('workout_id')} (schedule {e['scheduled_id']}) of "
+                                f"{path.name} is not in Garmin's scheduled-workout listing "
+                                f"(keys seen: {_keys_seen(items)})")
+            gone.append(d)     # deleted by hand in Garmin Connect
+    for d in set(gone):
+        del state[d]
+
+    # mark first (a stop from here on leaves entries that step 1 deletes), unschedule all, then
+    # delete each workout once
+    for sid, wid, matched, day, name in targets:
+        for d in matched:
+            state[d]["scheduled_id"] = None
+        if not matched and wid is not None and day not in state:
+            state[day] = {"workout_id": wid, "scheduled_id": None, "name": name}
+            matched.append(day)
+    save_state(state, path)
+    for sid, *_ in targets:
         if sid is not None:
             mutate(g.unschedule_workout, sid)
-            for d in owned:
-                state[d]["scheduled_id"] = None     # a resume deletes the workout if we stop here
-            save_state(state, path)
+    deleted = set()
+    for _, wid, matched, *_ in targets:
         if wid is not None and wid not in deleted:
             mutate(g.delete_workout, wid)
             deleted.add(wid)
             removed += 1
-        for d in owned:
-            del state[d]
+        for d in matched:
+            state.pop(d, None)
         save_state(state, path)
-    # entries in range that the calendar no longer lists are gone already
-    for d in [d for d in state if first <= d <= last]:
-        del state[d]
-    save_state(state, path)
 
     # 3. upload, then schedule on the session's local date
     for day, _, payload in todo:
