@@ -121,9 +121,13 @@ Runs from a clone (`make plan-profile`, `make plan`, `make push`) and is not par
 | `templates.py` | `load_templates` (validates `workouts.toml`, `TemplateError`), `instantiate(template, variant, profile, rules)`, `pace_range`, `jog_pace`, `hr_range` |
 | `render_md.py` | `render_workout`, `render_plan` (markdown in the hand-written plan's format), `fmt_pace`, `fmt_time`, `fmt_est` |
 | `plan_io.py` | `build_plan` (the `[week]` schedule over N weeks), `profile_hash`, `write_plan` / `read_plan`, workout ↔ dict |
+| `skeleton.py` | `place_slots` (each available day → L / Q / E / F, the 48 h rule, the Sat/Sun fallback), `SkeletonError` |
+| `volume.py` | `block_curve` (4-week ramp and deload blocks, the start floor, unit-agnostic), `align_deloads` (deloads off phase starts), `settings` |
+| `phases.py` | `phase_calendar` (Monday-based weeks counted back from the race, shortened phases with warnings), `race_key`, `PhaseWeek`, `PhaseError` |
+| `split.py` | `split_week` (a week's km across its slots: the L caps, the E minimum, F on/off, Q dropped when the week can't hold it, with warnings) |
 | `push.py` | `to_garmin` (plan.json workout → `RunningWorkout`-shaped dict, Garmin ids inlined), `workout_name`, `sessions`, `local_today`, `check_library`, `push` (re-push, resume, `push_state.json`, dry-run) |
 | `cli.py` | `main`: the `profile`, `plan` and `push` subcommands (shared `--export`, `--today`) |
-| `data/rules.toml` | Daniels pace fractions, the R-pace offset, pace bands and the jog offset |
+| `data/rules.toml` | Daniels pace fractions, the R-pace offset, pace bands and the jog offset; slot placement (`[skeleton]`), the volume curve (`[volume]`), the week split (`[split]`) and the phase calendar (`[phases]`, lengths per race distance in `[phases.*]`) |
 | `data/workouts.toml` | The workout template library (stable ids) |
 
 Run objects keep the original fields from `runs.json`; derived values are stored on underscore-prefixed properties (`_x`, `_y`, `_m`, `_day`, `_g`, `_best`, `_hrOk`, `_hrPeak`, `_dec`, `_decMin`, `_km`, `_trail`).

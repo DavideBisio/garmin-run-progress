@@ -94,17 +94,21 @@ class PlacementProperties(unittest.TestCase):
                         s = by_day(slots)
                         self.assertEqual(len(s["L"]), 1)
                         self.assertEqual(len(s["Q"]), 1)
-                        self.assertLessEqual(len(s["F"]), 1)
+                        self.assertEqual(len(s["F"]), 1 if n >= RULES["skeleton"]["f_min_days"] else 0)
                         self.assertTrue(s["E"])
                         L, q = s["L"][0], s["Q"][0]
                         self.assertNotEqual(gap(L, q), 1)                  # never the day after L
                         self.assertGreaterEqual(gap(L, q), 2)               # 48 h both ways, cyclic
                         self.assertGreaterEqual(gap(q, L), 2)
+                        dist = lambda d: min(gap(L, d), gap(d, L))         # noqa: E731
+                        self.assertFalse([d for d in days if d != L and dist(d) > dist(q)])  # Q as far as it gets
                         hard = [d for d in slots if slots[d] in HARD]
                         for a, b in itertools.permutations(hard, 2):
                             self.assertNotEqual(gap(a, b), 1)              # no back-to-back hard days
-                        if L != long_day:                                  # only the weekend fallback
-                            self.assertEqual({L, long_day}, {"sat", "sun"})
+                        if L != long_day:                                  # only the weekend fallback,
+                            self.assertEqual({L, long_day}, {"sat", "sun"})    # when the preferred day
+                            self.assertFalse([d for d in days if d != long_day   # has no Q at 48 h
+                                              and min(gap(long_day, d), gap(d, long_day)) >= 2])
                         self.assertEqual(skeleton.place_slots(list(reversed(days)), long_day, RULES), slots)
         self.assertGreater(checked, 300)
 
@@ -248,63 +252,135 @@ class Phases(unittest.TestCase):
 class Split(unittest.TestCase):
     E_PACE = 360                     # 30 min at E = 5 km: both E minimums agree
     QTEL = {"tue": "Q", "wed": "F", "thu": "E", "sun": "L"}
+    THREE = {"tue": "E", "thu": "Q", "sun": "L"}
+
+    @staticmethod
+    def e_min(pace):
+        return min(RULES["split"]["easy_min_km"], RULES["split"]["easy_min_min"] * 60 / pace)
+
+    @classmethod
+    def l_ceiling(cls, target, longest, pace):
+        """The tightest L cap, unless it is under the E minimum (the shortest run worth putting on)."""
+        s = RULES["split"]
+        return max(min(s["long_share_cap"] * target, longest + s["long_over_longest_km"],
+                       s["long_time_cap_min"] * 60 / pace), cls.e_min(pace))
 
     def test_invariants(self):
         layouts = [{"tue": "E", "sun": "L"}, {"tue": "E", "thu": "Q", "sun": "L"},
                    {"tue": "E", "thu": "Q", "sat": "F", "sun": "L"},
                    {"tue": "E", "wed": "Q", "thu": "E", "sat": "F", "sun": "L"},
                    {"mon": "E", "tue": "F", "wed": "Q", "thu": "E", "sat": "E", "sun": "L"}]
-        for slots, target, longest, pace in itertools.product(layouts, range(14, 121, 3), (0, 8, 15, 25),
-                                                              (300, 360, 450)):
-            with self.subTest(slots=slots, target=target, longest=longest, pace=pace):
-                km = split.split_week(target, slots, longest, 6.0, RULES, pace)
+        targets = [t / 2 for t in range(4, 40)] + list(range(20, 121, 3))     # from 2 km up
+        for slots, target, longest, pace, q_km in itertools.product(layouts, targets, (0, 8, 15, 25),
+                                                                    (300, 360, 450), (5.0, 7.0)):
+            with self.subTest(slots=slots, target=target, longest=longest, pace=pace, q_km=q_km):
+                km, warnings = split.split_week(target, slots, longest, q_km, RULES, pace)
                 self.assertEqual(list(km), [d for d in WEEKDAYS if d in slots])
+                self.assertTrue(all(isinstance(w, str) for w in warnings))
                 self.assertAlmostEqual(sum(km.values()), target, delta=0.5)
-                e_min = min(5, 30 * 60 / pace)
+                self.assertTrue(all(v >= 0 for v in km.values()))
+                e_min = self.e_min(pace)
                 L = next(km[d] for d in slots if slots[d] == "L")
+                self.assertLessEqual(L, self.l_ceiling(target, longest, pace) + 0.05)
+                if target >= e_min:
+                    self.assertGreaterEqual(L, e_min - 0.05)
+                has_q = "Q" in slots.values()
+                dropped = any("Q dropped" in w for w in warnings)
+                self.assertEqual(dropped, has_q and target - q_km < e_min)
+                short = any("under the E minimum" in w for w in warnings)
+                over_l = any("longer than L" in w for w in warnings)
                 for d, s in slots.items():
-                    if s == "Q":
-                        self.assertEqual(km[d], 6.0)
-                    if s in "EF" and km[d]:
-                        self.assertGreaterEqual(km[d], e_min - 0.05)
-                        self.assertLessEqual(km[d], L)
+                    if s == "Q" and not dropped:
+                        self.assertGreaterEqual(km[d], q_km)
+                        self.assertLess(km[d], q_km + e_min)               # + a leftover too small for E
+                    if (s in "EF" or s == "Q" and dropped) and km[d]:
+                        if not short:
+                            self.assertGreaterEqual(km[d], e_min - 0.05)
+                        if not over_l:
+                            self.assertLessEqual(km[d], L)
 
     def test_long_run_caps(self):
-        three = {"tue": "E", "thu": "Q", "sun": "L"}
         # share cap binds at low volume: 0.45 x 20 = 9 < 10 + 2
-        self.assertEqual(split.split_week(20, three, 10, 5, RULES, 360), {"tue": 6.0, "thu": 5.0, "sun": 9.0})
+        self.assertEqual(split.split_week(20, self.THREE, 10, 5, RULES, 360),
+                         ({"tue": 6.0, "thu": 5.0, "sun": 9.0}, []))
         # longest + 2 km binds: 12 < 0.45 x 40
-        self.assertEqual(split.split_week(40, self.QTEL, 10, 6, RULES, 360)["sun"], 12.0)
+        self.assertEqual(split.split_week(40, self.QTEL, 10, 6, RULES, 360)[0]["sun"], 12.0)
         # 150 min at E binds: 150 x 60 / 480 = 18.75 km
         six = {"mon": "E", "tue": "F", "wed": "Q", "thu": "E", "sat": "E", "sun": "L"}
-        self.assertEqual(split.split_week(80, six, 30, 6, RULES, 480)["sun"], 18.8)
+        self.assertEqual(split.split_week(80, six, 30, 6, RULES, 480)[0]["sun"], 18.8)
+
+    def test_caps_win_over_easy_runs(self):
+        # 150 min at 7:00/km = 21.4 km: L stays there, the one E run takes the rest and is longer
+        km, warnings = split.split_week(50, self.THREE, 20, 6, RULES, 420)
+        self.assertEqual(km, {"tue": 22.6, "thu": 6.0, "sun": 21.4})
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("longer than L", warnings[0])
+        # longest + 2 km = 5 km: L doesn't even out to 7.5 km with the easy run
+        km, warnings = split.split_week(20, self.THREE, 3, 5, RULES, 360)
+        self.assertEqual(km, {"tue": 10.0, "thu": 5.0, "sun": 5.0})
+        self.assertIn("longer than L", warnings[0])
+        # with an F slot the excess goes there instead
+        self.assertEqual(split.split_week(50, self.QTEL, 20, 6, RULES, 420),
+                         ({"tue": 6.0, "wed": 11.3, "thu": 11.3, "sun": 21.4}, []))
+
+    def test_low_volume_drops_q(self):
+        # 4 km can't hold a 5 km Q: Q is dropped, nothing negative, L takes the week
+        km, warnings = split.split_week(4, self.THREE, 0, 5, RULES, 360)
+        self.assertEqual(km, {"tue": 0.0, "thu": 0.0, "sun": 4.0})
+        self.assertTrue(any("Q dropped" in w for w in warnings))
+        self.assertTrue(any("under the E minimum" in w for w in warnings))
+        # the floor's deload week (10 x 0.85 = 8.5 km) with a 7 km Q would leave L 1.5 km
+        target = RULES["volume"]["start_floor_km"] * RULES["volume"]["deload"]
+        km, warnings = split.split_week(target, self.THREE, 6, 7, RULES, 360)
+        self.assertEqual(km, {"tue": 3.5, "thu": 0.0, "sun": 5.0})
+        self.assertIn("Q dropped", warnings[0])
+        # just enough for Q and an L at the E minimum: Q stays
+        self.assertEqual(split.split_week(12, self.THREE, 6, 7, RULES, 360),
+                         ({"tue": 0.0, "thu": 7.0, "sun": 5.0}, []))
 
     def test_flex_on_and_off(self):
         # E alone up to L: F stays off
         self.assertEqual(split.split_week(50, self.QTEL, 20, 6, RULES, 360),
-                         {"tue": 6.0, "wed": 0.0, "thu": 22.0, "sun": 22.0})
+                         ({"tue": 6.0, "wed": 0.0, "thu": 22.0, "sun": 22.0}, []))
         # E would run over L: F switches on and shares the easy km
         self.assertEqual(split.split_week(52, self.QTEL, 20, 6, RULES, 360),
-                         {"tue": 6.0, "wed": 12.0, "thu": 12.0, "sun": 22.0})
-        # E over L, but F would put both below 5 km: F stays off and L and E even out
-        self.assertEqual(split.split_week(17, self.QTEL, 0, 6, RULES, 360),
-                         {"tue": 6.0, "wed": 0.0, "thu": 5.5, "sun": 5.5})
+                         ({"tue": 6.0, "wed": 12.0, "thu": 12.0, "sun": 22.0}, []))
+        # E over L, but F would put both below 5 km: F stays off and L stays at the 5 km E minimum
+        km, warnings = split.split_week(17, self.QTEL, 0, 6, RULES, 360)
+        self.assertEqual(km, {"tue": 6.0, "wed": 0.0, "thu": 6.0, "sun": 5.0})
+        self.assertIn("longer than L", warnings[0])
 
     def test_easy_minimum(self):
         two_e = {"tue": "E", "wed": "Q", "thu": "E", "sun": "L"}
         # 20 - 9 - 6 = 5 km: one easy run of 5, the other day off
         self.assertEqual(split.split_week(20, two_e, 10, 6, RULES, 360),
-                         {"tue": 5.0, "wed": 6.0, "thu": 0.0, "sun": 9.0})
-        # 26 - 11.7 - 6 = 8.3 km: one run at 5 km minimum, two at 4 km (30 min at a slow E pace)
+                         ({"tue": 5.0, "wed": 6.0, "thu": 0.0, "sun": 9.0}, []))
+        # 26 - 11.7 - 6 = 8.3 km, too little for two runs of 5 km: one run of 8.3, the other day off
         self.assertEqual(split.split_week(26, two_e, 10, 6, RULES, 360),
-                         {"tue": 8.3, "wed": 6.0, "thu": 0.0, "sun": 11.7})
+                         ({"tue": 8.3, "wed": 6.0, "thu": 0.0, "sun": 11.7}, []))
         # 16 - 7.2 - 5 = 3.8 km, too little for an easy run: L gives up 1.2 km so one E reaches 5 km
         self.assertEqual(split.split_week(16, two_e, 8, 5, RULES, 360),
-                         {"tue": 5.0, "wed": 5.0, "thu": 0.0, "sun": 6.0})
-        # 13 - 5.85 - 5 = 2.15 km: L can't give 2.85 km and stay at 5 km, so it takes the remainder
-        self.assertEqual(split.split_week(13, two_e, 8, 5, RULES, 360),
-                         {"tue": 0.0, "wed": 5.0, "thu": 0.0, "sun": 8.0})
-        km = split.split_week(26, two_e, 10, 6, RULES, 450)
+                         ({"tue": 5.0, "wed": 5.0, "thu": 0.0, "sun": 6.0}, []))
+        # 14 - 6.3 - 5 = 2.7 km: L can't give 2.3 km and stay at 5 km, and is at its cap: Q takes it
+        self.assertEqual(split.split_week(14, two_e, 8, 5, RULES, 360),
+                         ({"tue": 0.0, "wed": 7.7, "thu": 0.0, "sun": 6.3}, []))
+        # 30 min at a slow E pace (7:30/km) is 4 km, so 8.3 km makes two runs of 4.15 km
+        km, _ = split.split_week(26, two_e, 10, 6, RULES, 450)
         self.assertAlmostEqual(km["tue"], 4.15, delta=0.06)
         self.assertEqual(km["tue"], km["thu"])
         self.assertEqual(km["sun"], 11.7)
+
+    def test_single_run_week(self):
+        km, warnings = split.split_week(12, {"sun": "L"}, 6, 5, RULES, 360)
+        self.assertEqual(km, {"sun": 12.0})          # nowhere else to go: over the 5.4 km share cap
+        self.assertIn("cap", warnings[0])
+
+    def test_deload_week_is_not_the_longest_l(self):
+        # the roadmap 06 example: 16 km start, longest run 8 km, a 5 km Q, E pace 6:11/km (VDOT 40)
+        slots = skeleton.place_slots(["tue", "wed", "thu", "sat", "sun"], "sun", RULES)
+        weeks = [split.split_week(t, slots, 8, 5, RULES, 371)[0]
+                 for t in volume.block_curve(16, 4, **volume.settings(RULES))]
+        longs = [w["sun"] for w in weeks]
+        self.assertLess(longs[3], max(longs[:3]))
+        self.assertLessEqual(longs[3], self.l_ceiling(16 * 0.85, 8, 371) + 0.05)
+        self.assertGreater(weeks[3]["thu"], 5.0)      # the leftover went to Q

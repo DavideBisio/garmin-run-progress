@@ -20,6 +20,9 @@
   - Q comes from the template size (sizing is in 07; until then, the smallest variant);
   - E gets the remainder, each E run between 5 km (or 30 min) and the length of L;
   - F switches on when E slots would run over L, and off when they would fall below the minimum.
+  - **The caps win over E ≤ L.** L never goes over its caps, except up to the E minimum: a long run shorter than that isn't worth putting on. Excess km go to F if it's available. Otherwise the E runs end up longer than L, and the split returns a warning.
+  - **Q is dropped when the week can't hold it.** If the week is too small for Q plus an L at the E minimum, Q is dropped with a warning and its day becomes an easy day (rest if nothing is left for it). No part is ever negative.
+  - **Leftover km.** A remainder too small for any easy run is first taken from L, if L can give it and still stay at the E minimum. Otherwise it goes to Q as a longer warm-up and cool-down. With no Q, it becomes one short easy run, with a warning. It never goes to L, so a deload week doesn't get the block's longest L.
 - The result is the week and slot structure of `plan.json`, with a km target for each slot.
 
 ## Implementation
@@ -30,7 +33,7 @@ src/garmin_plan/
   volume.py    block_curve(start, weeks, ramp, deload, deload_every, floor) -> [target]
                align_deloads(weeks, deload_every, phase_starts) -> [deload week index]
   phases.py    phase_calendar(today, race_date, distance_m, rules) -> ([(week_start, phase, partial)], warnings)
-  split.py     split_week(target, slots, longest_km, q_km, rules, e_pace) -> {weekday: km}
+  split.py     split_week(target, slots, longest_km, q_km, rules, e_pace) -> ({weekday: km}, warnings)
   data/rules.toml  caps, ramp, deload, phase lengths per race distance, E minimum
 ```
 
@@ -48,10 +51,10 @@ Wk  Phase  km    Q    E (Tue)  E (Sat)  F   L
 1   base   16.0  5.0  4.9      –        –   6.1
 2   base   17.3  5.0  4.9      –        –   7.4
 3   base   18.6  5.0  5.2      –        –   8.4
-4   base   13.6  5.0  –        –        –   8.6   (deload)
+4   base   13.6  7.5  –        –        –   6.1   (deload)
 ```
 
-Week 1 is the start volume, then ×1.08, ×1.16 and the ×0.85 deload. E pace at VDOT 40 is about 6:11/km, so the E minimum is 30 min (4.9 km), shorter than 5 km. At this volume only one easy run fits: L gives up km so it reaches the minimum (weeks 1–3), and in the deload week the remainder is too small for any easy run and goes to L. F stays off until the easy runs would be longer than L.
+Week 1 is the start volume, then ×1.08, ×1.16 and the ×0.85 deload. E pace at VDOT 40 is about 6:11/km, so the E minimum is 30 min (4.9 km), shorter than 5 km. At this volume only one easy run fits, and L gives up km so that run reaches the minimum (weeks 1–3). In the deload week L is at its 45 % cap (6.1 km), and the remaining 2.5 km are too few for an easy run, so they go to Q as a longer warm-up and cool-down. F stays off until the easy runs would be longer than L.
 
 No GUI in this section.
 
@@ -69,7 +72,8 @@ No GUI in this section.
   - the parts add up to the target within ±0.5 km;
   - the E minimum is respected;
   - F switches on at the expected volume;
-  - the L cap binds at low volume.
+  - the L cap binds at low volume;
+  - from 2 km up, no part is negative, L stays within its caps (and at the E minimum or more whenever the week allows it), and Q is dropped exactly when the week can't hold it.
 
 ## Completion checklist
 
