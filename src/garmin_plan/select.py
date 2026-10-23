@@ -20,17 +20,22 @@ def _entry(table, key, bw, deload):
 
 
 def candidates(phase, bw, slot, rules, *, deload=False, hill_day=False, level=None, library):
-    """Template ids for a Q or L slot, in order of preference: the hill swap first on a hill day (never
-    in a deload), then the phase's rotation for block week bw. Ids above the runner's level are left
-    out; when none is left, the one with the lowest min_level is kept."""
+    """Template ids for a Q, Q2 (a week's second Q day) or L slot, in order of preference: the hill
+    swap first on a hill day (never in a deload), then the phase's rotation for block week bw. Ids
+    above the runner's level are left out; when none is left, the one with the lowest min_level is
+    kept. [] when the rotation has nothing for the slot (Q2 in a deload: an easy run)."""
     table = rules["rotation"][phase]
     level = LEVELS.index(level or rules["rotation"]["level"])
     ids = (_entry(table, f"{slot}_hill", bw, deload) if hill_day and not deload else []) + \
         _entry(table, slot, bw, deload)
+    if not ids:
+        return []
     ok = [t for t in ids if LEVELS.index(library[t]["min_level"]) <= level]
     return ok or [min(ids, key=lambda t: LEVELS.index(library[t]["min_level"]))]
 
 
 def rotation(phase, bw, slot, rules, *, deload=False, hill_day=False, level=None, library):
-    """The template id for a Q or L slot in block week bw of `phase`: the first of candidates()."""
-    return candidates(phase, bw, slot, rules, deload=deload, hill_day=hill_day, level=level, library=library)[0]
+    """The template id for a Q, Q2 or L slot in block week bw of `phase`: the first of candidates(),
+    None when there is none."""
+    ids = candidates(phase, bw, slot, rules, deload=deload, hill_day=hill_day, level=level, library=library)
+    return ids[0] if ids else None

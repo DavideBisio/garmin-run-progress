@@ -118,8 +118,11 @@ E = "R"
 # for L, the first one the slot's km can hold. Q alternates A (the phase's first quality type:
 # R, I or T) in weeks 1 and 3 and B (T or M) in week 2 and the deload week; L goes steady,
 # progression, longest (the block's biggest week), then short and easy in the deload.
-# Q_hill and L_hill replace Q and L when that day is one of the profile's hill_days. The level is
-# the runner's quality level and the E template is in levels.toml.
+# Q_hill and L_hill replace Q and L when that day is one of the profile's hill_days. Q2 is the
+# second Q day of a week that has two (levels.toml q_from_days): the phase's other quality type
+# (strides again in the base phase), and none in the deload week or the taper (an easy run).
+# With 3-week blocks (a beginner's) the build weeks take the first two rows and the deload the last.
+# The level is the runner's quality level and the E template is in levels.toml.
 # The deload week's Q is this many ladder variants lighter than what its volume allows.
 deload_lighter = 1
 
@@ -127,6 +130,7 @@ deload_lighter = 1
 # Daniels phase I: easy running plus strides, or short hill repeats on a hill day (his R
 # substitute), and one hilly long run per block.
 Q = [["strides"], ["strides"], ["strides"], ["strides"]]
+Q2 = [["strides"], ["strides"], ["strides"], []]
 Q_hill = [["hill_repeats"], [], ["hill_repeats"], []]
 L = [["steady_long"], ["steady_long"], ["steady_long"], ["steady_long"]]
 L_hill = [[], [], ["hilly_long"], []]
@@ -135,6 +139,7 @@ L_hill = [[], [], ["hilly_long"], []]
 # Daniels phase II: R for speed and economy (A), T (B). The progression long run is
 # intermediate-level and needs a long enough slot, else the steady one.
 Q = [["r_300", "r_220"], ["cruise_tempo"], ["r_ladder", "r_220"], ["cruise_tempo"]]
+Q2 = [["cruise_tempo"], ["r_300", "r_220"], ["cruise_tempo"], []]
 Q_hill = [["hill_repeats"], [], ["hill_repeats"], []]
 L = [["steady_long"], ["progression_long", "steady_long"], ["steady_long"], ["steady_long"]]
 L_hill = [[], [], ["hilly_long"], []]
@@ -142,6 +147,7 @@ L_hill = [[], [], ["hilly_long"], []]
 [rotation.it]
 # Daniels phase III, the hardest: I (A), T (B); the long hill session moves to the trail.
 Q = [["vo2_intervals", "cruise_tempo"], ["cruise_tempo"], ["vo2_intervals", "cruise_tempo"], ["cruise_tempo"]]
+Q2 = [["cruise_tempo"], ["vo2_intervals", "r_220"], ["cruise_tempo"], []]
 L = [["steady_long"], ["progression_long", "steady_long"], ["steady_long"], ["steady_long"]]
 L_hill = [[], [], ["trail_long"], []]
 
@@ -149,11 +155,13 @@ L_hill = [[], [], ["trail_long"], []]
 # Daniels phase IV: T (A) and M (B), the race paces; the longest run is the half-marathon one
 # when the slot holds it. No hill swaps: this phase is race-specific.
 Q = [["cruise_tempo"], ["progression"], ["cruise_tempo"], ["progression"]]
+Q2 = [["progression"], ["cruise_tempo"], ["progression"], []]
 L = [["steady_long"], ["progression_long", "steady_long"], ["hm_long", "steady_long"], ["steady_long"]]
 
 [rotation.taper]
-# The 2 taper weeks: a short T session, then strides in the race week; steady long runs.
+# The 2 taper weeks: a short T session, then strides in the race week; steady long runs; one Q.
 Q = [["cruise_tempo"], ["strides"]]
+Q2 = [[], []]
 L = [["steady_long"], ["steady_long"]]
 
 [checks]

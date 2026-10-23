@@ -1,20 +1,22 @@
 """Runner levels (data/levels.toml): the planning numbers that depend on the runner's level (roadmap 08).
 
 A runner has two levels, one per axis: a volume level (how much they run) and a quality level (what
-sessions they're ready for). params(levels, volume_level, quality_level, rules) gives the rules the
-planner uses: a copy of rules.toml with each levels.toml key set to its value at the right level.
+sessions they're ready for). detect(stats, levels) reads both from the runner's history, layoff(days)
+scales VDOT and volume after a break, and params(levels, volume_level, quality_level, rules) gives the
+rules the planner uses: a copy of rules.toml with each levels.toml key set to its value at the right
+level.
 """
 import copy
 import tomllib
 
-from .config import DATA_DIR
+from .config import DATA_DIR, MIN_HISTORY_DAYS
 from .physiology import load_rules
 from .templates import LEVELS
 
 DEFAULT_LEVEL = "intermediate"     # a Profile built without levels (tests, old callers)
 SECTIONS = ("volume", "split", "skeleton", "checks", "rotation")
 # keys set by the quality level; every other levels.toml key follows the volume level
-QUALITY = {"skeleton": {"q_min_days"}, "checks": {"max_hard"}, "rotation": {"base", "rt", "it", "tm", "taper"}}
+QUALITY = {"skeleton": {"q_from_days"}, "rotation": {"base", "rt", "it", "tm", "taper"}}
 
 
 def load_levels(path=None):
@@ -53,3 +55,81 @@ def params(levels, volume_level, quality_level, rules=None):
                 dst[key] = copy.deepcopy(v[level])
     out["rotation"]["level"] = quality_level
     return out
+
+
+def _num(x):
+    """3.0 -> '3', 3.25 -> '3.2': counts and averages in a reason."""
+    return f"{round(x, 1):g}"
+
+
+def _volume(stats, d):
+    """(volume level, reason) from the history numbers: the highest level whose minimums all hold."""
+    if (stats.get("history_days") or 0) < MIN_HISTORY_DAYS or stats.get("km_4w") is None:
+        return LEVELS[0], "under 4 weeks of runs"
+    lay, km = stats.get("layoff"), stats["km_4w"]
+    if lay:
+        text = (f"{km:.0f} km/wk: {lay['km_before']:.0f} km/wk before {lay['days_off']} days off, "
+                f"x{lay['volume_factor']:g}")
+    else:
+        text = f"{km:.0f} km/wk over 4 wk"
+    have = {"km": (km, f"{km:.0f} km/wk"),
+            "km_12w": (stats["km_12w"], f"{stats['km_12w']:.0f} km/wk over 12 wk"),
+            "runs_per_week": (stats["runs_per_week"], f"{_num(stats['runs_per_week'])} runs/wk"),
+            "consistency_weeks": (round(stats["consistency"] * 12), f"{round(stats['consistency'] * 12)} of 12 "
+                                                                    "weeks with 2+ runs"),
+            "longest": (stats["longest_8w"], f"longest run {stats['longest_8w']:.1f} km"),
+            "history_weeks": (stats["history_days"] / 7, f"{stats['history_days'] // 7} weeks of history")}
+    level = LEVELS[0]
+    for nxt in LEVELS[1:]:
+        fails = [f"{label} (needs {_num(d[k][nxt])})" for k, (v, label) in have.items() if v < d[k][nxt]]
+        if fails:
+            if have["km"][0] >= d["km"][nxt]:          # the volume is there: say what holds it back
+                text += f"; not {nxt}: {', '.join(fails)}"
+            break
+        level = nxt
+    return level, text
+
+
+def _quality(stats, d):
+    """(quality level, reason) from VDOT and the Q sessions of the last 8 weeks."""
+    v, q = stats.get("vdot"), stats.get("q_8w") or 0
+    if v is None:
+        return LEVELS[0], "no VDOT yet: no 5 km, 10 km or half effort and no time trial"
+    level = LEVELS[0]
+    for nxt in LEVELS[1:]:
+        if v < d["vdot"][nxt] or q < d["q_8w"][nxt]:
+            break
+        level = nxt
+    return level, f"VDOT {v:.0f}, {q} Q sessions in 8 wk"
+
+
+def detect(stats, levels):
+    """(volume_level, quality_level, {"volume": reason, "quality": reason}) from levels.toml [detect].
+
+    stats: km_4w, km_12w, runs_per_week, longest_8w (None with under 4 weeks of runs), consistency
+    (share of the last 12 weeks with 2+ runs), history_days, vdot (None when unknown), q_8w, and
+    layoff ({days_off, km_before, volume_factor}) when km_4w is the restart volume after a break.
+    """
+    d = levels["detect"]
+    vol, vwhy = _volume(stats, d)
+    qual, qwhy = _quality(stats, d)
+    return vol, qual, {"volume": vwhy, "quality": qwhy}
+
+
+def describe(volume_level, quality_level, reasons):
+    """'volume: novice (16 km/wk over 4 wk); quality: intermediate (VDOT 40, 3 Q sessions in 8 wk)'."""
+    return "; ".join(f"{axis}: {level} ({reasons[axis]})" if reasons.get(axis) else f"{axis}: {level}"
+                     for axis, level in (("volume", volume_level), ("quality", quality_level)))
+
+
+def layoff(days_off, levels=None):
+    """(vdot_factor, volume_factor) after days_off days without running ([layoff] table): 1 and 1 up
+    to the first row's days, then the VDOT factor runs linearly from row to row and the volume
+    factor is the row's; past the last row, the last row's."""
+    rows = (levels or load_levels())["layoff"]["table"]
+    if days_off <= rows[0][0]:
+        return float(rows[0][1]), float(rows[0][2])
+    for (d0, v0, _), (d1, v1, vol) in zip(rows, rows[1:]):
+        if days_off <= d1:
+            return round(v0 + (v1 - v0) * (days_off - d0) / (d1 - d0), 4), float(vol)
+    return float(rows[-1][1]), float(rows[-1][2])

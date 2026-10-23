@@ -11,7 +11,11 @@ sys.path.insert(0, str(ROOT / "src"))
 from garmin_plan import levels, phases, physiology, skeleton, split, volume  # noqa: E402,F401
 from garmin_plan.config import WEEKDAYS  # noqa: E402
 
-RULES = levels.params(levels.load_levels(), "intermediate", "intermediate")   # the golden runner's levels
+# 06's numbers: the novice level (one Q, L at most 45 % of the week) with every profile day a run
+# and Daniels' 150-minute long run cap
+RULES = levels.params(levels.load_levels(), "novice", "novice")
+RULES["skeleton"]["max_runs"] = 7
+RULES["split"]["long_time_cap_min"] = 150
 TODAY = date(2024, 6, 5)   # a Wednesday: the first week (from Monday 2024-06-03) is partial
 HARD = {"L", "Q"}
 
@@ -343,7 +347,7 @@ class Split(unittest.TestCase):
         self.assertTrue(any("Q dropped" in w for w in warnings))
         self.assertTrue(any("under the E minimum" in w for w in warnings))
         # the floor's deload week (10 x 0.85 = 8.5 km) with a 7 km Q would leave L 1.5 km
-        target = RULES["volume"]["start_floor_km"] * RULES["volume"]["deload"]
+        target = RULES["volume"]["start_floor"] * RULES["volume"]["deload"]
         km, warnings = split.split_week(target, self.THREE, 6, 7, RULES, 360)
         self.assertEqual(km, {"tue": 3.5, "thu": 0.0, "sun": 5.0})
         self.assertIn("Q dropped", warnings[0])

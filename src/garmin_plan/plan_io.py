@@ -57,10 +57,12 @@ def workout_from_dict(d):
 
 
 def profile_hash(prof, rules):
-    """sha256 of what the resolved steps depend on: VDOT, HR max and rest, and the resolved zones
-    (pace ranges in s/km to 0.01, the jog pace, HR zone bpm). A changed hash means stale steps."""
+    """sha256 of what the resolved steps depend on: VDOT, HR max and rest, the resolved zones (pace
+    ranges in s/km to 0.01, the jog pace, HR zone bpm) and the runner's levels, which pick the
+    sessions. A changed hash means stale steps."""
     paces = pace_zones(prof.vdot, rules)
     key = {"vdot": prof.vdot, "hr_max": prof.hr_max, "hr_rest": prof.hr_rest,
+           "levels": [prof.volume_level, prof.quality_level],
            "paces": {z: [round(r.fast_s, 2), round(r.slow_s, 2)]
                      for z in PACE_ZONES for r in [pace_range(z, paces, rules)]},
            "jog": round(jog_pace(paces, rules), 2),

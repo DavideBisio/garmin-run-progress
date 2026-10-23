@@ -30,16 +30,19 @@ GENERATED = "2024-06-05T08:00:00"
 
 
 def generic_profile(**kw):
-    """The fixed generic runner of the golden files: VDOT 40, HR 190/50."""
-    vals = dict(hr_max=190, hr_rest=50, vdot=40.0, km_4w=0.0, km_12w=0.0, runs_per_week=0.0, longest_8w=0.0)
+    """The fixed generic runner of the golden files: VDOT 40, HR 190/50; at the novice level, whose
+    numbers are 06 and 07's (one Q a week, L at most 45 % of it)."""
+    vals = dict(hr_max=190, hr_rest=50, vdot=40.0, km_4w=0.0, km_12w=0.0, runs_per_week=0.0, longest_8w=0.0,
+                volume_level="novice", quality_level="novice")
     vals.update(kw)
     return profile.Profile(**vals)
 
 
 def hm_runner(**kw):
     """The golden plan's runner: 30 km a week, longest run 12 km, five days, hills on Thu and Sun,
-    a half marathon in 16 weeks with a 1:43:30 goal (VDOT 43.4)."""
+    a half marathon in 16 weeks with a 1:43:30 goal (VDOT 43.4); intermediate on both axes."""
     vals = dict(km_4w=30.0, km_12w=28.0, runs_per_week=4.0, longest_8w=12.0,
+                volume_level="intermediate", quality_level="intermediate",
                 days=["tue", "wed", "thu", "sat", "sun"], long_run_day="sun", hill_days=["thu", "sun"],
                 race={"date": RACE, "distance_m": 21097.5, "goal_s": 6210})
     vals.update(kw)
@@ -111,7 +114,7 @@ class Golden(unittest.TestCase):
                 monday = date.fromisoformat(wk["start"])
                 self.assertTrue(all(0 <= (date.fromisoformat(d["date"]) - monday).days < 7 for d in wk["days"]))
                 slots = [d["slot"] for d in wk["days"]]
-                self.assertLessEqual(slots.count("Q"), 1)
+                self.assertLessEqual(slots.count("Q"), 1 if wk["deload"] or wk["phase"] == "taper" else 2)
                 self.assertLessEqual(slots.count("L"), 1)
                 if wk["phase"] == "taper" and taper_from is None:
                     taper_from = i
@@ -136,7 +139,8 @@ class Golden(unittest.TestCase):
         self.assertTrue(swaps)
         self.assertFalse(hill_l)
         self.assertTrue(all("on sun" in w["detail"] and w["action"] == "kept the flat long run" for w in swaps))
-        self.assertFalse([w for wk in plan["weeks"] for w in wk["warnings"] if w["rule"] == "easy_share"])
+        self.assertFalse([w for wk in plan["weeks"] for w in wk["warnings"]
+                          if w["rule"] == "easy_share" and not w["action"].startswith("fixed: ")])
         # without the check in the way the swap stands: at the same time budget as the flat run
         week = next(wk for wk in plan["weeks"] if any(w["rule"] == "hill_swap" for w in wk["warnings"]))
         steady = next(d["workout"] for d in week["days"] if d["slot"] == "L")
@@ -255,12 +259,14 @@ class Consistency(unittest.TestCase):
         # run leaves the 8-week window, L's cap must still come from it, not collapse to the E
         # minimum and push the generated easy runs up
         week = {"sun": {"id": "steady_long", "variant": 3, "line": 'sun = "steady_long:3"'}}
-        manual = build(hm_runner(week=week))["weeks"]
-        plain = build()["weeks"]
+        novice = {"volume_level": "novice", "quality_level": "novice"}      # one Q, L up to 45 %
+        manual = build(hm_runner(week=week, **novice))["weeks"]
+        plain = build(hm_runner(**novice))["weeks"]
         for i in range(1, 15):
             with self.subTest(week=manual[i]["start"]):
                 easy = [d["workout"]["km"] for d in manual[i]["days"] if d["slot"] in ("E", "F")]
-                self.assertLessEqual(max(easy), 10.0)
+                plain_easy = [d["workout"]["km"] for d in plain[i]["days"] if d["slot"] in ("E", "F")]
+                self.assertLessEqual(max(easy), max(plain_easy) + 0.5)       # no longer than without [week]
                 self.assertAlmostEqual(manual[i]["target_km"], plain[i]["target_km"], delta=4.0)
 
 

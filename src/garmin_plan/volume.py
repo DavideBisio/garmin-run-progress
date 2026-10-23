@@ -5,7 +5,7 @@ def settings(rules):
     """block_curve keyword arguments from rules.toml [volume]."""
     v = rules["volume"]
     return {"ramp": v["ramp"], "deload": v["deload"], "deload_every": v["deload_every"],
-            "floor": v["start_floor_km"], "next_from": v["next_block_from_week"]}
+            "floor": v["start_floor"], "next_from": v["next_block_from_week"]}
 
 
 def _check(deload_every):

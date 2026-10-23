@@ -6,6 +6,7 @@ rounded here and only here. Write the output as UTF-8 (the arrows are not ASCII)
 """
 from datetime import date
 
+from .levels import describe
 from .model import Repeat
 from .plan_io import workout_from_dict
 
@@ -128,6 +129,12 @@ def render_plan(plan):
            f"Generated {plan['generated']} from profile `{plan['profile_hash'][:12]}`. "
            "Durations are estimates at the middle of each pace range; recovery jogs at the slow end of "
            "Easy plus 30 s/km.", ""]
+    lv = plan.get("levels")
+    if lv:
+        out += [f"Runner levels: {describe(lv['volume'], lv['quality'], lv['reasons'])}.", ""]
+        if "advanced" in (lv["volume"], lv["quality"]):
+            out += ["This advanced plan is a starting point to edit: adjust the sessions to how you train, and "
+                    "put the ones to keep in profile.toml's [week] table, which every re-plan keeps.", ""]
     flagged = [wk for wk in plan["weeks"] if wk.get("warnings")]
     if plan.get("warnings") or flagged:
         out += ["## Warnings", ""]

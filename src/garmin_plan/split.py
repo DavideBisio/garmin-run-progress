@@ -2,20 +2,23 @@
 from .config import WEEKDAYS
 
 
-def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
+def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km, dropped=None):
     """({weekday: km}, warnings) for the place_slots week `slots`, Monday first, km to 0.1 km.
+
+    q_km: each Q day's session km, one number for every Q day or {weekday: km}. dropped: a list the
+    Q days made easy are appended to.
 
     L = min(long_share_cap x target, longest_km + long_over_longest_km, long_time_cap_min at E
     pace), or the E minimum (easy_min_km or easy_min_min at E pace, whichever is shorter) when that
     is longer, and never more: the caps win over keeping the easy runs shorter than L. Q gets
-    q_km (the template size), unless the week can't hold Q and an L at the E minimum: then Q is
-    dropped and its day is an easy one. E slots share the rest, each at least the E minimum: F runs
-    when E alone would go over L and stays off (0 km) when sharing would put the easy runs under
-    the minimum; E slots the rest can't fill to the minimum are dropped (0 km, the last first).
-    When the easy runs are still longer than L, they stay so (warning). A remainder too small for
-    any easy run is taken from L when L stays at the E minimum, else it goes to Q (a longer warm-up
-    and cool-down), else to one short easy run (warning), and only in a week with L as its one run
-    does L take it past its cap (warning). The parts add up to target, none negative, and after
+    q_km (the template size), unless the week can't hold its Q and an L at the E minimum: then the
+    last Q is dropped, and the one before it if still needed, and its day is an easy one. E slots
+    share the rest, each at least the E minimum: F runs when E alone would go over L and stays off
+    (0 km) when sharing would put the easy runs under the minimum; E slots the rest can't fill to
+    the minimum are dropped (0 km, the last first). When the easy runs are still longer than L,
+    they stay so (warning). A remainder too small for any easy run is taken from L when L stays at
+    the E minimum, else it goes to Q (a longer warm-up and cool-down), else to one short easy run
+    (warning), and only in a week with L as its one run does L take it past its cap (warning). The parts add up to target, none negative, and after
     rounding to target rounded to 0.1 (see _rounded), so a week heading adds up its days.
     """
     s = rules["split"]
@@ -23,11 +26,15 @@ def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
     days = [d for d in WEEKDAYS if d in slots]
     of = {k: [d for d in days if slots[d] == k] for k in "LQEF"}
     warnings = []
-    if of["Q"] and target - q_km * len(of["Q"]) < (e_min if of["L"] else 0):
-        warnings.append(f"Q dropped ({', '.join(of['Q'])}): {target:.1f} km can't hold a {q_km:.1f} km Q "
+    q_of = q_km if isinstance(q_km, dict) else {d: q_km for d in of["Q"]}
+    while of["Q"] and target - sum(q_of[d] for d in of["Q"]) < (e_min if of["L"] else 0):
+        d = of["Q"].pop()
+        warnings.append(f"Q dropped ({d}): {target:.1f} km can't hold a {q_of[d]:.1f} km Q "
                         f"and a long run of {e_min:.1f} km (the E minimum), so the day is easy")
-        of["E"], of["Q"] = sorted(of["E"] + of["Q"], key=WEEKDAYS.index), []
-    q_total = q_km * len(of["Q"])
+        of["E"] = sorted(of["E"] + [d], key=WEEKDAYS.index)
+        if dropped is not None:
+            dropped.append(d)
+    q_total = sum(q_of[d] for d in of["Q"])
     long_km = 0.0
     if of["L"]:
         cap = min(s["long_share_cap"] * target, longest_km + s["long_over_longest_km"],
@@ -61,7 +68,7 @@ def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
                             "the week has no other run")
     out = {d: 0.0 for d in days}
     for d in of["Q"]:
-        out[d] = q_km + q_extra
+        out[d] = q_of[d] + q_extra
     for d in of["L"]:
         out[d] = long_km
     for d in easy:

@@ -10,6 +10,7 @@ from datetime import date
 from pathlib import Path
 
 from .config import EXPORT_DIR, PLAN_JSON, PLAN_MD, PROFILE, PUSH_STATE, RUNS
+from .levels import describe
 from .physiology import hr_zones, load_rules, pace_zones
 from . import push as garmin_push
 from .phases import PhaseError
@@ -39,6 +40,8 @@ def show_profile(p, path):
         if key == "vdot" and src == "derived":
             k, day = p.vdot_from
             src = f"derived (training efforts): best {k} on {day}"
+            if p.layoff:
+                src += f", x{p.layoff['vdot_factor']:g} after {p.layoff['days_off']} days off"
         print(f"  {label:<18}{value:<24}{src}")
 
     print(f"Profile ({path})")
@@ -58,6 +61,9 @@ def show_profile(p, path):
     line("Days", ", ".join(p.days), "days")
     line("Long run day", p.long_run_day, "long_run_day")
     line("Hill days", ", ".join(p.hill_days) or "none", "hill_days")
+    line("Volume level", p.volume_level, "volume_level")
+    line("Quality level", p.quality_level, "quality_level")
+    print(f"\nLevels: {describe(p.volume_level, p.quality_level, p.level_reasons)}")
 
     print(f"\nPace zones at VDOT {p.vdot:.1f} (min/km)")
     for k, s in pace_zones(p.vdot).items():

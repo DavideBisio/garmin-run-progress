@@ -10,7 +10,7 @@ days replace the generated ones and are never changed. Warnings are {rule, detai
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-from . import checks, fix, levels, select, size
+from . import checks, fix, levels, select, size, skeleton
 from .config import MIN_HISTORY_DAYS, WEEKDAYS
 from .history import daily_load, recent_stats
 from .load import projected_daily
@@ -66,7 +66,7 @@ def _targets(prof, cal, rules):
     deloads = align_deloads(len(build), every, starts)
     out = block_curve(prof.km_4w, len(build), **settings(rules), deloads=deloads)
     peak = next((out[i] for i in range(len(out) - 1, -1, -1) if i not in deloads),
-                max(prof.km_4w, rules["volume"]["start_floor_km"]))
+                max(prof.km_4w, rules["volume"]["start_floor"]))
     taper = rules["volume"]["taper"]
     out += [peak * taper[min(k, len(taper) - 1)] for k in range(len(cal) - len(build))]
     return out, deloads
@@ -79,18 +79,26 @@ class _Week:
         self.ctx, self.i, self.pw, self.target, self.deload, self.bw = ctx, i, pw, target, deload, bw
         c = ctx
         self.dates = {d: pw.start + timedelta(days=WEEKDAYS.index(d)) for d in WEEKDAYS}
-        self.q_day = next((d for d, s in c.slots.items() if s == "Q"), None)
         self.l_day = next((d for d, s in c.slots.items() if s == "L"), None)
         self.l_hill = self.l_day in c.prof.hill_days      # build_plan turns it off when it breaks 80/20
-        self.q = None
-        if self.q_day:
-            tid = select.rotation(pw.phase, bw, "Q", c.rules, deload=deload, library=c.lib,
-                                  hill_day=self.q_day in c.prof.hill_days, level=c.level)
-            n_e = sum(s == "E" for s in c.slots.values())
-            budget = target - c.e_min * (n_e + (1 if self.l_day else 0))
-            lighter = c.rules["rotation"]["deload_lighter"] if deload else 0
+        # Q day -> (template id, variant, forced): the first Q day (a hill day first, for the hill
+        # swap) takes the rotation's Q, the others its Q2, each sized to what the week leaves after
+        # the E minimums and the Q before it
+        self.q = {}
+        n_e = sum(s == "E" for s in c.slots.values())
+        budget = target - c.e_min * (n_e + (1 if self.l_day else 0))
+        lighter = c.rules["rotation"]["deload_lighter"] if deload else 0
+        q_days = sorted((d for d, s in c.slots.items() if s == "Q"), key=lambda d: d not in c.prof.hill_days)
+        for k, d in enumerate(q_days):
+            tid = select.rotation(pw.phase, bw, "Q2" if k else "Q", c.rules, deload=deload, library=c.lib,
+                                  hill_day=d in c.prof.hill_days, level=c.level)
+            if tid is None:
+                continue
             v, forced = size.pick_variant(c.lib[tid], budget, target, c.caps, c.prof, c.rules, lighter=lighter)
-            self.q = (tid, v, self._forced(tid, budget) if forced else "")
+            self.q[d] = (tid, v, self._forced(tid, budget) if forced else "")
+            budget -= workout_flat_km(instantiate(c.lib[tid], v, c.prof, c.rules))
+        # a Q day the rotation leaves empty (Q2 in a deload) is an easy one
+        self.slots = {d: "E" if s == "Q" and d not in self.q else s for d, s in c.slots.items()}
 
     def _forced(self, tid, budget):
         c, t = self.ctx, self.ctx.lib[tid]
@@ -126,37 +134,35 @@ class _Week:
         v, _ = size.pick_variant(t, km, self.target, c.caps, c.prof, c.rules)
         return size.fit(t, v, c.prof, c.rules, km=km)
 
-    def _q_extended(self, qw, extra):
-        """qw with the split's leftover on the Q day: a longer warm-up, else a longer first easy main
+    def _q_extended(self, day, qw, extra):
+        """qw with the split's leftover on its Q day: a longer warm-up, else a longer first easy main
         step (the progression run has no warm-up); None when the template has neither."""
         if extra <= 0.05:
             return qw
-        t = self.ctx.lib[self.q[0]]
+        t = self.ctx.lib[self.q[day][0]]
         return (size.fit(t, qw.variant, self.ctx.prof, self.ctx.rules, warmup_km=extra)
                 or size.fit(t, qw.variant, self.ctx.prof, self.ctx.rules, km=qw.km + extra))
 
     def layout(self, adj):
         c, days = self.ctx, {}
-        qw = None
-        if self.q:
-            tid, v, _ = self.q
-            qw = instantiate(c.lib[tid], max(1, v - adj.q_down), c.prof, c.rules)
-        q_km = workout_flat_km(qw) if qw else 0.0
-        km, warns = split_week(self.target, c.slots, self.longest, q_km, c.rules, c.e_pace)
-        dropped = any(w.startswith("Q dropped") for w in warns)
-        for d, slot in c.slots.items():
+        qws = {d: instantiate(c.lib[tid], max(1, v - adj.q_down), c.prof, c.rules) for d, (tid, v, _) in self.q.items()}
+        q_km = {d: workout_flat_km(w) for d, w in qws.items()}
+        dropped = []
+        km, warns = split_week(self.target, self.slots, self.longest, q_km, c.rules, c.e_pace, dropped)
+        for d, slot in self.slots.items():
             k = km[d]
             if slot == "L" and adj.trim_l_km and k:
                 k = max(k - adj.trim_l_km, min(k, c.e_min))
             if k <= 0 or (slot == "F" and adj.drop_f):
                 continue
-            if slot == "Q" and not dropped:
-                w = self._q_extended(qw, k - q_km)
+            if slot == "Q" and d not in dropped:
+                qw = qws[d]
+                w = self._q_extended(d, qw, k - q_km[d])
                 if w is None:
                     w = qw
-                    warns.append(f"Q: {qw.title} has no warm-up or easy step to take the week's {k - q_km:.1f} "
+                    warns.append(f"Q: {qw.title} has no warm-up or easy step to take the week's {k - q_km[d]:.1f} "
                                  "km leftover")
-                days[d] = checks.Day(self.dates[d], "Q", w, forced=self.q[2])
+                days[d] = checks.Day(self.dates[d], "Q", w, forced=self.q[d][2])
             elif slot == "L":
                 days[d] = checks.Day(self.dates[d], "L", self._long(k))
             else:
@@ -189,9 +195,8 @@ def _cap_name(kind, caps):
 def _describe(week, adj, target, actual):
     """What the fixer changed, e.g. 'Q cruise_tempo variant 5 -> 4, L 2.0 km shorter (32.4 -> 30.4 km)'."""
     parts = []
-    if adj.q_down and week.q:
-        tid, v, _ = week.q
-        parts.append(f"Q {tid} variant {v} -> {max(1, v - adj.q_down)}")
+    if adj.q_down:
+        parts += [f"Q {tid} variant {v} -> {max(1, v - adj.q_down)}" for tid, v, _ in week.q.values()]
     if adj.trim_l_km:
         parts.append(f"L {adj.trim_l_km:.1f} km shorter")
     if adj.drop_f:
@@ -257,6 +262,8 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     c.prof, c.lib, c.rules, c.caps, c.deloads = prof, library, rules, rules["caps"], set(deloads)
     c.level = prof.quality_level
     c.slots = place_slots(prof.days, prof.long_run_day, rules)
+    n_q = sum(s == "Q" for s in c.slots.values())
+    rules["checks"]["max_hard"] = n_q + 1                   # the Q days and L (levels.toml q_from_days)
     c.manual = manual_days(prof, library, rules)
     paces = pace_zones(prof.vdot, rules)
     c.e_pace, c.e_mid = paces["E"], pace_range("E", paces, rules).mid
@@ -269,6 +276,12 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     c.prev_km, c.prev_days = None, []
 
     top = [warning("phases", w, "kept the volume ramp and shortened the phases as listed") for w in phase_warns]
+    want = skeleton.q_count(len(c.slots), rules)
+    if n_q < want:
+        long_day = next(d for d, s in c.slots.items() if s == "L")
+        top.append(warning("skeleton", f"{want} Q days don't fit {', '.join(c.slots)} with L on {long_day}: each "
+                                       "Q needs 48 h from L and no two hard days may be back to back",
+                           f"planned {n_q} Q day{'s' if n_q != 1 else ''} a week"))
     if prof.race and prof.race["goal_s"]:
         f = checks.feasibility(prof.vdot, vdot(prof.race["distance_m"], prof.race["goal_s"]), n_full, rules)
         if f:
@@ -312,4 +325,7 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     if weeks:
         out = out[:weeks]
     return {"version": VERSION, "generated": generated or datetime.now().isoformat(timespec="seconds"),
-            "profile_hash": profile_hash(prof, rules), "warnings": top, "weeks": out}
+            "profile_hash": profile_hash(prof, rules),
+            "levels": {"volume": prof.volume_level, "quality": prof.quality_level,
+                       "reasons": {axis: prof.level_reasons.get(axis, "") for axis in ("volume", "quality")}},
+            "warnings": top, "weeks": out}

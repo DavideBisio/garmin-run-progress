@@ -10,7 +10,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from garmin_plan import checks, fix, levels, load, physiology, profile, size, templates  # noqa: E402,F401
 
-RULES = levels.params(levels.load_levels(), "intermediate", "intermediate")   # the golden runner's levels
+# 07's numbers: the novice level (L at most 45 % of the week) with one Q day, so 2 hard sessions
+RULES = levels.params(levels.load_levels(), "novice", "novice")
+RULES["checks"]["max_hard"] = 2
 LIB = templates.load_templates()
 MON = date(2024, 6, 10)
 E_MIN = 4.85          # 30 min at VDOT 40's E pace (6:11/km), under the 5 km minimum
