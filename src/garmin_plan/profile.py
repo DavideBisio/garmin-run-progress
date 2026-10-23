@@ -10,6 +10,7 @@ from .config import DEFAULT_DAYS, DEFAULT_LONG_RUN_DAY, DEFAULTS, MIN_HISTORY_DA
 from .physiology import load_rules
 from .templates import LEVELS
 
+OVERRIDE_ACTIONS = ("skip", "reduce", "lock")
 RACE_DISTANCES = {"5k": 5000, "10k": 10000, "hm": 21097.5, "half": 21097.5, "m": 42195, "marathon": 42195}
 NUMBERS = ("hr_max", "hr_rest", "vdot", "km_4w", "km_12w", "runs_per_week", "longest_8w")
 FULL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -44,6 +45,8 @@ class Profile:
     unit: str | None = None              # "km" or "min"; None: the volume level's (levels.unit)
     vdot_from: tuple | None = None       # ("10k", "2024-05-01") when derived
     progress: dict | None = None         # what the last plan carries over (progress.carry; time_trials: all run)
+    vdot_estimate: dict | None = None    # the derived VDOT before any layoff factor, for progress.vdot
+    overrides: list = field(default_factory=list)   # [[override]]: {"from", "to", "action"} (roadmap 09)
     sources: dict = field(default_factory=dict)   # field -> "set" | "derived" | "default"
     warnings: list = field(default_factory=list)
 
@@ -110,6 +113,72 @@ def parse_race(raw):
         raise ProfileError(f"race.distance must be 5k, 10k, hm, m or km as a number, got {dist!r}")
     goal = raw.get("goal")
     return {"date": raw["date"], "distance_m": dist_m, "goal_s": parse_goal(goal) if goal is not None else None}
+
+
+def parse_overrides(raw):
+    """[[override]] tables -> [{"from": date, "to": date, "action": "skip" | "reduce" | "lock"}]; to
+    defaults to from. Anything else raises ProfileError naming the table (1-based)."""
+    if not isinstance(raw, list) or not all(isinstance(o, dict) for o in raw):
+        raise ProfileError('override must be [[override]] tables of from = YYYY-MM-DD, to = YYYY-MM-DD and '
+                           'action = "skip", "reduce" or "lock"')
+    out = []
+    for i, o in enumerate(raw, 1):
+        frm, to, action = o.get("from"), o.get("to", o.get("from")), o.get("action")
+        if type(frm) is not date:
+            raise ProfileError(f"[[override]] {i}: needs from = YYYY-MM-DD (a TOML date, no quotes), got {frm!r}")
+        if type(to) is not date:
+            raise ProfileError(f"[[override]] {i}: to = YYYY-MM-DD (a TOML date, no quotes), got {to!r}")
+        if to < frm:
+            raise ProfileError(f"[[override]] {i}: to {to} is before from {frm}")
+        act = action.strip().lower() if isinstance(action, str) else None
+        if act not in OVERRIDE_ACTIONS:
+            raise ProfileError(f"[[override]] {i}: action must be skip, reduce or lock, got {action!r}")
+        out.append({"from": frm, "to": to, "action": act})
+    return out
+
+
+def race_vdot(runs, since, today):
+    """(VDOT, label, date) of the best race (runs.json event "race") dated after since and up to
+    today: the whole run's distance and moving time. None without one."""
+    best = None
+    for _, r in history.dated(runs):
+        day, dist, secs = r["date"][:10], r.get("dist") or 0, r.get("moving") or r.get("dur") or 0
+        if r.get("event") == "race" and since < day <= today and dist >= 1500 and secs > 0:
+            v = history.vdot(dist, secs)
+            if best is None or v > best[0]:
+                best = (v, f"race {dist / 1000:g} km", day)
+    return best
+
+
+def _largest_gap(runs, since, today):
+    """(days without a run, the day running resumed) of the longest break that ended after since
+    (and by today), else None."""
+    days = sorted({r["date"][:10] for _, r in history.dated(runs) if r["date"][:10] <= today})
+    gaps = [((date.fromisoformat(b) - date.fromisoformat(a)).days - 1, b) for a, b in zip(days, days[1:]) if b > since]
+    return max(gaps, default=None)
+
+
+def reestimate_vdot(est, runs, trials, today, data, rules):
+    """The carried VDOT estimate ({value, date, from, from_date}) moved on (roadmap 09): a time trial
+    run since the estimate's source replaces it at once (the planned test); otherwise, every
+    [adapt] vdot_every_weeks weeks, or as soon as a break has ended since the last estimate, a break
+    lowers it by the layoff table and a better race raises it. Training efforts never change it."""
+    t = today.isoformat()
+    if trials and trials[-1]["date"] > est["from_date"]:
+        return {"value": trials[-1]["vdot"], "date": t, "from": "2 km time trial", "from_date": trials[-1]["date"]}
+    gap = _largest_gap(runs, est["date"], t)
+    factor = levels.layoff(gap[0], data)[0] if gap else 1.0
+    due = (today - date.fromisoformat(est["date"])).days >= 7 * rules["adapt"]["vdot_every_weeks"]
+    if not due and factor == 1:
+        return est
+    out = {**est, "date": t}
+    if factor < 1:
+        out.update(value=est["value"] * factor, **{"from": f"{est['from']}, x{factor:g} after {gap[0]} days off"})
+    since = gap[1] if factor < 1 else (date.fromisoformat(t) - timedelta(days=84)).isoformat()
+    race = race_vdot(runs, since, t)
+    if race and race[0] > out["value"]:
+        out.update(value=race[0], **{"from": race[1], "from_date": race[2]})
+    return out
 
 
 def _week_lines(text):
@@ -222,7 +291,8 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
     file that can't be used raise ProfileError. After a break the derived volume and VDOT drop by
     the layoff table, and the levels are detected from what is left (roadmap 08). plan: the last
     plan.json, whose progress the new plan carries on (progress.carry) and whose time trials, once
-    run, give the derived VDOT: the latest one.
+    run, give the derived VDOT: the latest one. Once a plan carries a VDOT estimate (progress.vdot)
+    it is the derived VDOT, moved on by reestimate_vdot: training efforts no longer change it.
     """
     raw = read_toml(path)
     today = today or date.today()
@@ -232,7 +302,12 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
                                  carried["time_trials"] if carried else ())
     if carried:
         carried["time_trials"] = trials
-    if trials:
+    data = levels.load_levels()
+    est = carried.get("vdot") if carried else None
+    if est:                                   # the last plan's estimate, moved on (roadmap 09)
+        est = reestimate_vdot(est, runs, trials, today, data, load_rules())
+        stats["vdot"], stats["vdot_from"] = est["value"], (est["from"], est["from_date"])
+    elif trials:
         stats["vdot"], stats["vdot_from"] = trials[-1]["vdot"], ("2 km time trial", trials[-1]["date"])
     derived = {"hr_max": history.hr_max(runs), "hr_rest": history.resting_hr(rhr),
                **{k: stats[k] for k in NUMBERS[2:]}}
@@ -251,7 +326,11 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
             warnings.append(f"{key}: {why}, using the default {DEFAULTS[key]} (set it in profile.toml)")
     if vals["hr_max"] <= vals["hr_rest"]:
         raise ProfileError(f"hr_max ({vals['hr_max']}) must be above hr_rest ({vals['hr_rest']})")
-    data = levels.load_levels()
+    if sources["vdot"] == "derived":          # before the layoff factor: progress.vdot carries it
+        k, day = stats["vdot_from"]
+        est = est or {"value": vals["vdot"], "date": today.isoformat(), "from": k, "from_date": day}
+    else:
+        est = None
     lay = _layoff(stats, vals, sources, data)
     vol, qual, reasons = _levels(raw, stats, vals, sources, lay, runs, today, data, plan, carried)
 
@@ -283,6 +362,7 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
         if unit not in levels.UNITS:
             raise ProfileError(f"unit must be km or min, got {raw['unit']!r}")
         sources["unit"] = "set"
+    overrides = parse_overrides(raw["override"]) if "override" in raw else []
     week, sources["week"] = {}, "default"
     if "week" in raw:
         week, sources["week"] = parse_week(raw["week"], Path(path).read_text(encoding="utf-8")), "set"
@@ -290,4 +370,5 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
     return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills, week=week,
                    volume_level=vol, quality_level=qual, level_reasons=reasons, layoff=lay, unit=unit,
                    vdot_from=stats["vdot_from"] if sources["vdot"] == "derived" else None, progress=carried,
+                   vdot_estimate=est, overrides=overrides,
                    sources=sources, warnings=warnings)

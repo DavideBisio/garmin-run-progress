@@ -43,3 +43,4 @@
 | Workout templates, markdown renderer, manual `[week]` schedule | [features/plan-workouts.md](features/plan-workouts.md) |
 | Plan generator: phases, volume, session choice and sizing, checks, fixes, warnings | [features/plan-generator.md](features/plan-generator.md) |
 | Push to Garmin Connect: upload, schedule, re-push, dry-run | [features/plan-push.md](features/plan-push.md) |
+| Plan adaptation: matching runs, missed sessions, fatigue, overrides, VDOT re-estimates, "What changed" | [features/plan-adaptation.md](features/plan-adaptation.md) |

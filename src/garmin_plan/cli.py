@@ -39,7 +39,8 @@ def show_profile(p, path):
         src = p.sources[key]
         if key == "vdot" and src == "derived":
             k, day = p.vdot_from
-            src = f"derived: {k} on {day}" if "trial" in k else f"derived (training efforts): best {k} on {day}"
+            known = any(w in k for w in ("trial", "race", "days off"))
+            src = f"derived: {k} on {day}" if known else f"derived (training efforts): best {k} on {day}"
             if p.layoff:
                 src += f", x{p.layoff['vdot_factor']:g} after {p.layoff['days_off']} days off"
         print(f"  {label:<18}{value:<24}{src}")
@@ -75,7 +76,7 @@ def show_profile(p, path):
 
 
 def resolve_profile(args):
-    """(export dir, Profile, runs, the last plan.json or None) for --export / --today; profile errors
+    """(export dir, Profile, runs, the last plan.json or None, rhr) for --export / --today; profile errors
     exit with 'error: ...'."""
     out = Path(args.export)
     runs, rhr = load_runs(out / RUNS)
@@ -92,7 +93,7 @@ def resolve_profile(args):
         sys.exit(f"error: {e}")
     for w in p.warnings:
         print(f"warning: {w}", file=sys.stderr)
-    return out, p, runs, prev
+    return out, p, runs, prev, rhr
 
 
 def cmd_profile(args):
@@ -101,10 +102,11 @@ def cmd_profile(args):
 
 
 def cmd_plan(args):
-    out, p, runs, prev = resolve_profile(args)
+    out, p, runs, prev, rhr = resolve_profile(args)
     try:
         rules = load_rules()
-        plan = replan(prev, p, runs, load_templates(), rules, args.today or date.today(), args.weeks)
+        plan = replan(prev, p, runs, load_templates(), rules, args.today or date.today(), args.weeks,
+                      wellness={"rhr": rhr})
     except (ProfileError, TemplateError, SkeletonError, PhaseError) as e:
         sys.exit(f"error: {e}")
     write_plan(plan, out / PLAN_JSON)

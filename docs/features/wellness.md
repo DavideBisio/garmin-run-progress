@@ -1,6 +1,6 @@
 # HRV status and training readiness
 
-Daily HRV status and training readiness from Garmin's wellness data. The planner's adaptation loop (roadmap 09) reads them as fatigue signals, next to resting heart rate. Both are optional: older watches don't record them, and nights without the watch have no value. A missing value never counts as fatigue.
+Daily HRV status and training readiness from Garmin's wellness data. The planner's adaptation loop ([plan adaptation](plan-adaptation.md#rules)) reads them as fatigue signals, next to resting heart rate. Both are optional: older watches don't record them, and nights without the watch have no value. A missing value never counts as fatigue.
 
 ## Grabber: `update_wellness`
 

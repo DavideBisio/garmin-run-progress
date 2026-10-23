@@ -132,6 +132,12 @@ STATUS_NAMES = {"done": "done", "partial": "partial", "missed": "missed", "moved
                 "swapped": "swapped terrain"}
 
 
+def fmt_change(c):
+    """'- Tue 2024-06-11 Q → E: resting HR +7 bpm': one line of the re-plan's change log."""
+    day = DAY_NAMES[date.fromisoformat(c["date"]).weekday()]
+    return f"- {day} {c['date']} {esc(c['from'])} → {esc(c['to'])}: {esc(c['reason'])}"
+
+
 def _done_line(d, unit="km"):
     """'- Tue 2024-06-11 · Cruise Tempo - 8.0 km: done': a day the runs already settled (its status)."""
     w = workout_from_dict(d["workout"])
@@ -144,7 +150,8 @@ def render_plan(plan):
     """plan.md from a plan dict (plan_io's format): the plan's warnings, then a section per week
     (its phase, its warnings), a workout per day. Without warnings or phases (the manual schedule)
     nothing of them shows. The weeks a re-plan keeps (before progress.plan_start) show each day the
-    runs settled as one line with its status; the warnings list only the new weeks'."""
+    runs settled as one line with its status; the warnings list only the new weeks'. A re-plan's
+    changes (adapt.py) come first, under "What changed"; a day with no session left reads 'skipped'."""
     out = ["# Training plan", "",
            f"Generated {plan['generated']} from profile `{plan['profile_hash'][:12]}`. "
            "Durations are estimates at the middle of each pace range; recovery jogs at the slow end of "
@@ -156,6 +163,8 @@ def render_plan(plan):
             out += ["This advanced plan is a starting point to edit: adjust the sessions to how you train, and "
                     "put the ones to keep in profile.toml's [week] table, which every re-plan keeps.", ""]
     own = ((plan.get("progress") or {}).get("plan_start")) or ""
+    if plan.get("changes"):
+        out += ["## What changed", ""] + [fmt_change(c) for c in plan["changes"]] + [""]
     flagged = [wk for wk in plan["weeks"] if wk.get("warnings") and wk["start"] >= own]
     if plan.get("warnings") or flagged:
         out += ["## Warnings", ""]
@@ -169,10 +178,13 @@ def render_plan(plan):
             out += [fmt_warning(w) for w in wk["warnings"]] + [""]
         if not wk["days"]:
             out += ["No sessions.", ""]
-        done = [d for d in wk["days"] if d.get("status")]
+        done = [d for d in wk["days"] if d.get("status") and d.get("workout")]
         if done:
             out += [_done_line(d, wk.get("unit", "km")) for d in done] + [""]
         for d in wk["days"]:
+            if not d.get("workout"):
+                out += [f"- {DAY_NAMES[date.fromisoformat(d['date']).weekday()]} {d['date']} · skipped", ""]
+                continue
             if d.get("status"):
                 continue
             w = workout_from_dict(d["workout"])

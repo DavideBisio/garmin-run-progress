@@ -446,6 +446,7 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
                        "reasons": {axis: prof.level_reasons.get(axis, "") for axis in ("volume", "quality")}},
             "progress": {"plan_start": start.isoformat(), "block_start": block.isoformat(),
                          "cycle_start": _cycle_start(prof, start).isoformat(),
+                         "vdot": prof.vdot_estimate,
                          "run_walk_stage": min(reached, len(library[c.rw]["ladder"])) if c.rw else None,
                          "time_trials": [{**t, "vdot": round(t["vdot"], 2)}
                                          for t in (prof.progress or {}).get("time_trials", [])],
