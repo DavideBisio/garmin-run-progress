@@ -14,7 +14,8 @@ def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
     the minimum; E slots the rest can't fill to the minimum are dropped (0 km, the last first).
     When the easy runs are still longer than L, they stay so (warning). A remainder too small for
     any easy run is taken from L when L stays at the E minimum, else it goes to Q (a longer warm-up
-    and cool-down), else to one short easy run (warning). The parts add up to target, none negative.
+    and cool-down), else to one short easy run (warning), and only in a week with L as its one run
+    does L take it past its cap (warning). The parts add up to target, none negative.
     """
     s = rules["split"]
     e_min = min(s["easy_min_km"], s["easy_min_min"] * 60 / e_pace_s_per_km)
@@ -45,7 +46,8 @@ def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
     if easy:
         easy_km = rest / len(easy)
         if of["L"] and easy_km > long_km:                  # L at its cap and no F left to share
-            warnings.append(f"E: {easy_km:.1f} km runs are longer than L ({long_km:.1f} km, at its cap)")
+            limit = "its cap" if cap >= e_min else "the E minimum"
+            warnings.append(f"E: {easy_km:.1f} km runs are longer than L ({long_km:.1f} km, at {limit})")
     elif rest > 1e-9:                                      # too little for an easy run of the minimum
         if of["Q"]:
             q_extra = rest / len(of["Q"])
@@ -63,4 +65,4 @@ def split_week(target, slots, longest_km, q_km, rules, e_pace_s_per_km):
         out[d] = long_km
     for d in easy:
         out[d] = easy_km
-    return {d: round(km, 1) for d, km in out.items()}, warnings
+    return {d: round(float(km), 1) for d, km in out.items()}, warnings

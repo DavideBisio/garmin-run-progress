@@ -348,7 +348,10 @@ class Split(unittest.TestCase):
         # E over L, but F would put both below 5 km: F stays off and L stays at the 5 km E minimum
         km, warnings = split.split_week(17, self.QTEL, 0, 6, RULES, 360)
         self.assertEqual(km, {"tue": 6.0, "wed": 0.0, "thu": 6.0, "sun": 5.0})
-        self.assertIn("longer than L", warnings[0])
+        self.assertIn("longer than L (5.0 km, at the E minimum)", warnings[0])
+        # whole-number inputs still give km as floats
+        km, _ = split.split_week(20, self.QTEL, 3, 5, RULES, 360)
+        self.assertTrue(all(type(v) is float for v in km.values()), km)
 
     def test_easy_minimum(self):
         two_e = {"tue": "E", "wed": "Q", "thu": "E", "sun": "L"}

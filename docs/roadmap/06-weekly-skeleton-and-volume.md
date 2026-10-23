@@ -20,9 +20,9 @@
   - Q comes from the template size (sizing is in 07; until then, the smallest variant);
   - E gets the remainder, each E run between 5 km (or 30 min) and the length of L;
   - F switches on when E slots would run over L, and off when they would fall below the minimum.
-  - **The caps win over E ≤ L.** L never goes over its caps, except up to the E minimum: a long run shorter than that isn't worth putting on. Excess km go to F if it's available. Otherwise the E runs end up longer than L, and the split returns a warning.
+  - **The caps win over E ≤ L.** L never goes over its caps, except up to the E minimum (a long run shorter than that isn't worth putting on) and in a week with no other run. Excess km go to F if it's available. Otherwise the E runs end up longer than L, and the split returns a warning.
   - **Q is dropped when the week can't hold it.** If the week is too small for Q plus an L at the E minimum, Q is dropped with a warning and its day becomes an easy day (rest if nothing is left for it). No part is ever negative.
-  - **Leftover km.** A remainder too small for any easy run is first taken from L, if L can give it and still stay at the E minimum. Otherwise it goes to Q as a longer warm-up and cool-down. With no Q, it becomes one short easy run, with a warning. It never goes to L, so a deload week doesn't get the block's longest L.
+  - **Leftover km.** A remainder too small for any easy run is first taken from L, if L can give it and still stay at the E minimum. Otherwise it goes to Q as a longer warm-up and cool-down. With no Q, it becomes one short easy run, with a warning. It never goes to L, so a deload week doesn't get the block's longest L. The one exception is a week whose only run is L: L takes the whole target, past its cap, with a warning.
 - The result is the week and slot structure of `plan.json`, with a km target for each slot.
 
 ## Implementation
