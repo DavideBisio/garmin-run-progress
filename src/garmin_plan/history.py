@@ -49,13 +49,13 @@ def recent_stats(runs, today):
     56 days; vdot: the best 5 km / 10 km / half effort of the last 12 weeks (training efforts).
     consistency: share of the last 12 full weeks with 2 or more runs; days_off: days from the last
     run to today; km_before / runs_before: weekly km and runs over the 4 weeks up to the last run
-    (the volume before a break).
+    (the volume before a break); weeks: {km, runs} of the last 4 full weeks, oldest first.
     """
     now = day_index(today.isoformat() if isinstance(today, date) else today)
     rs = [(d, r) for d, r in dated(runs) if d <= now]
     out = {"history_days": now - rs[0][0] if rs else 0, "km_4w": None, "km_12w": None,
            "runs_per_week": None, "longest_8w": None, "vdot": None, "vdot_from": None,
-           "consistency": None, "days_off": None, "km_before": None, "runs_before": None}
+           "consistency": None, "days_off": None, "km_before": None, "runs_before": None, "weeks": []}
     if out["history_days"] < MIN_HISTORY_DAYS:
         return out
     weeks, cur = weekly_km([r for _, r in rs]), week_of(now)
@@ -67,6 +67,7 @@ def recent_stats(runs, today):
     out["km_12w"] = sum(w["km"] for w in span(12)) / 12
     out["runs_per_week"] = sum(w["runs"] for w in span(4)) / 4
     out["consistency"] = sum(w["runs"] >= 2 for w in span(12)) / 12
+    out["weeks"] = [{"km": w["km"], "runs": w["runs"]} for w in span(4)]
     last = rs[-1][0]
     out["days_off"] = now - last
     before = [r for d, r in rs if last - 28 < d <= last]

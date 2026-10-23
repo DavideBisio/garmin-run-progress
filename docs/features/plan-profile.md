@@ -1,6 +1,6 @@
 # Planner profile, paces and HR zones
 
-The planner's starting point: what you are able to run today, and when you can run. `python -m garmin_plan profile` (or `make plan-profile`) reads `garmin_export/profile.toml` and `garmin_export/runs.json` and prints every value with where it came from. Modules: `garmin_plan.profile`, `history`, `physiology`, `metrics`.
+The planner's starting point: what you are able to run today, and when you can run. `python -m garmin_plan profile` (or `make plan-profile`) reads `garmin_export/profile.toml` and `garmin_export/runs.json` and prints every value with where it came from, then your [runner levels](#runner-levels) and why. Modules: `garmin_plan.profile`, `history`, `levels`, `physiology`, `metrics`.
 
 ## profile.toml
 
@@ -12,6 +12,9 @@ vdot = 52.0               # from a race or time trial; wins over the derived val
 days = ["tue", "thu", "sat", "sun"]   # available days (mon … sun, or full names)
 long_run_day = "sun"      # must be one of days
 hill_days = ["sat"]       # days with hill access
+volume_level = "novice"   # beginner, novice, intermediate, advanced: wins over detection
+quality_level = "intermediate"
+unit = "min"              # km or min: the plan's volume unit (default: km, min for beginners)
 
 [race]
 date = 2027-04-11         # a TOML date, no quotes
@@ -40,12 +43,50 @@ For each field: the value in `profile.toml` (`set`), else derived from `runs.jso
 | `runs_per_week` | Runs in the last 4 full weeks / 4 | 0 |
 | `longest_8w` | Longest run in the last 56 days | 0 |
 | `days`, `long_run_day`, `hill_days` | – | tue, thu, sat, sun; long run sun (else the last available day); no hill days |
+| `volume_level`, `quality_level` | [Detected](#runner-levels) from the numbers above; with a previous `plan.json`, moved on from its levels | beginner (under 4 weeks of runs) |
+| `unit` | – | The volume level's: `min` for beginners, else `km` |
 
 Runs without a GPS stream (treadmill, indoor) count in the volume by their summary distance, as on the page. Weeks follow the date part of `date`, so a run at 23:59 on Sunday stays in that week.
 
 With less than 4 weeks between the first run and today, the volume fields and VDOT fall back to their defaults with a warning, rather than extrapolating from a few runs.
 
 **VDOT from training is a floor.** Efforts come from any run, so without races the value understates fitness. The output marks it `derived (training efforts)` and names the run it came from; a race or time-trial `vdot` in the profile wins.
+
+**The time trial.** A beginner's plan has a 2 km time trial in week 3 ([plan generator](plan-generator.md#runner-levels)). When `plan.json` plans one and `runs.json` has a GPS run on that date, its best 2 km (`metrics.best_effort`) gives the derived VDOT, shown as `derived: 2 km time trial on <date>`. 2 km is not one of the page's best-effort distances, so this is separate code (`history.time_trial_vdot`).
+
+## Runner levels
+
+A runner has two levels (roadmap 08), beginner, novice, intermediate or advanced, after Daniels' White to Gold plans: a **volume** level (how much you run: the volume curve, the long run caps, the run count) and a **quality** level (which sessions: the Q count, the templates' `min_level`, the time trial). A big aerobic base without speed work is intermediate by volume and novice by quality. `volume_level` or `quality_level` in `profile.toml` wins; the numbers each level sets are in `src/garmin_plan/data/levels.toml`.
+
+**Detection** (`levels.detect`, `[detect]`): the highest level whose every minimum holds.
+
+| Level | 4-week km | 12-week km | Runs/week | Weeks of 12 with 2+ runs | Longest, 8 wk | History | VDOT | Q sessions, 8 wk |
+|---|---|---|---|---|---|---|---|---|
+| novice | 15 | 7.5 | 2 | 4 | 5 km | 4 weeks | 30 | 0 |
+| intermediate | 30 | 15 | 3 | 8 | 10 km | 8 weeks | 38 | 2 |
+| advanced | 60 | 30 | 5 | 10 | 16 km | 16 weeks | 50 | 8 |
+
+The first five columns set the volume level, the last two the quality level. A Q session is a run with 10 minutes or more in Z4 and above: from the HR stream when it has one, else the whole run when its average HR is in Z4 (`history.q_sessions`). With no VDOT (none set, no 5 km, 10 km or half effort, no time trial) the quality level is beginner; under 4 weeks of runs, so is the volume level. The output gives the reasons:
+
+```text
+Levels: volume: novice (18 km/wk over 4 wk); quality: intermediate (VDOT 39, 7 Q sessions in 8 wk)
+```
+
+and, when a level is held back, what by: `volume: novice (35 km/wk over 4 wk; not intermediate: 2 runs/wk (needs 3))`.
+
+**After a break** (`levels.layoff`, `[layoff]`): with more than 5 days since the last run, the derived 4-week volume restarts from the weekly km of the 4 weeks before the break times the volume factor, and the derived VDOT drops by the VDOT factor; the levels are detected from what is left, so the plan restarts at the matching level.
+
+| Days off | VDOT factor | Volume factor |
+|---|---|---|
+| up to 5 | 1 | 1 |
+| 6–28 | 1 down to 0.935 | 0.5 |
+| 29–56 | 0.935 down to 0.86 | 0.33 |
+| 57–72 | 0.86 down to 0.80 | 0.33 |
+| more | 0.80 | 0.33 |
+
+The factors follow Daniels' guidance on returning from a break as the roadmap summarises it; they are still to be checked against the book.
+
+**Promotion** (`levels.promote`): when `plan.json` already has levels, the new plan starts from them rather than from detection. A level moves up only at a block's start (the plan's first week, the week after a deload, or past the plan's end), one level at a time: volume when each of the last 4 weeks holds the next level's km plus 10 % (`margin`, the hysteresis that stops a runner at a boundary flapping between levels) and its runs a week; quality when detection finds the next level and VDOT is 1 point over its minimum. Mid-block the reason says `novice until the next block, then intermediate (…)`. Levels never drop, except after a break, when they drop at once to what detection finds. The roadmap's third condition, 75 % of the planned Q sessions done, takes a compliance share that the adaptation loop (09) will count; until then it is skipped with a note.
 
 ## Pace zones (Daniels)
 

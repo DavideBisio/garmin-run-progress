@@ -114,6 +114,16 @@ history_weeks = { novice = 4, intermediate = 8, advanced = 16 }
 # no VDOT at all, the quality level is beginner.
 vdot = { novice = 30, intermediate = 38, advanced = 50 }
 q_8w = { novice = 0, intermediate = 2, advanced = 8 }
+# Promotion (levels.promote), at a block's start only, one level at a time (roadmap 08): the next
+# level's volume (its km plus `margin`, the hysteresis that keeps a runner at the boundary from
+# flapping) and runs a week in each of the last promote_weeks weeks; for quality, the next level by
+# detection with a VDOT vdot_margin points over its minimum; and at least `compliance` of the
+# planned Q sessions done, once the adaptation loop (roadmap 09) counts them. A level only drops
+# after a break (the layoff table).
+margin = 0.1
+promote_weeks = 4
+vdot_margin = 1
+compliance = 0.75
 
 [layoff]
 # Detraining after a break (levels.layoff): rows of [days off, VDOT factor, volume factor]. Up to

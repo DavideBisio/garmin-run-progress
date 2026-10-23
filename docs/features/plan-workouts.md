@@ -12,14 +12,20 @@ The planner's sessions come from a template library, `src/garmin_plan/data/worko
 | `cruise_tempo` | T | novice | 2, 3, 4 × 1200 m, 2 × 3000 m, 1 × 5000 m; 60 s jog between reps |
 | `vo2_intervals` | I | intermediate | 5 × 600 m, 6 × 800 m, 5 and 6 × 1000 m |
 | `easy` | E | beginner | 4, 5, 6, 7, 8, 10 km |
-| `strides` | E | novice | 3, 4, 5, 6 km easy, then 4, 6, 6, 8 × 100 m strides at R, 100 m jog; 1 km cool-down |
-| `progression` | M | novice | E then M: 3 + 2, 3.5 + 3.5, 4 + 5 km |
+| `strides` | E | beginner | 3, 4, 5, 6 km easy, then 4, 6, 6, 8 × 100 m strides at R, 100 m jog; 1 km cool-down |
+| `progression` | M | intermediate | E then M: 3 + 2, 3.5 + 3.5, 4 + 5 km |
 | `steady_long` | L | novice | 10, 12, 14, 16, 18 km |
 | `progression_long` | L | intermediate | E, M, E: 8 + 3 + 2, 10.5 + 3.5 + 3.5, 12 + 5 + 3 km |
 | `hm_long` | L | intermediate | 16, 18, 21 km; 21 km with 3 × 2 km at M |
 | `hill_repeats` | hill | intermediate | 5 × 30 s, 6 and 8 × 45 s, 10 × 60 s uphill, lap-button recovery |
 | `hilly_long` | hill | intermediate | 40, 60, 80 min rolling terrain plus 4–6 downhill reps |
 | `trail_long` | trail | intermediate | 80, 100, 120 min on trail, Z3 cap |
+| `run_walk` | E | beginner | 5 min brisk walk, then 8 × (2 + 1 walk), 6 × (3 + 1), 5 × (4 + 1), 4 × (6 + 1), 3 × (8 + 1), 2 × (12 + 1) min run/walk, then 30 min continuous; Z2 cap |
+| `easy_time` | E | beginner | 20, 30, 40, 50 min easy, Z2 cap |
+| `long_time` | L | beginner | 30, 45, 60 min easy, Z2 cap |
+| `strides_feel` | E | beginner | 10, 15, 20 min easy, then 4, 6, 6 × 20 s strides by feel, 1 min walk back; 5 min cool-down |
+| `hills_effort` | hill | beginner | 10 min easy, 4 and 6 × 45 s, 6 × 60 s steady uphill under the Z2 cap, walk down (lap button); 5 min cool-down |
+| `time_trial` | tt | beginner | 10 min warm-up, 2 km all-out (or 20 min), 10 min cool-down |
 
 **Ids are stable.** They go into `plan.json`, and into `push_state.json` and the description of workouts pushed to Garmin ([plan push](plan-push.md)); the pushed workouts themselves are named `[plan] <title> <date>`. Renaming an id breaks that link for workouts already on the calendar. Add a new template instead. Variants are 1-based everywhere.
 
@@ -29,7 +35,7 @@ The planner's sessions come from a template library, `src/garmin_plan/data/worko
 [[workout]]
 id = "cruise_tempo"            # lower case, digits, _
 title = "Cruise Tempo"
-kind = "T"                     # E, L, R, T, I, M, hill, trail
+kind = "T"                     # E, L, R, T, I, M, hill, trail, tt (time trial)
 min_level = "novice"           # beginner, novice, intermediate, advanced
 warmup = { pace = "E", dist = 2000 }
 cooldown = { pace = "E", dist = 1000 }
@@ -53,6 +59,8 @@ recovery = { time = 60 }
 - **Overrides:** `instantiate(..., overrides={"d": 7300})` replaces a ladder value for one workout, and `{"warmup": 3500}` or `{"cooldown": …}` the warm-up or cool-down step's distance (m) or time (s); 0 leaves the step out. The generator sizes easy and long runs to the split's km this way, and puts the split's leftover on the Q day into a longer warm-up.
 
 Hill and trail sessions use HR or open targets and end on time or the lap button, because terrain sets the pace. A trail run's climbs and descents are one timed step under an HR cap, with the guidance in the comment.
+
+The beginner templates (roadmap 08) have no pace target at all: time ends, a `Z2 cap` HR target (walk steps too, so they count as easy) and an effort text with an RPE, which the pace column shows. The time trial's effort is open: no HR target.
 
 `load_templates` rejects, with a `TemplateError` naming the template and step: unknown keys, zones, kinds or levels, a ladder missing a variable, a ladder value used as a repeat count that is not a whole number (`n = 2.5`, also `n = 3.0`), a step without exactly one end, a time-ended step without an estimate, a lap step without `est_time` and `est_dist`, and a duplicate id.
 

@@ -560,5 +560,129 @@ class BeginnerPlans(unittest.TestCase):
             self.assertEqual(plan["version"], 1)
 
 
+
+def weeks_at(*kms, runs=4):
+    """history.recent_stats' "weeks": the last full weeks, oldest first."""
+    return [{"km": float(k), "runs": runs} for k in kms]
+
+
+def promote_stats(*kms, runs=4, **kw):
+    s = stats(km_4w=sum(kms[-4:]) / 4, km_12w=sum(kms[-4:]) / 4, runs_per_week=runs, longest_8w=15,
+              consistency=1.0, vdot=40.0, q_8w=4, weeks=weeks_at(*kms, runs=runs))
+    s.update(kw)
+    return s
+
+
+NOVICE = {"volume": "novice", "quality": "novice"}
+
+
+class Promotion(unittest.TestCase):
+    def test_only_at_a_block_boundary(self):
+        s = promote_stats(35, 35, 36, 34)          # 4 weeks over intermediate's 30 km + 10 %, 4 runs
+        got, notes = levels.promote(NOVICE, s, LEVELS, block_start=False)
+        self.assertEqual(got, NOVICE)
+        self.assertTrue(any(n.startswith("volume: novice until the next block") for n in notes), notes)
+        got, notes = levels.promote(NOVICE, s, LEVELS, block_start=True)
+        self.assertEqual(got, {"volume": "intermediate", "quality": "intermediate"})
+        self.assertTrue(any(n.startswith("volume: novice -> intermediate") for n in notes), notes)
+
+    def test_four_weeks_needed(self):
+        got, _ = levels.promote(NOVICE, promote_stats(35, 35, 28, 36), LEVELS, block_start=True)
+        self.assertEqual(got["volume"], "novice")
+        got, _ = levels.promote(NOVICE, promote_stats(35, 35, 35, 35, runs=2), LEVELS, block_start=True)
+        self.assertEqual(got["volume"], "novice")                         # the frequency too
+
+    def test_hysteresis(self):
+        # detection says intermediate from 30 km a week; promotion needs 10 % more, and a level never
+        # drops without a break: re-planned every week across the boundary, the level doesn't flap
+        levels_seen, cur = [], dict(NOVICE)
+        kms = [29, 31, 32, 29, 31, 32, 31, 30, 29, 31, 32, 31]
+        for i in range(4, len(kms) + 1):
+            cur, _ = levels.promote(cur, promote_stats(*kms[:i], q_8w=0), LEVELS, block_start=True)
+            levels_seen.append(cur["volume"])
+        self.assertEqual(set(levels_seen), {"novice"})
+        cur = {"volume": "intermediate", "quality": "intermediate"}
+        for i in range(4, len(kms) + 1):
+            cur, _ = levels.promote(cur, promote_stats(*[k - 8 for k in kms[:i]]), LEVELS, block_start=True)
+            self.assertEqual(cur["volume"], "intermediate")
+
+    def test_one_level_a_block(self):
+        got, _ = levels.promote({"volume": "beginner", "quality": "beginner"}, promote_stats(70, 70, 70, 70, runs=6),
+                                LEVELS, block_start=True)
+        self.assertEqual(got, {"volume": "novice", "quality": "novice"})
+
+    def test_demotion_after_a_layoff(self):
+        cur = {"volume": "intermediate", "quality": "intermediate"}
+        lay = {"days_off": 43, "km_before": 45.0, "volume_factor": 0.33}
+        s = promote_stats(0, 0, 0, 0, km_4w=45 * 0.33, km_12w=45 * 0.33, runs_per_week=5, consistency=0.5,
+                          vdot=38.5, q_8w=1, layoff=lay)
+        got, notes = levels.promote(cur, s, LEVELS, block_start=False)        # a restart: right away
+        self.assertEqual(got, {"volume": "beginner", "quality": "novice"})
+        self.assertTrue(any("43 days off" in n for n in notes), notes)
+        # without a break, the same low weeks keep the level
+        got, _ = levels.promote(cur, promote_stats(10, 10, 10, 10), LEVELS, block_start=True)
+        self.assertEqual(got, cur)
+
+    def test_compliance(self):
+        s = promote_stats(35, 35, 36, 34)
+        got, notes = levels.promote(NOVICE, s, LEVELS, block_start=True, compliance=0.5)
+        self.assertEqual(got, NOVICE)
+        self.assertTrue(any("50 % of the planned Q" in n for n in notes), notes)
+        got, _ = levels.promote(NOVICE, s, LEVELS, block_start=True, compliance=0.8)
+        self.assertEqual(got["volume"], "intermediate")
+        _, notes = levels.promote(NOVICE, s, LEVELS, block_start=True)
+        self.assertTrue(any("not checked" in n for n in notes), notes)
+
+    def test_block_start(self):
+        plan = build(generic_profile(km_4w=20.0, longest_8w=8.0, volume_level="novice", quality_level="novice"), weeks=8)
+        starts = [date.fromisoformat(wk["start"]) for wk in plan["weeks"]]
+        self.assertTrue(levels.block_start(plan, starts[0]))
+        self.assertFalse(levels.block_start(plan, starts[1]))
+        self.assertTrue(levels.block_start(plan, starts[4]))                  # after the week-4 deload
+        self.assertTrue(levels.block_start(plan, starts[-1] + timedelta(weeks=1)))   # past the plan
+
+    def test_profile_keeps_or_promotes_the_last_plan_levels(self):
+        prev = build(generic_profile(km_4w=20.0, longest_8w=8.0, volume_level="novice", quality_level="novice"),
+                     weeks=8)
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "profile.toml"
+            path.write_text("hr_max = 190\nhr_rest = 50\n", encoding="utf-8")
+            mid = date.fromisoformat(prev["weeks"][1]["start"]) - timedelta(days=2)       # before week 3
+            kept = profile.load_profile(path, training(12, 4, 9, end=mid), [], mid, plan=prev)   # 36 km a week
+            self.assertEqual(kept.volume_level, "novice")                    # mid-block: it waits
+            self.assertIn("novice until the next block, then intermediate", kept.level_reasons["volume"])
+            at = date.fromisoformat(prev["weeks"][4]["start"]) - timedelta(days=2)        # the next block
+            up = profile.load_profile(path, training(12, 4, 9, end=at), [], at, plan=prev)
+            self.assertEqual(up.volume_level, "intermediate")
+            self.assertIn("novice -> intermediate", up.level_reasons["volume"])
+
+
+GOLDEN_RACE = {"date": date(2024, 9, 1), "distance_m": 10000, "goal_s": None}       # Sunday of week 12
+GOLDEN_RUNNERS = {
+    # level: the runner of tests/fixtures/plan_golden_<level>.md, the same 10 km race in 12 weeks
+    "beginner": dict(vdot=30.0, km_4w=6.0, longest_8w=3.0, days=["tue", "thu", "sat"], long_run_day="sat"),
+    "novice": dict(vdot=36.0, km_4w=20.0, longest_8w=8.0, days=["tue", "thu", "sat", "sun"]),
+    "intermediate": dict(vdot=44.0, km_4w=40.0, longest_8w=14.0, days=["tue", "wed", "thu", "sat", "sun"]),
+    "advanced": dict(vdot=55.0, km_4w=70.0, longest_8w=22.0, days=WEEKDAYS),
+}
+
+
+class GoldenLevels(unittest.TestCase):
+    """One 12-week plan per level for the same race. Regenerate after a reviewed change:
+    UPDATE_GOLDEN=1 python -m unittest tests.test_levels"""
+
+    def test_golden_per_level(self):
+        for level, vals in GOLDEN_RUNNERS.items():
+            with self.subTest(level=level):
+                prof = generic_profile(**vals, race=GOLDEN_RACE, volume_level=level, quality_level=level)
+                plan = build(prof)
+                self.assertEqual(len(plan["weeks"]), 12)
+                got = render_md.render_plan(plan)
+                path = ROOT / "tests" / "fixtures" / f"plan_golden_{level}.md"
+                if os.environ.get("UPDATE_GOLDEN"):
+                    path.write_text(got, encoding="utf-8", newline="\n")
+                self.assertEqual(got, path.read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

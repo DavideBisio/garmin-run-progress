@@ -1,6 +1,6 @@
 # plan.json format
 
-`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`. The generator (07) added `warnings` and each week's `phase`, `deload` and `warnings`; readers that don't know them ignore them, so the version stays `1`.
+`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`. The generator (07) added `warnings` and each week's `phase`, `deload` and `warnings`, and the runner levels (08) `levels` and each week's `unit` and `target_min`; readers that don't know them ignore them, so the version stays `1`.
 
 The file holds **resolved** workouts: every step carries its pace and HR ranges in numbers, so readers need neither the templates (`src/garmin_plan/data/workouts.toml`) nor the profile.
 
@@ -9,6 +9,8 @@ The file holds **resolved** workouts: every step carries its pace and HR ranges 
   "version": 1,
   "generated": "2026-10-23T11:00:00",
   "profile_hash": "b924fafb9b64…",
+  "levels": { "volume": "novice", "quality": "intermediate",
+              "reasons": { "volume": "18 km/wk over 4 wk", "quality": "VDOT 39, 7 Q sessions in 8 wk" } },
   "warnings": [
     { "rule": "feasibility", "detail": "the goal needs VDOT 43.4, 3.4 above the current 40.0, in 16 weeks: ambitious …",
       "action": "kept the paces at the current VDOT …" }
@@ -17,6 +19,7 @@ The file holds **resolved** workouts: every step carries its pace and HR ranges 
     {
       "start": "2024-06-10",
       "target_km": 28.0,
+      "unit": "km",
       "phase": "base",
       "deload": false,
       "warnings": [],
@@ -53,7 +56,8 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 |---|---|
 | `version` | `1`. A breaking change bumps it; readers reject versions they don't know |
 | `generated` | Local time the plan was written, `YYYY-MM-DDTHH:MM:SS` |
-| `profile_hash` | sha256 (hex) of what the resolved steps depend on: VDOT, HR max and rest, and the resolved zones (each pace zone's range to 0.01 s/km, the jog pace, the bpm of Z1–Z5). A different hash for today's profile means the steps are stale |
+| `profile_hash` | sha256 (hex) of what the resolved steps depend on: VDOT, HR max and rest, the resolved zones (each pace zone's range to 0.01 s/km, the jog pace, the bpm of Z1–Z5), the runner's two levels and the volume unit. A different hash for today's profile means the steps are stale |
+| `levels` | The runner's levels (roadmap 08, [plan profile](features/plan-profile.md#runner-levels)): `volume` and `quality`, each `"beginner"`, `"novice"`, `"intermediate"` or `"advanced"`, and `reasons`, why each axis is at its level (`""` when not known). The next plan starts from them (promotion); a beginner level on either axis makes the push send HR as guidance only. Absent in a plan of the `[week]` schedule alone |
 | `warnings` | Plan-wide warnings: phases shortened for a near race, goal feasibility, no load-ratio check for want of history. Absent in a plan of the `[week]` schedule alone |
 | `weeks` | Monday-based weeks, oldest first |
 
@@ -63,6 +67,8 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 |---|---|
 | `start` | The week's Monday, `YYYY-MM-DD` |
 | `target_km` | The week's planned volume, in flat-equivalent km: the volume curve's target (06; the taper's share of the last build week), to 0.1 km; the split rounds the days so they add up to it. It becomes the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first, so the week heading adds up its day headings) when the week has `[week]` days, when the fixer trimmed L or dropped F, when the Q template can't take the split's leftover (a `split` warning), and in the race week, which stops before race day |
+| `unit` | The plan's volume unit, `"km"` or `"min"` (a beginner's plan). `target_km` is there either way. Absent in a plan of the `[week]` schedule alone |
+| `target_min` | In a plan in minutes only: the week's sessions in whole minutes, each rounded half up as `plan.md` shows it, then added up. Such a week's `target_km` is the sum of its sessions' km |
 | `phase` | `"base"`, `"rt"` (R + T), `"it"` (I + T), `"tm"` (T + M) or `"taper"` (06's phase calendar). Absent in a plan of the `[week]` schedule alone |
 | `deload` | `true` for the block's lighter week (×0.85 of the block, the deload Q one variant lighter). Absent as `phase` |
 | `warnings` | The week's warnings (see [Warnings](#warnings)), `[]` when it passes every check. Absent as `phase` |
@@ -77,7 +83,7 @@ Each warning says which rule fired and what the planner did about it; `plan.md` 
 
 | Field | Contents |
 |---|---|
-| `rule` | The rule: a check (`easy_share`, `hard_count`, `hard_adjacent`, `volume_rise`, `acwr_high`, `acwr_low`, `long_share`), a note (`acwr_skipped`, `forced_size`), or a planning step (`split`, `phases`, `feasibility`, `hill_swap`, `race_week`) |
+| `rule` | The rule: a check (`easy_share`, `hard_count`, `hard_adjacent`, `volume_rise`, `acwr_high`, `acwr_low`, `long_share`), a note (`acwr_skipped`, `forced_size`), or a planning step (`split`, `phases`, `feasibility`, `hill_swap`, `race_week`, `skeleton`) |
 | `detail` | What happened, with the numbers |
 | `action` | What the planner did: the fix it applied (`fixed: Q cruise_tempo variant 5 -> 4`), or why it left it |
 
@@ -87,7 +93,7 @@ Each warning says which rule fired and what the planner did about it; `plan.md` 
 |---|---|
 | `id` | Template id. **Stable**: it is stored in `push_state.json` and in the description of the workouts pushed to Garmin, which are named `[plan] <title> <date>` ([plan push](features/plan-push.md)) |
 | `variant` | Ladder variant, 1-based |
-| `title`, `kind` | Display title; kind `E`, `L`, `R`, `T`, `I`, `M`, `hill` or `trail` |
+| `title`, `kind` | Display title; kind `E`, `L`, `R`, `T`, `I`, `M`, `hill`, `trail` or `tt` (time trial; its day is the one whose run gives the first VDOT) |
 | `km`, `seconds` | Totals, summed from the steps (estimates at the middle of each pace range) |
 | `hard_km` | Distance at quality intensity: steps at M, T, I or R pace and hill reps (the caps in 07) |
 | `climb_m_per_km` | Climbing the session expects (hill and trail templates), else `null` |
@@ -107,7 +113,7 @@ A step is `{"type": "step", …}`; a repeat is `{"type": "repeat", "n", "skip_la
 | `hr_zone`, `hr` | HR target: `"Z2"`, `"Z4-5"` or `"Z3 cap"`, and its `[lo, hi]` bpm; `null` for none. Secondary when there is a pace target |
 | `est_pace_s_per_km` | Pace used to estimate the missing dimension (distance of a time end, time of a step without a pace target); `null` when the pace range's middle is used |
 | `est_dist`, `est_time` | Estimates for lap-button steps (m, s) |
-| `effort` | Pace-column text for open targets (`"Hard effort"`), else `null` |
+| `effort` | Pace-column text for steps without a pace target (`"Hard effort"`, `"Easy, conversational (RPE 3-4)"`), else `null` |
 | `note` | Comment |
 | `hard` | Counts in `hard_km` |
 | `meters`, `seconds` | The step's resolved distance and duration (one iteration) |

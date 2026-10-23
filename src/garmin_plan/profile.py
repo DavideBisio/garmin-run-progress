@@ -2,7 +2,7 @@
 import re
 import tomllib
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from . import history, levels
@@ -165,10 +165,11 @@ def _layoff(stats, vals, sources, data):
     return lay
 
 
-def _levels(raw, stats, vals, sources, lay, runs, today, data):
+def _levels(raw, stats, vals, sources, lay, runs, today, data, plan):
     """(volume_level, quality_level, reasons): profile.toml's, else levels.detect on the resolved
-    numbers (after a break: the restart volume and the runs a week before it)."""
-    found = levels.detect({
+    numbers (after a break: the restart volume and the runs a week before it), moved on from the
+    last plan's levels by levels.promote when there is a plan."""
+    dstats = {
         "km_4w": vals["km_4w"] if stats["km_4w"] is not None else None,
         "km_12w": vals["km_4w"] if lay else vals["km_12w"],      # a restart is judged on its volume
         "runs_per_week": stats["runs_before"] if lay else vals["runs_per_week"],
@@ -176,11 +177,26 @@ def _levels(raw, stats, vals, sources, lay, runs, today, data):
         "history_days": stats["history_days"],
         "vdot": vals["vdot"] if sources["vdot"] != "default" else None,
         "q_8w": history.q_sessions(runs, today, vals["hr_max"], vals["hr_rest"]),
-        "layoff": lay}, data)
+        "layoff": lay, "weeks": stats["weeks"]}
+    found = levels.detect(dstats, data)
+    prev = (plan or {}).get("levels")
+    if not (isinstance(prev, dict) and {prev.get("volume"), prev.get("quality")} <= set(LEVELS)):
+        prev = None                                   # no plan, a manual one, or one from before 08
+    if prev:
+        monday = today + timedelta(days=7 - today.weekday())        # the new plan's first week
+        got, notes = levels.promote({"volume": prev["volume"], "quality": prev["quality"]}, dstats, data,
+                                    block_start=levels.block_start(plan, monday))
     out, reasons = [], {}
     short = stats["history_days"] < MIN_HISTORY_DAYS
     for key, level, why in zip(("volume_level", "quality_level"), found[:2], (found[2]["volume"], found[2]["quality"])):
         axis = key.split("_")[0]
+        if prev and key not in raw:
+            note = next((n[len(axis) + 2:] for n in notes if n.startswith(f"{axis}: ")), None)
+            if note:
+                why = note
+            elif got[axis] != level:
+                why = f"kept from the last plan; detected {level}: {why}"
+            level = got[axis]
         if key in raw:
             level, why, sources[key] = _level(raw, key), "set in profile.toml", "set"
         else:
@@ -223,7 +239,7 @@ def load_profile(path, runs, rhr=(), today=None, plan=None):
         raise ProfileError(f"hr_max ({vals['hr_max']}) must be above hr_rest ({vals['hr_rest']})")
     data = levels.load_levels()
     lay = _layoff(stats, vals, sources, data)
-    vol, qual, reasons = _levels(raw, stats, vals, sources, lay, runs, today, data)
+    vol, qual, reasons = _levels(raw, stats, vals, sources, lay, runs, today, data, plan)
 
     if "days" in raw:
         days, sources["days"] = _day_list(raw, "days"), "set"
