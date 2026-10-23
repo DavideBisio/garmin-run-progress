@@ -58,6 +58,12 @@ def _parse_hr(spec):
     return int(m[1]), int(m[2] or m[1]), bool(m[3])
 
 
+def zone_span(spec):
+    """'Z2' -> (2, 2); 'Z4-5' -> (4, 5); 'Z3 cap' -> (1, 3): the HR zones a target spans."""
+    a, b, cap = _parse_hr(spec)
+    return (1, b) if cap else (a, b)
+
+
 def hr_range(spec, hr_max, hr_rest):
     """'Z2' -> Z2's bpm; 'Z4-5' -> Z4 low to Z5 high; 'Z3 cap' -> Z1 low to Z3 high.
 

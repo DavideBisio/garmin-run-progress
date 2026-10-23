@@ -170,3 +170,28 @@ L = [["steady_long"], ["progression_long", "steady_long"], ["hm_long", "steady_l
 # The 2 taper weeks: a short T session, then strides in the race week; steady long runs.
 Q = [["cruise_tempo"], ["strides"]]
 L = [["steady_long"], ["steady_long"]]
+
+[checks]
+# Checks on every generated week (checks.py). At least this share of the running time easy: Z1-2,
+# below 70 % of the heart-rate reserve, as the page's Easy share KPI (Seiler's ~80/20 distribution).
+easy_share = 0.8
+# At most this many hard sessions a week (L counts as one), never on consecutive days.
+max_hard = 2
+# Week-on-week volume rise (the usual 10 % rule of thumb). The deload week, the week after it and
+# the first planned week are exempt.
+max_rise = 0.10
+# Projected 7:28-day load ratio (TRIMP) range, as the page's Load ratio KPI (Gabbett's 0.8-1.3).
+acwr = [0.8, 1.3]
+
+[fix]
+# Auto-fix (fix.py): shrink Q one variant, trim L by trim_l_km, or drop F, in that order, for the
+# checks each can help; at most max_iter changes a week, then what still fails is a warning.
+max_iter = 12
+trim_l_km = 1.0
+
+[feasibility]
+# Goal feasibility: VDOT rises about 1 point per 4-6 weeks of training (rule of thumb, roadmap 07).
+# A gap of at most 1 point per realistic_weeks weeks gets no warning, up to 1 per ambitious_weeks
+# is "ambitious", more is "unrealistic". The planner only warns: paces stay at the current VDOT.
+realistic_weeks = 6
+ambitious_weeks = 4
