@@ -25,7 +25,8 @@ def fmt_time(s):
 
 
 def fmt_dur(s):
-    """'45 s' under a minute, 'm:ss' under 10 min, 'N min' under an hour, 'h:mm' from an hour."""
+    """'45 s' under a minute, 'm:ss' under 10 min, 'N min' under an hour, '1 h 05' from an hour
+    (hours and zero-padded minutes; on the hour '1 h 00')."""
     s = int(s + 0.5)
     if s < 60:
         return f"{s} s"
@@ -34,7 +35,7 @@ def fmt_dur(s):
     m = int(s / 60 + 0.5)
     if m < 60:
         return f"{m} min"
-    return f"{m // 60}:{m % 60:02d}"
+    return f"{m // 60} h {m % 60:02d}"
 
 
 def fmt_est(s):
@@ -77,9 +78,9 @@ def _row(cells):
     return "| " + " | ".join(esc(c) for c in cells) + " |"
 
 
-def _step_row(s, nested=False):
+def _step_row(s, nested=False, note=None):
     lap = f"{'↳ ' if nested else ''}**{s.label}**"
-    return _row([lap, _pace_cell(s), _hr_cell(s), _duration_cell(s), s.note])
+    return _row([lap, _pace_cell(s), _hr_cell(s), _duration_cell(s), s.note if note is None else note])
 
 
 def render_workout(w, prefix=""):
@@ -91,9 +92,11 @@ def render_workout(w, prefix=""):
         if not isinstance(p, Repeat):
             out.append(_step_row(p))
         elif p.n == 1:
-            # a repeat of 1 is just its steps (a skipped last rest is left out)
+            # a repeat of 1 is just its steps (a skipped last rest is left out); the repeat's note
+            # goes in front of the first step's comment
             steps = p.steps[:-1] if p.skip_last_rest and p.steps[-1].role == "recovery" else p.steps
-            out += [_step_row(s) for s in steps]
+            first = "; ".join(x for x in (p.note, steps[0].note if steps else "") if x)
+            out += [_step_row(s, note=first if i == 0 else None) for i, s in enumerate(steps)]
         else:
             note = p.note
             if p.skip_last_rest and p.steps[-1].role == "recovery":

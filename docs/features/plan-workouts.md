@@ -9,7 +9,7 @@ The planner's sessions come from a template library, `src/garmin_plan/data/worko
 | `r_220` | R | novice | 6, 8, 10, 12 × 220 m, 180 m jog |
 | `r_300` | R | intermediate | 6, 8, 10 × 300 m, 200 m jog |
 | `r_ladder` | R | intermediate | 200-300-400-300-200, 300-400-500-400-300, 2 × 200-300-400-300-200; jogs as long as the rep |
-| `cruise_tempo` | T | novice | 2, 3, 4 × 1200 m, 2 × 3000 m, 1 × 5000 m; 60 s jog |
+| `cruise_tempo` | T | novice | 2, 3, 4 × 1200 m, 2 × 3000 m, 1 × 5000 m; 60 s jog between reps |
 | `vo2_intervals` | I | intermediate | 5 × 600 m, 6 × 800 m, 5 and 6 × 1000 m |
 | `easy` | E | beginner | 4, 5, 6, 7, 8, 10 km |
 | `progression` | M | novice | E then M: 3 + 2, 3.5 + 3.5, 4 + 5 km |
@@ -44,6 +44,7 @@ recovery = { time = 60 }
 - **Step end:** exactly one of `dist` (m), `time` (s) or `lap = true` (lap button).
 - **Step target:** `pace` (`E`, `M`, `T`, `I`, `R` or `jog`), `hr` (`Z1` … `Z5`, a span such as `Z4-5`, a cap such as `Z3 cap`, or `open`), both, or an `effort` text shown instead of a pace (`"Hard effort"`). `pace` and `effort` are exclusive.
 - **Roles:** `role` is the Garmin step type: `warmup`, `rep`, `recovery`, `cooldown`. It defaults from the position: `warmup` and `cooldown` for those steps, `recovery` for a repeat's `recovery`, otherwise `rep`. `label` is the lap name, separate from the role.
+- **Role mapping:** 05 sends `warmup` as `WARMUP`, `rep` as `INTERVAL`, `recovery` as `RECOVERY` and `cooldown` as `COOLDOWN`. Runs without a warmup or cooldown (`easy`, `progression`, `steady_long`, `progression_long`, `hm_long`) are all main set, so every step is `rep` and goes to Garmin as `INTERVAL`, whatever its pace. `hm_long`'s `Steady` km between the marathon-pace blocks sets `role = "recovery"` and goes as `RECOVERY`: it is the easy float between the work blocks, so the watch shows the MP blocks as the intervals. It stays a recovery on purpose (an E-pace `rep` there would make the whole 21 km read as intervals); it still has its E pace target and counts in the totals.
 - **Defaults:** a recovery without `pace` or `effort` is a jog at Z2. A pace zone without `hr` gets its usual HR zone: E Z2, M Z3, T Z4, I and R Z4-5.
 - **Estimates:** a time-ended step needs `est_pace` for its distance (a jog uses the jog pace). A distance-ended step without a pace target needs `est_pace` for its duration. A lap-button step needs `est_time` and `est_dist`. `est_pace` is a zone (`E`, `jog`), a zone plus or minus seconds per km (`I+30`), or an absolute `M:SS`.
 - **Hard km:** steps at M, T, I or R pace, plus steps marked `hard = true` (the hill reps).
@@ -51,7 +52,7 @@ recovery = { time = 60 }
 
 Hill and trail sessions use HR or open targets and end on time or the lap button, because terrain sets the pace. A trail run's climbs and descents are one timed step under an HR cap, with the guidance in the comment.
 
-`load_templates` rejects, with a `TemplateError` naming the template and step: unknown keys, zones, kinds or levels, a ladder missing a variable, a step without exactly one end, a time-ended step without an estimate, a lap step without `est_time` and `est_dist`, and a duplicate id.
+`load_templates` rejects, with a `TemplateError` naming the template and step: unknown keys, zones, kinds or levels, a ladder missing a variable, a ladder value used as a repeat count that is not a whole number (`n = 2.5`, also `n = 3.0`), a step without exactly one end, a time-ended step without an estimate, a lap step without `est_time` and `est_dist`, and a duplicate id.
 
 ## Pace and HR ranges
 
@@ -79,16 +80,20 @@ Distance, duration and hard km are always **summed from the steps**, never typed
 
 **The last recovery of a repeat counts.** Templates leave `skip_last_rest` at `false`, so 8 × (220 m + 180 m jog) is 3.2 km on paper, and the Garmin export (05) maps the same flag to `skipLastRestStep`, so the watch shows the same distance. When a template sets it to `true`, the totals drop the final recovery and the markdown says so.
 
+**A repeat of 1 has no last recovery.** The recovery is the rest between reps, and a single rep has none, so a repeat of 1 always gets `skip_last_rest = true`: `cruise_tempo` 1 × 5000 m goes from the tempo straight into the cooldown (8.0 km, not 8.1 km), and `r_ladder`'s single ladders end on their last rep. The heading, the `plan.json` totals and the export's `skipLastRestStep` all follow the same flag.
+
 ## Markdown
 
-`render_md.render_workout` produces the hand-written plan's format: a `### Title - 6.0 km (~35 min)` heading and a `Lap | Pace range | FC range | Duration | Comment` table. A repeat is a `**Repeat 8x**` row with its total, followed by `↳ **Rep**` and `↳ **Recovery**` rows; a repeat of 1 renders as plain rows. `|` in titles, labels and comments is escaped as `\|`.
+`render_md.render_workout` produces the hand-written plan's format: a `### Title - 6.0 km (~35 min)` heading and a `Lap | Pace range | FC range | Duration | Comment` table. A repeat is a `**Repeat 8x**` row with its total, followed by `↳ **Rep**` and `↳ **Recovery**` rows; a repeat of 1 renders as plain rows, its note in front of the first row's comment. `|` in titles, labels and comments is escaped as `\|`.
 
 | Duration | Format |
 |---|---|
 | Under 1 min | `~45 s` |
 | Under 10 min | `~6:30` |
 | Under 1 h | `~31 min` |
-| From 1 h | `~1:31` (h:mm) |
+| From 1 h | `~1 h 05`, `~1 h 31` (hours and zero-padded minutes; on the hour `~1 h 00`) |
+
+Exact durations of time-ended steps use the same format without the `~`: the trail run's main step is `1 h 20 (~10.2 km)`.
 
 Numbers are rounded only when rendering. Write the output as UTF-8: `↳` is not ASCII.
 
@@ -103,9 +108,9 @@ thu = "easy:3"
 sun = "steady_long:1"
 ```
 
-`make plan ARGS="--weeks 4"` (or `python -m garmin_plan plan --weeks 4`) plans 4 weeks starting on the Monday after today (`--today YYYY-MM-DD` to pretend otherwise). Every week repeats `[week]`, `target_km` is the sum of the week's sessions and `slot` stays `null`. It writes `garmin_export/plan.json` and `garmin_export/plan.md`.
+`make plan ARGS="--weeks 4"` (or `python -m garmin_plan plan --weeks 4`) plans 4 weeks starting on the Monday after today (`--today YYYY-MM-DD` to pretend otherwise). Every week repeats `[week]`, `target_km` is the sum of the week's sessions as `plan.md` shows them (each workout's km rounded to 0.1 first, so the week heading equals the sum of its day headings) and `slot` stays `null`. It writes `garmin_export/plan.json` and `garmin_export/plan.md`.
 
-An unknown template, a variant outside the ladder or a value not shaped `template:variant` stops with `error: …` and quotes the line as written in `profile.toml`. `tomllib` has no line numbers, so the profile keeps the raw line of each `[week]` key.
+An unknown template, a variant outside the ladder or a value not shaped `template:variant` stops with `error: …` and quotes the line as written in `profile.toml`. `tomllib` has no line numbers, so the profile keeps the raw line of each `[week]` key. Any line starting with `[` (another `[table]`, a dotted `[week.x]` or an `[[array]]` table) ends the `[week]` section.
 
 ## Tests and the golden file
 

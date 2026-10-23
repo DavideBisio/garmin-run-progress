@@ -149,7 +149,7 @@ def _check_step(s, role, where, used):
         raise TemplateError(f"{where}: a lap-button step needs est_time and est_dist")
 
 
-def _check_block(b, where, used):
+def _check_block(b, where, used, counts):
     if not isinstance(b, dict):
         raise TemplateError(f"{where}: a main block must be a table, got {b!r}")
     if "repeat" not in b:
@@ -162,6 +162,8 @@ def _check_block(b, where, used):
     if not isinstance(n, str) and (isinstance(n, bool) or not isinstance(n, int)):
         raise TemplateError(f"{where}: repeat must be a whole number or a ladder variable, got {n!r}")
     _num_or_var(n, "repeat", where, used)
+    if isinstance(n, str):
+        counts.add(n)
     if ("steps" in b) == ("rep" in b):
         raise TemplateError(f"{where}: a repeat needs either steps = [...] or rep = {{...}}")
     if "recovery" in b and "rep" not in b:
@@ -196,7 +198,7 @@ def check_template(t, where):
     c = t.get("climb_m_per_km", 0)
     if isinstance(c, bool) or not isinstance(c, (int, float)) or c < 0:
         raise TemplateError(f"{where}: climb_m_per_km must be a non-negative number")
-    used = set()
+    used, counts = set(), set()        # every ladder variable; those used as repeat counts
     for part in ("warmup", "cooldown"):
         if part in t:
             _check_step(t[part], part, f"{where} {part}", used)
@@ -206,7 +208,7 @@ def check_template(t, where):
     if not isinstance(main, list) or not main:
         raise TemplateError(f"{where}: main must be a block or a non-empty list of blocks")
     for b in main:
-        _check_block(b, f"{where} main", used)
+        _check_block(b, f"{where} main", used, counts)
     ladder = t.get("ladder")
     if not isinstance(ladder, list) or not ladder or not all(isinstance(e, dict) for e in ladder):
         raise TemplateError(f"{where}: ladder must be a non-empty list of tables, smallest first")
@@ -220,6 +222,9 @@ def check_template(t, where):
                     raise TemplateError(f"{where}: ladder variant {i} title must be non-empty text")
             elif isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
                 raise TemplateError(f"{where}: ladder variant {i}: {k} must be a non-negative number")
+            elif k in counts and not isinstance(v, int):
+                raise TemplateError(f"{where}: ladder variant {i}: {k} is a repeat count and must be a "
+                                    f"whole number, got {v!r}")
 
 
 def load_templates(path=None):
@@ -290,7 +295,9 @@ def _block(b, ctx):
     steps = [s for s in (_step(x, r, ctx) for x, r in zip(raw, roles)) if s]
     if not steps:
         return None
-    return Repeat(int(n), steps, skip_last_rest=b.get("skip_last_rest", False), note=b.get("note", ""))
+    # a single rep has no recovery "between reps": a repeat of 1 always skips its last recovery
+    skip = b.get("skip_last_rest", False) or n == 1
+    return Repeat(int(n), steps, skip_last_rest=skip, note=b.get("note", ""))
 
 
 def instantiate(template, variant, profile, rules):

@@ -100,9 +100,11 @@ def _week_lines(text):
     """{key: stripped source line} for the keys of the [week] table (tomllib has no line numbers)."""
     lines, section = {}, None
     for ln in text.splitlines():
-        m = _SECTION.match(ln)
-        if m:
-            section = m[1].strip().strip('"')
+        if ln.lstrip().startswith("["):
+            # any header ends [week]: a plain [table] names the new section; [[array]] tables and
+            # anything else starting with '[' leave no section to collect from
+            m = _SECTION.match(ln)
+            section = m[1].strip().strip('"') if m else None
             continue
         k = _KEY.match(ln)
         if section == "week" and k:

@@ -4,6 +4,7 @@ Regenerate the golden file after a reviewed change: UPDATE_GOLDEN=1 python -m un
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -95,6 +96,15 @@ class Model(unittest.TestCase):
         self.assertIn("| **Rep** |", md)
         self.assertIn("| **Recovery** | Jog |", md)
 
+    def test_repeat_of_one_keeps_its_note(self):
+        r = rep()
+        r.note = "Smooth"
+        md = render_md.render_workout(model.Workout("x", 1, "X", "R", [model.Repeat(1, [r, rec()], note="Ladder")]))
+        self.assertRegex(md, r"\| \*\*Rep\*\* \|.*\| Ladder; Smooth \|")
+        lib = templates.load_templates()
+        md = render_md.render_workout(templates.instantiate(lib["r_ladder"], 1, generic_profile(), RULES))
+        self.assertIn("Each recovery jog matches its rep's distance", md)
+
 
 BASE = """
 [[workout]]
@@ -144,6 +154,11 @@ class Templates(unittest.TestCase):
         for why, text in bad.items():
             with self.assertRaises(templates.TemplateError, msg=why):
                 self.load(text)
+        for n in ("2.5", "3.0"):                # a repeat count must be a whole number
+            with self.assertRaises(templates.TemplateError, msg=n) as cm:
+                self.load(BASE.replace("{ n = 3, d = 1000 }", f"{{ n = {n}, d = 1000 }}"))
+            self.assertIn("whole number", str(cm.exception))
+        self.load(BASE.replace("{ n = 3, d = 1000 }", "{ n = 3, d = 1000.5 }"))   # other values may be fractional
         # an estimate makes the time-ended pace step valid
         self.load(BASE.replace('pace = "T", dist = "d"', 'pace = "T", time = 300, est_pace = "T"'))
 
@@ -159,6 +174,26 @@ class Templates(unittest.TestCase):
                 first = templates.instantiate(t, 1, generic_profile(), RULES)
                 last = templates.instantiate(t, len(t["ladder"]), generic_profile(), RULES)
                 self.assertLess(first.km, last.km + 1e-9, f"{t['id']}: ladder must be smallest first")
+
+    def test_repeat_of_one_has_no_trailing_recovery(self):
+        # a single rep has no recovery between reps: cruise_tempo 1 x 5000 m goes straight to the cooldown
+        t = templates.load_templates()["cruise_tempo"]
+        w = templates.instantiate(t, len(t["ladder"]), generic_profile(), RULES)
+        rpt = w.parts[1]
+        self.assertEqual((rpt.n, rpt.skip_last_rest), (1, True))
+        self.assertAlmostEqual(rpt.meters, 5000)
+        self.assertAlmostEqual(w.km, 2 + 5 + 1)
+        d = plan_io.workout_to_dict(w)
+        self.assertTrue(d["steps"][1]["skip_last_rest"])          # 05 maps it to skipLastRestStep
+        self.assertEqual(d["km"], 8.0)
+        self.assertEqual(plan_io.workout_from_dict(d).km, w.km)
+        md = render_md.render_workout(w)
+        self.assertTrue(md.startswith("### Cruise Tempo - 8.0 km "), md)
+        self.assertNotIn("Recovery", md)
+        self.assertIn("| **Tempo** |", md)
+        # larger repeats keep their last recovery
+        w2 = templates.instantiate(t, 1, generic_profile(), RULES)
+        self.assertFalse(w2.parts[1].skip_last_rest)
 
     def test_bands(self):
         # E ranges sit inside Daniels' published E ranges
@@ -217,8 +252,14 @@ class Render(unittest.TestCase):
 
     def test_duration_format(self):
         f = render_md.fmt_est
-        self.assertEqual([f(45), f(59.4), f(59.6), f(390), f(599), f(1860), f(3599), f(5460)],
-                         ["~45 s", "~59 s", "~1:00", "~6:30", "~9:59", "~31 min", "~1:00", "~1:31"])
+        self.assertEqual([f(45), f(59.4), f(59.6), f(390), f(599), f(1860), f(3599), f(3600), f(3900), f(5460)],
+                         ["~45 s", "~59 s", "~1:00", "~6:30", "~9:59", "~31 min", "~1 h 00", "~1 h 00", "~1 h 05",
+                          "~1 h 31"])
+        self.assertEqual(render_md.fmt_dur(4800), "1 h 20")       # exact time-ended step values
+        md = render_md.render_workout(templates.instantiate(templates.load_templates()["trail_long"], 1,
+                                                            generic_profile(), RULES))
+        self.assertIn("| 1 h 20 (~", md)
+        self.assertRegex(md.splitlines()[0], r"\(~\d+ h \d\d\)$")
 
 
 WEEK = '[week]\ntue = "r_220:1"\n"Thu" = "easy:2"   # a comment\nsun = "steady_long:1"\n'
@@ -228,6 +269,14 @@ class Schedule(unittest.TestCase):
     def build(self, text, weeks=2):
         prof = profile.load_profile(write("vdot = 40\nhr_max = 190\nhr_rest = 50\n" + text), [], [], TODAY)
         return plan_io.build_plan(prof, templates.load_templates(), RULES, TODAY, weeks)
+
+    def test_week_lines_end_at_any_header(self):
+        text = '[week]\ntue = "easy:1"\n[[laps]]\nthu = "x"\n[week.extra]\nfri = "y"\n[[week.laps]]\nsat = "z"\n'
+        self.assertEqual(profile._week_lines(text), {"tue": 'tue = "easy:1"'})
+        # a profile with a [[...]] table after [week] still loads its [week] days only
+        prof = profile.load_profile(write('[week]\nthu = "easy:2"\n[[laps]]\ntue = "nope"\n'), [], [], TODAY)
+        self.assertEqual(list(prof.week), ["thu"])
+        self.assertEqual(prof.week["thu"]["line"], 'thu = "easy:2"')
 
     def test_week_table(self):
         prof = profile.load_profile(write(WEEK), [], [], TODAY)
@@ -270,6 +319,19 @@ class Schedule(unittest.TestCase):
         md = render_md.render_plan(back)
         self.assertIn("## Week of 2024-06-10", md)
         self.assertIn("### Tue 2024-06-11", md)
+
+    def test_target_km_adds_up_the_headings(self):
+        # target_km is the sum of the workouts' km as displayed (each rounded to 0.1), so the week
+        # heading in plan.md equals the sum of its day headings
+        # (13.95 km of trail shows as 13.9; summing unrounded km would give 24.6)
+        week = '[week]\ntue = "r_220:1"\nthu = "r_220:2"\nsun = "trail_long:1"\n'
+        plan = self.build(week, weeks=1)
+        md = render_md.render_plan(plan)
+        week_km = float(re.search(r"^## Week of \S+ - (\d+\.\d) km$", md, re.M)[1])
+        days_km = [float(x) for x in re.findall(r"^### .+ - (\d+\.\d) km \(", md, re.M)]
+        self.assertEqual(days_km, [4.9, 5.7, 13.9])
+        self.assertEqual(week_km, plan["weeks"][0]["target_km"])
+        self.assertEqual(week_km, 24.5)
 
     def test_profile_hash(self):
         h = plan_io.profile_hash(generic_profile(), RULES)

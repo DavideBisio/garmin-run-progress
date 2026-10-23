@@ -35,8 +35,10 @@ src/garmin_plan/
   | recovery | `RECOVERY (4)` |
   | cooldown | `COOLDOWN (2)` |
 
+  - Runs without a warmup or cooldown (easy, steady and progression runs) are main set only: every step is `rep`, so `INTERVAL`. `hm_long`'s steady km between the marathon-pace blocks is `recovery`, so `RECOVERY` (see [plan workouts](../features/plan-workouts.md)).
+
   - A distance end uses `ConditionType.DISTANCE`, a time end uses `TIME` and lap button uses `LAP_BUTTON`.
-  - Repeats become `RepeatGroup(numberOfIterations=n, workoutSteps=[…])`.
+  - Repeats become `RepeatGroup(numberOfIterations=n, workoutSteps=[…])`, with `skipLastRestStep` from `skip_last_rest`. A repeat of 1 always has it `true` (a single rep has no recovery between reps), so a flattened repeat of 1 leaves its last recovery out too.
   - Steps are built as `ExecutableStep` directly, through one helper. The library's `create_*_step` helpers don't cover every role, condition and target combination.
 - **Targets:**
   - `PaceTarget(lower_limit=slow m/s, upper_limit=fast m/s)`; the model validator rejects the reverse order;

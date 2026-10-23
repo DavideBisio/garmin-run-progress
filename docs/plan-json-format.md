@@ -54,7 +54,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | Field | Contents |
 |---|---|
 | `start` | The week's Monday, `YYYY-MM-DD` |
-| `target_km` | The week's planned volume. With the manual `[week]` schedule it is the sum of the sessions' `km`; the weekly skeleton (06) sets it from the volume progression |
+| `target_km` | The week's planned volume. With the manual `[week]` schedule it is the sum of the sessions' km as `plan.md` shows them (each rounded to 0.1 km first), so the week heading adds up its day headings; the weekly skeleton (06) sets it from the volume progression |
 | `days` | One entry per session, by date |
 | `days[].date` | `YYYY-MM-DD`, local date |
 | `days[].slot` | The session's role in the week (06: quality, long, easy …); `null` with the manual schedule |
@@ -74,7 +74,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 
 ## Steps
 
-A step is `{"type": "step", …}`; a repeat is `{"type": "repeat", "n", "skip_last_rest", "note", "meters", "seconds", "steps": [steps]}`. Repeats are flat: they hold steps, never other repeats, as Garmin's `RepeatGroup`. `skip_last_rest` is `false` in every template: the last recovery is run and counts in the totals, and the Garmin export sets `skipLastRestStep` from the same flag.
+A step is `{"type": "step", …}`; a repeat is `{"type": "repeat", "n", "skip_last_rest", "note", "meters", "seconds", "steps": [steps]}`. Repeats are flat: they hold steps, never other repeats, as Garmin's `RepeatGroup`. `skip_last_rest` is `false` in every template's repeats of 2 or more: the last recovery is run and counts in the totals. A repeat of 1 has no recovery between reps, so it is always `true` there and the totals leave the last recovery out. The Garmin export sets `skipLastRestStep` from the same flag.
 
 | Field | Contents |
 |---|---|

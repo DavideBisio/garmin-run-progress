@@ -38,12 +38,12 @@
 | ↳ **Recovery** | Jog | Zone 2 134 - 148 bpm | 200 m (~1:24) |  |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
 
-### Repetition Ladder - 5.3 km (~32 min)
+### Repetition Ladder - 5.1 km (~30 min)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
 | **Warmup** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.5 km (~9:30) |  |
-| **Rep 1** | Repetition 4:21 - 4:31 /km | Zone 4-5 162 - 190 bpm | 200 m (~53 s) |  |
+| **Rep 1** | Repetition 4:21 - 4:31 /km | Zone 4-5 162 - 190 bpm | 200 m (~53 s) | Each recovery jog matches its rep's distance |
 | **Recovery** | Jog | Zone 2 134 - 148 bpm | 200 m (~1:24) |  |
 | **Rep 2** | Repetition 4:21 - 4:31 /km | Zone 4-5 162 - 190 bpm | 300 m (~1:20) |  |
 | **Recovery** | Jog | Zone 2 134 - 148 bpm | 300 m (~2:06) |  |
@@ -52,7 +52,6 @@
 | **Rep 4** | Repetition 4:21 - 4:31 /km | Zone 4-5 162 - 190 bpm | 300 m (~1:20) |  |
 | **Recovery** | Jog | Zone 2 134 - 148 bpm | 300 m (~2:06) |  |
 | **Rep 5** | Repetition 4:21 - 4:31 /km | Zone 4-5 162 - 190 bpm | 200 m (~53 s) |  |
-| **Recovery** | Jog | Zone 2 134 - 148 bpm | 200 m (~1:24) |  |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
 
 ### Repetition Ladder - 8.1 km (~48 min)
@@ -83,13 +82,12 @@
 | ↳ **Recovery** | Jog | Zone 2 134 - 148 bpm | 1:00 (~143 m) |  |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
 
-### Cruise Tempo - 8.1 km (~46 min)
+### Cruise Tempo - 8.0 km (~45 min)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
 | **Warmup** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 2.0 km (~13 min) |  |
 | **Tempo** | Threshold 5:03 - 5:13 /km | Zone 4 162 - 176 bpm | 5.0 km (~26 min) |  |
-| **Recovery** | Jog | Zone 2 134 - 148 bpm | 1:00 (~143 m) |  |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
 
 ### VO2max Intervals - 7.0 km (~40 min)
@@ -102,7 +100,7 @@
 | ↳ **Recovery** | Jog | Zone 2 134 - 148 bpm | 200 m (~1:24) |  |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
 
-### VO2max Intervals - 11.4 km (~1:04)
+### VO2max Intervals - 11.4 km (~1 h 04)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
@@ -118,11 +116,11 @@
 | :---- | :---- | :---- | :---- | :---- |
 | **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 4.0 km (~25 min) | Continuous |
 
-### Easy Run - 10.0 km (~1:03)
+### Easy Run - 10.0 km (~1 h 03)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 10.0 km (~1:03) | Continuous |
+| **Run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 10.0 km (~1 h 03) | Continuous |
 
 ### Progression Run - 5.0 km (~30 min)
 
@@ -138,19 +136,19 @@
 | **Easy** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 4.0 km (~25 min) |  |
 | **Marathon pace** | Marathon 5:22 - 5:37 /km | Zone 3 148 - 162 bpm | 5.0 km (~27 min) |  |
 
-### Steady Long Run - 10.0 km (~1:03)
+### Steady Long Run - 10.0 km (~1 h 03)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 10.0 km (~1:03) | Even effort throughout |
+| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 10.0 km (~1 h 03) | Even effort throughout |
 
-### Steady Long Run - 18.0 km (~1:54)
+### Steady Long Run - 18.0 km (~1 h 54)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 18.0 km (~1:54) | Even effort throughout |
+| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 18.0 km (~1 h 54) | Even effort throughout |
 
-### Progression Long Run - 13.0 km (~1:20)
+### Progression Long Run - 13.0 km (~1 h 20)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
@@ -158,25 +156,25 @@
 | **Marathon pace** | Marathon 5:22 - 5:37 /km | Zone 3 148 - 162 bpm | 3.0 km (~16 min) |  |
 | **Easy finish** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 2.0 km (~13 min) | Relaxed |
 
-### Progression Long Run - 20.0 km (~2:02)
+### Progression Long Run - 20.0 km (~2 h 02)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Easy** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 12.0 km (~1:16) |  |
+| **Easy** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 12.0 km (~1 h 16) |  |
 | **Marathon pace** | Marathon 5:22 - 5:37 /km | Zone 3 148 - 162 bpm | 5.0 km (~27 min) |  |
 | **Easy finish** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 3.0 km (~19 min) | Relaxed |
 
-### Half-Marathon Long Run - 16.0 km (~1:41)
+### Half-Marathon Long Run - 16.0 km (~1 h 41)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 16.0 km (~1:41) | Even effort |
+| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 16.0 km (~1 h 41) | Even effort |
 
-### Half-Marathon Long Run with MP Blocks - 21.0 km (~2:08)
+### Half-Marathon Long Run with MP Blocks - 21.0 km (~2 h 08)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
-| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 12.0 km (~1:16) | Even effort |
+| **Long run** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 12.0 km (~1 h 16) | Even effort |
 | **Repeat 3x** |  |  | 9.0 km (~52 min) | Marathon-pace blocks in place of the last steady km |
 | ↳ **MP block** | Marathon 5:22 - 5:37 /km | Zone 3 148 - 162 bpm | 2.0 km (~11 min) |  |
 | ↳ **Steady** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 1.0 km (~6:20) |  |
@@ -201,7 +199,7 @@
 | ↳ **Back down** | Walk or jog gently down | Zone 2 134 - 148 bpm | Lap button (~2:00, ~190 m) | Press lap at the bottom, once recovered |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 2.0 km (~13 min) |  |
 
-### Hilly Long Run - 11.5 km (~1:20)
+### Hilly Long Run - 11.5 km (~1 h 20)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
@@ -212,29 +210,29 @@
 | ↳ **Back up** | Walk or jog back up | Zone 2 134 - 148 bpm | 200 m (~2:24) |  |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 2.0 km (~13 min) |  |
 
-### Hilly Long Run - 18.1 km (~2:07)
+### Hilly Long Run - 18.1 km (~2 h 07)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
 | **Warmup** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 2.0 km (~13 min) | On flat ground |
-| **Rolling terrain** | By effort | Zone 2-3 134 - 162 bpm | 1:20 (~11.7 km) | Keep climbs below the top of Zone 3, walk the steep ones; let the descents flow |
+| **Rolling terrain** | By effort | Zone 2-3 134 - 162 bpm | 1 h 20 (~11.7 km) | Keep climbs below the top of Zone 3, walk the steep ones; let the descents flow |
 | **Repeat 6x** |  |  | 2.4 km (~22 min) | Gentle slope, for the legs' braking strength |
 | ↳ **Downhill** | Relaxed and controlled | Zone 2 134 - 148 bpm | 200 m (~1:16) |  |
 | ↳ **Back up** | Walk or jog back up | Zone 2 134 - 148 bpm | 200 m (~2:24) |  |
 | **Cooldown** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 2.0 km (~13 min) |  |
 
-### Trail Long Run - 13.9 km (~1:45)
+### Trail Long Run - 13.9 km (~1 h 45)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
 | **Warmup** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 15 min (~2.4 km) | On easy terrain |
-| **Trail** | By effort | Zone 3 cap 120 - 162 bpm | 1:20 (~10.2 km) | Hike the climbs once HR reaches the cap; light, quick feet on technical descents; recover on the flats |
+| **Trail** | By effort | Zone 3 cap 120 - 162 bpm | 1 h 20 (~10.2 km) | Hike the climbs once HR reaches the cap; light, quick feet on technical descents; recover on the flats |
 | **Cooldown** | Easy jog or walk | Zone 2 134 - 148 bpm | 10 min (~1.4 km) |  |
 
-### Trail Long Run - 19.1 km (~2:25)
+### Trail Long Run - 19.1 km (~2 h 25)
 
 | Lap | Pace range | FC range | Duration | Comment |
 | :---- | :---- | :---- | :---- | :---- |
 | **Warmup** | Easy 6:09 - 6:31 /km | Zone 2 134 - 148 bpm | 15 min (~2.4 km) | On easy terrain |
-| **Trail** | By effort | Zone 3 cap 120 - 162 bpm | 2:00 (~15.3 km) | Hike the climbs once HR reaches the cap; light, quick feet on technical descents; recover on the flats |
+| **Trail** | By effort | Zone 3 cap 120 - 162 bpm | 2 h 00 (~15.3 km) | Hike the climbs once HR reaches the cap; light, quick feet on technical descents; recover on the flats |
 | **Cooldown** | Easy jog or walk | Zone 2 134 - 148 bpm | 10 min (~1.4 km) |  |

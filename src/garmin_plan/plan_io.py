@@ -69,6 +69,11 @@ def profile_hash(prof, rules):
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
+def shown_km(d):
+    """A workout dict's km as its plan.md heading shows it (render_md: one decimal)."""
+    return float(f"{workout_from_dict(d).km:.1f}")
+
+
 def first_monday_after(today):
     return today + timedelta(days=7 - today.weekday())
 
@@ -76,9 +81,10 @@ def first_monday_after(today):
 def build_plan(prof, library, rules, today, weeks, generated=None):
     """The plan dict for `weeks` weeks of profile.toml's [week] schedule, from the Monday after today.
 
-    Every week repeats [week]; target_km is the sum of that week's sessions and slot stays null
-    (the weekly skeleton, 06, fills both in). An unknown template or variant raises ProfileError
-    quoting the [week] line.
+    Every week repeats [week]; target_km is the sum of that week's sessions as plan.md shows them
+    (each workout's km rounded to 0.1 first, so the week heading adds up its day headings) and slot
+    stays null (the weekly skeleton, 06, fills both in). An unknown template or variant raises
+    ProfileError quoting the [week] line.
     """
     if not prof.week:
         raise ProfileError('profile.toml has no [week] table; add one such as [week] tue = "easy:1" '
@@ -92,14 +98,14 @@ def build_plan(prof, library, rules, today, weeks, generated=None):
         if not 1 <= e["variant"] <= n:
             raise ProfileError(f"[week]: {e['id']} has variants 1-{n}, got {e['variant']}, in line: {e['line']}")
         week[day] = workout_to_dict(instantiate(t, e["variant"], prof, rules))
+    target = round(sum(shown_km(w) for w in week.values()), 1)
     start = first_monday_after(today)
     out = []
     for i in range(weeks):
         mon = start + timedelta(days=7 * i)
         days = [{"date": (mon + timedelta(days=WEEKDAYS.index(d))).isoformat(), "slot": None,
                  "workout": json.loads(json.dumps(w))} for d, w in week.items()]
-        out.append({"start": mon.isoformat(), "target_km": round(sum(d["workout"]["km"] for d in days), 1),
-                    "days": days})
+        out.append({"start": mon.isoformat(), "target_km": target, "days": days})
     return {"version": VERSION,
             "generated": generated or datetime.now().isoformat(timespec="seconds"),
             "profile_hash": profile_hash(prof, rules), "weeks": out}
