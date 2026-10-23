@@ -9,9 +9,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from garmin_plan import history, load, metrics, model, physiology, profile, select, size, templates, terrain  # noqa: E402,E501
-from garmin_plan import volume  # noqa: E402
+from garmin_plan import levels, volume  # noqa: E402
 
-RULES = physiology.load_rules()
+RULES = levels.params(levels.load_levels(), "intermediate", "intermediate")   # the golden runner's levels
 LIB = templates.load_templates()
 CAPS = RULES["caps"]
 BIG = 99.0          # a slot so long that only the hard-portion cap binds
@@ -206,7 +206,7 @@ class Rotation(unittest.TestCase):
     def test_level_fallback(self):
         def q(phase, bw, slot="Q", **kw):
             return select.rotation(phase, bw, slot, RULES, library=LIB, **kw)
-        self.assertEqual(RULES["rotation"]["level"], "intermediate")   # stopgap until 08
+        self.assertEqual(RULES["rotation"]["level"], "intermediate")   # the quality level (levels.params)
         self.assertEqual(q("rt", 1, level="novice"), "r_220")
         self.assertEqual(q("it", 1, level="novice"), "cruise_tempo")
         self.assertEqual(q("rt", 2, "L", level="novice"), "steady_long")

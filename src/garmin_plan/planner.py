@@ -10,7 +10,7 @@ days replace the generated ones and are never changed. Warnings are {rule, detai
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-from . import checks, fix, select, size
+from . import checks, fix, levels, select, size
 from .config import MIN_HISTORY_DAYS, WEEKDAYS
 from .history import daily_load, recent_stats
 from .load import projected_daily
@@ -85,7 +85,7 @@ class _Week:
         self.q = None
         if self.q_day:
             tid = select.rotation(pw.phase, bw, "Q", c.rules, deload=deload, library=c.lib,
-                                  hill_day=self.q_day in c.prof.hill_days)
+                                  hill_day=self.q_day in c.prof.hill_days, level=c.level)
             n_e = sum(s == "E" for s in c.slots.values())
             budget = target - c.e_min * (n_e + (1 if self.l_day else 0))
             lighter = c.rules["rotation"]["deload_lighter"] if deload else 0
@@ -106,7 +106,7 @@ class _Week:
         the time budget of km at E pace), else the E template fitted to km."""
         c = self.ctx
         ids = select.candidates(self.pw.phase, self.bw, "L", c.rules, deload=self.deload, library=c.lib,
-                                hill_day=self.l_hill)
+                                hill_day=self.l_hill, level=c.level)
         for k, tid in enumerate(ids):
             t, last = c.lib[tid], k == len(ids) - 1
             if t["kind"] in TIME_KINDS:
@@ -244,15 +244,18 @@ def _hill_swap(week):
                     "kept the flat long run")]
 
 
-def build_plan(prof, runs, library, rules, today, weeks=None, generated=None):
+def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, level_data=None):
     """The generated plan dict. weeks: with a race, only the first `weeks` of the plan to the race
-    week (the plan itself doesn't change); without one, the plan's length (default 8). Raises
+    week (the plan itself doesn't change); without one, the plan's length (default 8). rules are
+    rules.toml's; the runner's levels lay level_data (levels.toml by default) over them. Raises
     ProfileError ([week]), SkeletonError (days) and PhaseError (the race date)."""
+    rules = levels.params(level_data or levels.load_levels(), prof.volume_level, prof.quality_level, rules)
     start = first_monday_after(today)
     cal, phase_warns, n_full = _calendar(prof, rules, start, weeks)
     targets, deloads = _targets(prof, cal, rules)
     c = SimpleNamespace()               # what every week shares
     c.prof, c.lib, c.rules, c.caps, c.deloads = prof, library, rules, rules["caps"], set(deloads)
+    c.level = prof.quality_level
     c.slots = place_slots(prof.days, prof.long_run_day, rules)
     c.manual = manual_days(prof, library, rules)
     paces = pace_zones(prof.vdot, rules)

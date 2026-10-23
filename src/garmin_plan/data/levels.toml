@@ -1,0 +1,44 @@
+# Runner levels (roadmap 08, generic and committed): the planning numbers that depend on the
+# runner's level. levels.py lays them over rules.toml, which keeps what is the same at every level.
+#
+# Each key is a table of level = value, for beginner, novice, intermediate and advanced, after the
+# White, Red, Blue and Gold plans of Daniels' Running Formula. The quality level sets
+# [skeleton] q_min_days, [checks] max_hard and the [rotation] phase tables; the volume level sets
+# everything else. A level left out of a table keeps rules.toml's value.
+
+[volume]
+# Volume curve (volume.py). Each build week adds `ramp` of the block's base: x1.00, x1.08, x1.16;
+# Daniels' rule of thumb is to hold a load 3-4 weeks before raising it, and 07 checks week-on-week
+# rises of at most 10 %.
+ramp = { beginner = 0.08, novice = 0.08, intermediate = 0.08, advanced = 0.08 }
+# A deload every this many weeks (the block length).
+deload_every = { beginner = 4, novice = 4, intermediate = 4, advanced = 4 }
+# A 4-week average near 0 after a break is clamped up to this many km.
+start_floor_km = { beginner = 10, novice = 10, intermediate = 10, advanced = 10 }
+# Volume unit: "km" or "min".
+unit = { beginner = "km", novice = "km", intermediate = "km", advanced = "km" }
+
+[split]
+# Week split (split.py). Long run cap as a share of the week. Daniels caps L at 25-30 % of the
+# weekly volume, but that is written for 5+ runs a week: a 3-runs-a-week plan would get a long run
+# shorter than its easy runs, so the cap here is 45 %.
+long_share_cap = { beginner = 0.45, novice = 0.45, intermediate = 0.45, advanced = 0.45 }
+# Daniels: L no longer than 150 min (2.5 h) whatever the volume.
+long_time_cap_min = { beginner = 150, novice = 150, intermediate = 150, advanced = 150 }
+# Shortest E run worth putting on: easy_min_km or easy_min_min at E pace, whichever is shorter.
+easy_min_km = { beginner = 5, novice = 5, intermediate = 5, advanced = 5 }
+easy_min_min = { beginner = 30, novice = 30, intermediate = 30, advanced = 30 }
+
+[skeleton]
+# Weekly slots (skeleton.py). With fewer run days than this the week has no Q: L and E only, the
+# long run being the week's one hard day.
+q_min_days = { beginner = 3, novice = 3, intermediate = 3, advanced = 3 }
+
+[checks]
+# Checks on every generated week (checks.py): at most this many hard sessions a week (L counts as
+# one), never on consecutive days.
+max_hard = { beginner = 2, novice = 2, intermediate = 2, advanced = 2 }
+
+[rotation]
+# Template of the E and F runs, and of a Q day the week can't hold: sized to the split's km.
+E = { beginner = "easy", novice = "easy", intermediate = "easy", advanced = "easy" }

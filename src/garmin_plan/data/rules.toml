@@ -29,43 +29,25 @@ R = [5, 5]
 jog_offset_s = 30
 
 [skeleton]
-# Weekly slots (skeleton.py). With fewer run days than this the week has no Q: L and E only, the
-# long run being the week's one hard day (08's beginner level also runs 0 Q).
-q_min_days = 3
-# From this many run days one non-hard day is F (flex): the first run dropped when the volume is
+# Weekly slots (skeleton.py); levels.toml sets how many Q days. From this many run days one non-hard day is F (flex): the first run dropped when the volume is
 # short, so at least one E always stays.
 f_min_days = 4
 
 [volume]
-# Volume curve (volume.py), 4-week blocks of x1.00, x1.08, x1.16, then a deload at x0.85. Each
-# step adds `ramp` of the block's base; Daniels' rule of thumb is to hold a load 3-4 weeks before
-# raising it, and 07 checks week-on-week rises of at most 10 %.
-ramp = 0.08
+# Volume curve (volume.py): blocks of build weeks, then a deload week at this share of the block's
+# base (levels.toml sets the ramp, the block length and the floor).
 deload = 0.85
-deload_every = 4
-# The next block starts from this week of the previous block: week 2, so +8 % per block.
+# The next block starts from this week of the previous block: week 2, so + ramp per block.
 next_block_from_week = 2
-# A 4-week average near 0 after a break is clamped up to this; 08 handles detraining properly.
-start_floor_km = 10
-# Volume unit: "km" (08's beginner level runs in "min")
-unit = "km"
 # Taper weeks (the last 2, planner.py) as a share of the last build week that isn't a deload. The
 # taper meta-analysis of Bosquet et al. (2007) found a 41-60 % volume cut over about 2 weeks, with
 # the intensity kept, works best: 0.7, then 0.5 in the race week.
 taper = [0.7, 0.5]
 
 [split]
-# Week split (split.py). Long run cap as a share of the week. Daniels caps L at 25-30 % of the
-# weekly volume, but that is written for 5+ runs a week: a 3-runs-a-week plan would get a long run
-# shorter than its easy runs, so the cap here is 45 % (08 sets it per level).
-long_share_cap = 0.45
-# L grows from the longest run of the last 8 weeks by at most this many km.
+# Week split (split.py; levels.toml sets the long run caps and the E minimum). L grows from the
+# longest run of the last 8 weeks by at most this many km.
 long_over_longest_km = 2
-# Daniels: L no longer than 150 min (2.5 h) whatever the volume.
-long_time_cap_min = 150
-# Shortest E run worth putting on: 5 km or 30 min at E pace, whichever is shorter.
-easy_min_km = 5
-easy_min_min = 30
 
 [phases]
 # Phase calendar (phases.py): base (E + strides/hills), rt (R + T), it (I + T), tm (T + M) and the
@@ -136,13 +118,10 @@ E = "R"
 # for L, the first one the slot's km can hold. Q alternates A (the phase's first quality type:
 # R, I or T) in weeks 1 and 3 and B (T or M) in week 2 and the deload week; L goes steady,
 # progression, longest (the block's biggest week), then short and easy in the deload.
-# Q_hill and L_hill replace Q and L when that day is one of the profile's hill_days.
-# Stopgap until 08's runner levels: every runner counts as this level.
-level = "intermediate"
+# Q_hill and L_hill replace Q and L when that day is one of the profile's hill_days. The level is
+# the runner's quality level and the E template is in levels.toml.
 # The deload week's Q is this many ladder variants lighter than what its volume allows.
 deload_lighter = 1
-# Template of the E and F runs, and of a Q day the week can't hold: sized to the split's km.
-E = "easy"
 
 [rotation.base]
 # Daniels phase I: easy running plus strides, or short hill repeats on a hill day (his R
@@ -180,9 +159,8 @@ L = [["steady_long"], ["steady_long"]]
 [checks]
 # Checks on every generated week (checks.py). At least this share of the running time easy: Z1-2,
 # below 70 % of the heart-rate reserve, as the page's Easy share KPI (Seiler's ~80/20 distribution).
+# The most hard sessions a week is in levels.toml.
 easy_share = 0.8
-# At most this many hard sessions a week (L counts as one), never on consecutive days.
-max_hard = 2
 # Week-on-week volume rise (the usual 10 % rule of thumb). The deload week, the week after it and
 # the first planned week are exempt.
 max_rise = 0.10

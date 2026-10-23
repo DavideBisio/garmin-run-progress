@@ -2,7 +2,7 @@
 import itertools
 
 from .config import WEEKDAYS
-from .physiology import load_rules
+from .levels import DEFAULT_LEVEL, load_levels, params
 
 HARD = ("L", "Q")
 WEEKEND = ("sat", "sun")
@@ -55,7 +55,7 @@ def place_slots(days, long_day, rules=None):
     L goes on long_day; a Sat/Sun long run falls back to the other weekend day when the preferred
     one leaves no room for Q. Raises SkeletonError naming the rule an impossible set breaks.
     """
-    s = (rules or load_rules())["skeleton"]
+    s = (rules or params(load_levels(), DEFAULT_LEVEL, DEFAULT_LEVEL))["skeleton"]
     for d in days:
         if d not in WEEKDAYS:
             raise SkeletonError(f"unknown day {d!r}; use {', '.join(WEEKDAYS)}")

@@ -8,9 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from garmin_plan import checks, fix, load, physiology, profile, size, templates  # noqa: E402
+from garmin_plan import checks, fix, levels, load, physiology, profile, size, templates  # noqa: E402,F401
 
-RULES = physiology.load_rules()
+RULES = levels.params(levels.load_levels(), "intermediate", "intermediate")   # the golden runner's levels
 LIB = templates.load_templates()
 MON = date(2024, 6, 10)
 E_MIN = 4.85          # 30 min at VDOT 40's E pace (6:11/km), under the 5 km minimum

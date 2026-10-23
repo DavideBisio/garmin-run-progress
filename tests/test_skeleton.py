@@ -8,10 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from garmin_plan import phases, physiology, skeleton, split, volume  # noqa: E402
+from garmin_plan import levels, phases, physiology, skeleton, split, volume  # noqa: E402,F401
 from garmin_plan.config import WEEKDAYS  # noqa: E402
 
-RULES = physiology.load_rules()
+RULES = levels.params(levels.load_levels(), "intermediate", "intermediate")   # the golden runner's levels
 TODAY = date(2024, 6, 5)   # a Wednesday: the first week (from Monday 2024-06-03) is partial
 HARD = {"L", "Q"}
 

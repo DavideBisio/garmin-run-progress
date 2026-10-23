@@ -7,6 +7,7 @@ from pathlib import Path
 
 from . import history
 from .config import DEFAULT_DAYS, DEFAULT_LONG_RUN_DAY, DEFAULTS, MIN_HISTORY_DAYS, WEEKDAYS
+from .templates import LEVELS
 
 RACE_DISTANCES = {"5k": 5000, "10k": 10000, "hm": 21097.5, "half": 21097.5, "m": 42195, "marathon": 42195}
 NUMBERS = ("hr_max", "hr_rest", "vdot", "km_4w", "km_12w", "runs_per_week", "longest_8w")
@@ -35,6 +36,8 @@ class Profile:
     long_run_day: str = DEFAULT_LONG_RUN_DAY
     hill_days: list = field(default_factory=list)
     week: dict = field(default_factory=dict)  # day -> {"id", "variant", "line"} from [week]
+    volume_level: str = "intermediate"   # levels.toml levels (08)
+    quality_level: str = "intermediate"
     vdot_from: tuple | None = None       # ("10k", "2024-05-01") when derived
     sources: dict = field(default_factory=dict)   # field -> "set" | "derived" | "default"
     warnings: list = field(default_factory=list)
@@ -72,6 +75,14 @@ def _day_list(raw, key):
     if not isinstance(v, list):
         raise ProfileError(f"{key} must be a list of day names such as [\"tue\", \"sat\"]")
     return sorted({_day(d, key) for d in v}, key=WEEKDAYS.index)
+
+
+def _level(raw, key):
+    v = raw[key]
+    level = v.strip().lower() if isinstance(v, str) else None
+    if level not in LEVELS:
+        raise ProfileError(f"{key} must be one of {', '.join(LEVELS)}, got {v!r}")
+    return level
 
 
 def parse_goal(v):
@@ -183,9 +194,15 @@ def load_profile(path, runs, rhr=(), today=None):
         warnings.append("hill_days: not set, using none (no hill sessions)")
     race, sources["race"] = (parse_race(raw["race"]), "set") if "race" in raw else (None, "default")
     week, sources["week"] = {}, "default"
+    lv = {}
+    for key in ("volume_level", "quality_level"):
+        if key in raw:
+            lv[key], sources[key] = _level(raw, key), "set"
+        else:
+            sources[key] = "default"
     if "week" in raw:
         week, sources["week"] = parse_week(raw["week"], Path(path).read_text(encoding="utf-8")), "set"
 
-    return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills, week=week,
+    return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills, week=week, **lv,
                    vdot_from=stats["vdot_from"] if sources["vdot"] == "derived" else None,
                    sources=sources, warnings=warnings)
