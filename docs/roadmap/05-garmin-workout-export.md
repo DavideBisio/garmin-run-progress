@@ -35,8 +35,10 @@ src/garmin_plan/
   | recovery | `RECOVERY (4)` |
   | cooldown | `COOLDOWN (2)` |
 
+  - Runs without a warmup or cooldown (easy, steady and progression runs) are main set only: every step is `rep`, so `INTERVAL`. `hm_long`'s steady km between the marathon-pace blocks is `recovery`, so `RECOVERY` (see [plan workouts](../features/plan-workouts.md)).
+
   - A distance end uses `ConditionType.DISTANCE`, a time end uses `TIME` and lap button uses `LAP_BUTTON`.
-  - Repeats become `RepeatGroup(numberOfIterations=n, workoutSteps=[…])`.
+  - Repeats become `RepeatGroup(numberOfIterations=n, workoutSteps=[…])`, with `skipLastRestStep` from `skip_last_rest`. A repeat of 1 always has it `true` (a single rep has no recovery between reps), so a flattened repeat of 1 leaves its last recovery out too.
   - Steps are built as `ExecutableStep` directly, through one helper. The library's `create_*_step` helpers don't cover every role, condition and target combination.
 - **Targets:**
   - `PaceTarget(lower_limit=slow m/s, upper_limit=fast m/s)`; the model validator rejects the reverse order;
@@ -71,7 +73,18 @@ No GUI. The watch and Garmin Connect calendar are the UI.
 
 - [ ] Find out on a real watch whether the secondary HR target is shown, and record the watch model in the feature doc. Older models show only the primary target.
 - [ ] Find Garmin's maximum workout name length. Shorten the title, never the date, so the names stay unique.
-- [ ] Use the local date in `schedule_workout`, not UTC. A session at 23:30 must not land on the next day.
+- [x] Use the local date in `schedule_workout`, not UTC. A session at 23:30 must not land on the next day.
 - [ ] Verify `RepeatGroup.skipLastRestStep` against the distance shown in 04.
-- [ ] Add no new dependencies. `pydantic` arrives through `garminconnect`. The upgrade message names the minimum version that has these methods (0.3.19 here).
-- [ ] Hide the `push_state.json` and `push/` dry-run output from git through `garmin_export/`.
+- [x] Add no new dependencies. `pydantic` is only an optional extra of `garminconnect` (not installed here), so the payloads are plain dicts uploaded with `upload_workout`, no pydantic models. The upgrade message names the minimum version that has these methods (0.3.19 here).
+- [x] Hide the `push_state.json` and `push/` dry-run output from git through `garmin_export/`.
+
+## Shipped
+
+`python -m garmin_plan push` and `make push` (#8): `src/garmin_plan/push.py`, documented in [plan push](../features/plan-push.md), tested by `tests/test_push.py` with `FakeGarmin` and the snapshots in `tests/fixtures/push/`. Differences from the plan above:
+
+- Payloads are plain dicts in `RunningWorkout`'s shape, uploaded with `upload_workout(dict)`; `PaceTarget`, `CustomHeartRateTarget`, `ExecutableStep` and `RepeatGroup` are mirrored field by field, not imported. So the library check looks for `upload_workout`, not `upload_running_workout`.
+- Names are `[plan] <title> <date>`, shortened to `NAME_MAX` = 64 (provisional) in the title only; the template id and variant go in the description and in `push_state.json`, which also stores each workout's name.
+- A workout uploaded but not scheduled when a push stops is deleted by the next push before it uploads again.
+- `--weeks N` counts plan weeks from the current one.
+
+Still open: the real-watch checks above (secondary HR, name length, `skipLastRestStep`), and the response field names on a real account.

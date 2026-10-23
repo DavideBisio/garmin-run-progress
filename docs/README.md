@@ -4,6 +4,7 @@
 |---|---|
 | [Architecture](architecture.md) | The two components, how data flows between them, design choices |
 | [runs.json format](runs-json-format.md) | The file contract between the grabber and the page |
+| [plan.json format](plan-json-format.md) | The planner's output: resolved workouts for the Garmin export and the page |
 | [Deploy](deploy.md) | Running locally, GitHub Pages, scheduling the grabber, releasing changes |
 | [Source layout and build](architecture.md#source-layout-and-build) | `src/`, `tools/build.py`, tests, Makefile |
 | [Roadmap](roadmap/README.md) | The training plan generator, section by section (00–10) |
@@ -32,3 +33,11 @@
 | Aerobic decoupling | [features/aerobic-decoupling.md](features/aerobic-decoupling.md) |
 | Cadence, stride length, Training Effect | [features/form-and-training-effect.md](features/form-and-training-effect.md) |
 | Training load, load ratio, zones, consistency | [features/training-load-zones-consistency.md](features/training-load-zones-consistency.md) |
+
+**Planner (`garmin_plan`)**
+
+| Feature | Document |
+|---|---|
+| Runner profile, Daniels paces, HR zones | [features/plan-profile.md](features/plan-profile.md) |
+| Workout templates, markdown renderer, manual `[week]` schedule | [features/plan-workouts.md](features/plan-workouts.md) |
+| Push to Garmin Connect: upload, schedule, re-push, dry-run | [features/plan-push.md](features/plan-push.md) |

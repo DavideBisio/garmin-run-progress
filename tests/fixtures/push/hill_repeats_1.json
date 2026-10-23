@@ -1,0 +1,153 @@
+{
+ "workoutName": "[plan] Hill Repeats 2024-06-16",
+ "description": "garmin_plan: template hill_repeats, variant 1, 5.0 km",
+ "sportType": {
+  "sportTypeId": 1,
+  "sportTypeKey": "running",
+  "displayOrder": 1
+ },
+ "estimatedDurationInSecs": 2045,
+ "author": {},
+ "workoutSegments": [
+  {
+   "segmentOrder": 1,
+   "sportType": {
+    "sportTypeId": 1,
+    "sportTypeKey": "running",
+    "displayOrder": 1
+   },
+   "workoutSteps": [
+    {
+     "type": "ExecutableStepDTO",
+     "stepOrder": 1,
+     "stepType": {
+      "stepTypeId": 1,
+      "stepTypeKey": "warmup",
+      "displayOrder": 1
+     },
+     "endCondition": {
+      "conditionTypeId": 3,
+      "conditionTypeKey": "distance",
+      "displayOrder": 3,
+      "displayable": true
+     },
+     "endConditionValue": 2000.0,
+     "targetType": {
+      "workoutTargetTypeId": 6,
+      "workoutTargetTypeKey": "pace.zone",
+      "displayOrder": 1
+     },
+     "targetValueOne": 2.55780642520974,
+     "targetValueTwo": 2.7103209019947965,
+     "secondaryTargetType": {
+      "workoutTargetTypeId": 4,
+      "workoutTargetTypeKey": "heart.rate.zone",
+      "displayOrder": 2
+     },
+     "secondaryTargetValueOne": 134.0,
+     "secondaryTargetValueTwo": 148.0,
+     "description": "Warmup; On flat ground, to the bottom of the slope"
+    },
+    {
+     "type": "RepeatGroupDTO",
+     "stepOrder": 2,
+     "stepType": {
+      "stepTypeId": 6,
+      "stepTypeKey": "repeat",
+      "displayOrder": 6
+     },
+     "numberOfIterations": 5,
+     "workoutSteps": [
+      {
+       "type": "ExecutableStepDTO",
+       "stepOrder": 3,
+       "stepType": {
+        "stepTypeId": 3,
+        "stepTypeKey": "interval",
+        "displayOrder": 3
+       },
+       "endCondition": {
+        "conditionTypeId": 2,
+        "conditionTypeKey": "time",
+        "displayOrder": 2,
+        "displayable": true
+       },
+       "endConditionValue": 30.0,
+       "targetType": {
+        "workoutTargetTypeId": 4,
+        "workoutTargetTypeKey": "heart.rate.zone",
+        "displayOrder": 1
+       },
+       "targetValueOne": 162.0,
+       "targetValueTwo": 190.0,
+       "description": "Moderate slope, about 5-8%; Uphill; Quick, short steps; drive the arms"
+      },
+      {
+       "type": "ExecutableStepDTO",
+       "stepOrder": 4,
+       "stepType": {
+        "stepTypeId": 4,
+        "stepTypeKey": "recovery",
+        "displayOrder": 4
+       },
+       "endCondition": {
+        "conditionTypeId": 1,
+        "conditionTypeKey": "lap.button",
+        "displayOrder": 1,
+        "displayable": true
+       },
+       "targetType": {
+        "workoutTargetTypeId": 4,
+        "workoutTargetTypeKey": "heart.rate.zone",
+        "displayOrder": 1
+       },
+       "targetValueOne": 134.0,
+       "targetValueTwo": 148.0,
+       "description": "Back down; Press lap at the bottom, once recovered"
+      }
+     ],
+     "endCondition": {
+      "conditionTypeId": 7,
+      "conditionTypeKey": "iterations",
+      "displayOrder": 7,
+      "displayable": false
+     },
+     "endConditionValue": 5.0,
+     "smartRepeat": false,
+     "skipLastRestStep": false
+    },
+    {
+     "type": "ExecutableStepDTO",
+     "stepOrder": 5,
+     "stepType": {
+      "stepTypeId": 2,
+      "stepTypeKey": "cooldown",
+      "displayOrder": 2
+     },
+     "endCondition": {
+      "conditionTypeId": 3,
+      "conditionTypeKey": "distance",
+      "displayOrder": 3,
+      "displayable": true
+     },
+     "endConditionValue": 2000.0,
+     "targetType": {
+      "workoutTargetTypeId": 6,
+      "workoutTargetTypeKey": "pace.zone",
+      "displayOrder": 1
+     },
+     "targetValueOne": 2.55780642520974,
+     "targetValueTwo": 2.7103209019947965,
+     "secondaryTargetType": {
+      "workoutTargetTypeId": 4,
+      "workoutTargetTypeKey": "heart.rate.zone",
+      "displayOrder": 2
+     },
+     "secondaryTargetValueOne": 134.0,
+     "secondaryTargetValueTwo": 148.0,
+     "description": "Cooldown"
+    }
+   ]
+  }
+ ]
+}

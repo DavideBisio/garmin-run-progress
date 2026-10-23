@@ -14,7 +14,7 @@ ARGS ?=
 VERSION ?=
 DEPS := garminconnect curl_cffi ua-generator
 
-# run the grabber package straight from src/ (python -m garmin_grab)
+# run the grabber and planner packages straight from src/ (python -m garmin_grab, -m garmin_plan)
 export PYTHONPATH := src
 
 # fail before the tests run, not after
@@ -25,7 +25,7 @@ ifneq ($(filter release,$(MAKECMDGOALS)),)
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help install upgrade grab rebuild build dev serve test test-py test-js site-install site-dev site-build site-test deploy release clean
+.PHONY: help install upgrade grab rebuild plan-profile plan push build dev serve test test-py test-js site-install site-dev site-build site-test deploy release clean
 
 help: ## list the targets
 	@$(PY) -c "import re; [print(f'  make {m[1]:<13} {m[2]}') for m in re.finditer(r'^([a-z-]+):.*?## (.*)$$', open('Makefile').read(), re.M)]"
@@ -46,6 +46,16 @@ grab: $(VENV_PY) ## fetch new runs and rebuild garmin_export/runs.json
 
 rebuild: ## rebuild runs.json from local files, no network
 	$(PY) -m garmin_grab --rebuild $(ARGS)
+
+# ---------------------------------------------------------------- planner
+plan-profile: ## print the runner profile (garmin_export/profile.toml + runs.json)
+	$(PY) -m garmin_plan profile $(ARGS)
+
+plan: ## write garmin_export/plan.json and plan.md from profile.toml's [week] (ARGS="--weeks 4")
+	$(PY) -m garmin_plan plan $(ARGS)
+
+push: $(VENV_PY) ## upload and schedule plan.json's future sessions on Garmin (ARGS="--weeks 2 --dry-run")
+	$(VENV_PY) -m garmin_plan push $(ARGS)
 
 # ---------------------------------------------------------------- page
 build: ## build dist/garmin_grab.py and dist/index.html from src/
@@ -74,11 +84,11 @@ site-test: ## check the built site/dist (run site-build first)
 # ---------------------------------------------------------------- test & deploy
 test: build test-py test-js ## build, then run all tests
 
-test-py: ## grabber and build unit tests
+test-py: ## grabber, planner and build unit tests
 	$(PY) -m unittest discover -s tests
 
-test-js: build ## page smoke tests on dist/ (Node 20.11+)
-	$(NODE) --test tests/page.test.mjs
+test-js: build ## page smoke tests on dist/ and metric parity vectors (Node 20.11+)
+	$(NODE) --test tests/page.test.mjs tests/metrics.test.mjs
 
 deploy: test ## test, then push; pushing main deploys the project site (pages.yml)
 	git push

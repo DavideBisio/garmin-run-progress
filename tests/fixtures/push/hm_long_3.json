@@ -1,0 +1,54 @@
+{
+ "workoutName": "[plan] Half-Marathon Long Run 2024-06-16",
+ "description": "garmin_plan: template hm_long, variant 3, 21.0 km",
+ "sportType": {
+  "sportTypeId": 1,
+  "sportTypeKey": "running",
+  "displayOrder": 1
+ },
+ "estimatedDurationInSecs": 7979,
+ "author": {},
+ "workoutSegments": [
+  {
+   "segmentOrder": 1,
+   "sportType": {
+    "sportTypeId": 1,
+    "sportTypeKey": "running",
+    "displayOrder": 1
+   },
+   "workoutSteps": [
+    {
+     "type": "ExecutableStepDTO",
+     "stepOrder": 1,
+     "stepType": {
+      "stepTypeId": 3,
+      "stepTypeKey": "interval",
+      "displayOrder": 3
+     },
+     "endCondition": {
+      "conditionTypeId": 3,
+      "conditionTypeKey": "distance",
+      "displayOrder": 3,
+      "displayable": true
+     },
+     "endConditionValue": 21000.0,
+     "targetType": {
+      "workoutTargetTypeId": 6,
+      "workoutTargetTypeKey": "pace.zone",
+      "displayOrder": 1
+     },
+     "targetValueOne": 2.55780642520974,
+     "targetValueTwo": 2.7103209019947965,
+     "secondaryTargetType": {
+      "workoutTargetTypeId": 4,
+      "workoutTargetTypeKey": "heart.rate.zone",
+      "displayOrder": 2
+     },
+     "secondaryTargetValueOne": 134.0,
+     "secondaryTargetValueTwo": 148.0,
+     "description": "Long run; Even effort"
+    }
+   ]
+  }
+ ]
+}
