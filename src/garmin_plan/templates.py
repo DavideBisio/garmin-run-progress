@@ -1,9 +1,10 @@
 """The workout template library (data/workouts.toml): loading, validation and instantiation.
 
-instantiate(template, variant, profile, rules) resolves one ladder variant (1-based) for a runner:
+instantiate(template, variant, profile, rules, overrides) resolves one ladder variant (1-based) for a runner:
 pace zones become PaceRanges (point pace from physiology.pace_zones plus the [bands] in rules.toml),
 HR zones become bpm HrRanges (Karvonen, as physiology.hr_zones). See docs/features/plan-workouts.md.
 """
+import dataclasses
 import math
 import re
 import tomllib
@@ -13,7 +14,7 @@ from .config import DATA_DIR
 from .model import ROLES, HrRange, PaceRange, Repeat, Step, Workout
 from .physiology import hr_zones, pace_zones
 
-KINDS = ("E", "L", "R", "T", "I", "M", "hill", "trail")
+KINDS = ("E", "L", "R", "T", "I", "M", "hill", "trail", "tt")      # tt: time trial (08)
 LEVELS = ("beginner", "novice", "intermediate", "advanced")
 PACE_ZONES = ("E", "M", "T", "I", "R")
 HARD_ZONES = ("M", "T", "I", "R")
@@ -55,6 +56,12 @@ def _parse_hr(spec):
         raise TemplateError(f"unknown HR zone {spec!r}; use Z1 … Z5, a span such as Z4-5, "
                             "a cap such as Z3 cap, or open")
     return int(m[1]), int(m[2] or m[1]), bool(m[3])
+
+
+def zone_span(spec):
+    """'Z2' -> (2, 2); 'Z4-5' -> (4, 5); 'Z3 cap' -> (1, 3): the HR zones a target spans."""
+    a, b, cap = _parse_hr(spec)
+    return (1, b) if cap else (a, b)
 
 
 def hr_range(spec, hr_max, hr_rest):
@@ -251,8 +258,9 @@ def load_templates(path=None):
 # ---------------------------------------------------------------- instantiation
 
 class _Ctx:
-    def __init__(self, t, variant, prof, rules):
-        self.id, self.vars, self.rules, self.prof = t["id"], t["ladder"][variant - 1], rules, prof
+    def __init__(self, t, variant, prof, rules, values=None):
+        self.id, self.rules, self.prof = t["id"], rules, prof
+        self.vars = {**t["ladder"][variant - 1], **(values or {})}
         self.paces = pace_zones(prof.vdot, rules)
 
     def value(self, v):
@@ -300,18 +308,50 @@ def _block(b, ctx):
     return Repeat(int(n), steps, skip_last_rest=skip, note=b.get("note", ""))
 
 
-def instantiate(template, variant, profile, rules):
-    """The Workout of ladder variant `variant` (1-based) for `profile` (vdot, hr_max, hr_rest)."""
+def _check_overrides(template, variant, overrides):
+    """Split overrides into ladder values and warm-up / cool-down end values; TemplateError if unusable."""
+    tid, entry = template["id"], template["ladder"][variant - 1]
+    values, ends = {}, {}
+    for k, v in (overrides or {}).items():
+        if k in ("warmup", "cooldown"):
+            if k not in template or template[k].get("lap"):
+                raise TemplateError(f"{tid}: no {k} with a distance or time to override")
+            ends[k] = v
+        elif k in entry and k != "title":
+            values[k] = v
+        else:
+            raise TemplateError(f"{tid}: {k!r} is not a ladder variable of variant {variant} "
+                                f"({', '.join(x for x in entry if x != 'title')}) nor warmup or cooldown")
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
+            raise TemplateError(f"{tid}: override {k} must be a non-negative number, got {v!r}")
+    return values, ends          # a repeat count that isn't whole fails in _block, as a ladder's would
+
+
+def _end(part, value):
+    """A warm-up or cool-down Step with its end value replaced; None (left out) for 0."""
+    return dataclasses.replace(part, value=value) if part and value else None
+
+
+def instantiate(template, variant, profile, rules, overrides=None):
+    """The Workout of ladder variant `variant` (1-based) for `profile` (vdot, hr_max, hr_rest).
+
+    overrides replaces values for this one workout: a ladder variable by name ({"d": 7300} metres,
+    {"t": 3000} seconds, as the step uses it), or the warm-up or cool-down step's end value
+    ({"warmup": 3500}); 0 leaves that step out. The planner sizes easy and long runs this way.
+    """
     n = len(template["ladder"])
     if isinstance(variant, bool) or not isinstance(variant, int) or not 1 <= variant <= n:
         raise TemplateError(f"{template['id']}: variant {variant!r} doesn't exist (variants 1-{n})")
-    ctx = _Ctx(template, variant, profile, rules)
+    values, ends = _check_overrides(template, variant, overrides)
+    ctx = _Ctx(template, variant, profile, rules, values)
     parts = []
     if "warmup" in template:
-        parts.append(_step(template["warmup"], "warmup", ctx))
+        w = _step(template["warmup"], "warmup", ctx)
+        parts.append(_end(w, ends["warmup"]) if "warmup" in ends else w)
     parts += [_block(b, ctx) for b in template["main"]]
     if "cooldown" in template:
-        parts.append(_step(template["cooldown"], "cooldown", ctx))
+        c = _step(template["cooldown"], "cooldown", ctx)
+        parts.append(_end(c, ends["cooldown"]) if "cooldown" in ends else c)
     parts = [p for p in parts if p]
     if not parts:
         raise TemplateError(f"{template['id']}: variant {variant} has no steps")

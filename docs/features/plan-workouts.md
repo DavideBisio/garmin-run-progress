@@ -1,6 +1,6 @@
 # Planner workouts, renderer and manual schedule
 
-The planner's sessions come from a template library, `src/garmin_plan/data/workouts.toml`. A template plus a size variant plus your [profile](plan-profile.md) gives a resolved workout: concrete pace and HR ranges, distance, estimated duration and hard km. `python -m garmin_plan plan --weeks N` (or `make plan ARGS="--weeks 4"`) writes those workouts to `garmin_export/plan.json` ([format](../plan-json-format.md)) and `garmin_export/plan.md` from a `[week]` table in `profile.toml`. Modules: `garmin_plan.model`, `templates`, `render_md`, `plan_io`.
+The planner's sessions come from a template library, `src/garmin_plan/data/workouts.toml`. A template plus a size variant plus your [profile](plan-profile.md) gives a resolved workout: concrete pace and HR ranges, distance, estimated duration and hard km. The [plan generator](plan-generator.md) picks and sizes them week by week; `python -m garmin_plan plan` (or `make plan`) writes the plan to `garmin_export/plan.json` ([format](../plan-json-format.md)) and `garmin_export/plan.md`, and a `[week]` table in `profile.toml` overrides the days it lists. Modules: `garmin_plan.model`, `templates`, `render_md`, `plan_io`.
 
 ## Templates
 
@@ -12,13 +12,20 @@ The planner's sessions come from a template library, `src/garmin_plan/data/worko
 | `cruise_tempo` | T | novice | 2, 3, 4 × 1200 m, 2 × 3000 m, 1 × 5000 m; 60 s jog between reps |
 | `vo2_intervals` | I | intermediate | 5 × 600 m, 6 × 800 m, 5 and 6 × 1000 m |
 | `easy` | E | beginner | 4, 5, 6, 7, 8, 10 km |
-| `progression` | M | novice | E then M: 3 + 2, 3.5 + 3.5, 4 + 5 km |
+| `strides` | E | beginner | 3, 4, 5, 6 km easy, then 4, 6, 6, 8 × 100 m strides at R, 100 m jog; 1 km cool-down |
+| `progression` | M | intermediate | E then M: 3 + 2, 3.5 + 3.5, 4 + 5 km |
 | `steady_long` | L | novice | 10, 12, 14, 16, 18 km |
 | `progression_long` | L | intermediate | E, M, E: 8 + 3 + 2, 10.5 + 3.5 + 3.5, 12 + 5 + 3 km |
 | `hm_long` | L | intermediate | 16, 18, 21 km; 21 km with 3 × 2 km at M |
 | `hill_repeats` | hill | intermediate | 5 × 30 s, 6 and 8 × 45 s, 10 × 60 s uphill, lap-button recovery |
 | `hilly_long` | hill | intermediate | 40, 60, 80 min rolling terrain plus 4–6 downhill reps |
 | `trail_long` | trail | intermediate | 80, 100, 120 min on trail, Z3 cap |
+| `run_walk` | E | beginner | 5 min brisk walk, then 8 × (2 + 1 walk), 6 × (3 + 1), 5 × (4 + 1), 4 × (6 + 1), 3 × (8 + 1), 2 × (12 + 1) min run/walk, then 30 min continuous; Z2 cap |
+| `easy_time` | E | beginner | 20, 30, 40, 50 min easy, Z2 cap |
+| `long_time` | L | beginner | 30, 45, 60 min easy, Z2 cap |
+| `strides_feel` | E | beginner | 10, 15, 20 min easy, then 4, 6, 6 × 20 s strides by feel, 1 min walk back; 5 min cool-down |
+| `hills_effort` | hill | beginner | 10 min easy, 4 and 6 × 45 s, 6 × 60 s steady uphill under the Z2 cap, walk down (lap button); 5 min cool-down |
+| `time_trial` | tt | beginner | 10 min warm-up, 2 km all-out (or 20 min), 10 min cool-down |
 
 **Ids are stable.** They go into `plan.json`, and into `push_state.json` and the description of workouts pushed to Garmin ([plan push](plan-push.md)); the pushed workouts themselves are named `[plan] <title> <date>`. Renaming an id breaks that link for workouts already on the calendar. Add a new template instead. Variants are 1-based everywhere.
 
@@ -28,7 +35,7 @@ The planner's sessions come from a template library, `src/garmin_plan/data/worko
 [[workout]]
 id = "cruise_tempo"            # lower case, digits, _
 title = "Cruise Tempo"
-kind = "T"                     # E, L, R, T, I, M, hill, trail
+kind = "T"                     # E, L, R, T, I, M, hill, trail, tt (time trial)
 min_level = "novice"           # beginner, novice, intermediate, advanced
 warmup = { pace = "E", dist = 2000 }
 cooldown = { pace = "E", dist = 1000 }
@@ -48,9 +55,12 @@ recovery = { time = 60 }
 - **Defaults:** a recovery without `pace` or `effort` is a jog at Z2. A pace zone without `hr` gets its usual HR zone: E Z2, M Z3, T Z4, I and R Z4-5.
 - **Estimates:** a time-ended step needs `est_pace` for its distance (a jog uses the jog pace). A distance-ended step without a pace target needs `est_pace` for its duration. A lap-button step needs `est_time` and `est_dist`. `est_pace` is a zone (`E`, `jog`), a zone plus or minus seconds per km (`I+30`), or an absolute `M:SS`.
 - **Hard km:** steps at M, T, I or R pace, plus steps marked `hard = true` (the hill reps).
-- `climb_m_per_km` (hill and trail templates) is the climbing the session expects, for the terrain checks in 07.
+- `climb_m_per_km` (hill and trail templates) is the climbing the session expects; the generator counts their volume as flat-equivalent km (Minetti, [plan generator](plan-generator.md#volume-and-load)).
+- **Overrides:** `instantiate(..., overrides={"d": 7300})` replaces a ladder value for one workout, and `{"warmup": 3500}` or `{"cooldown": …}` the warm-up or cool-down step's distance (m) or time (s); 0 leaves the step out. The generator sizes easy and long runs to the split's km this way, and puts the split's leftover on the Q day into a longer warm-up.
 
 Hill and trail sessions use HR or open targets and end on time or the lap button, because terrain sets the pace. A trail run's climbs and descents are one timed step under an HR cap, with the guidance in the comment.
+
+The beginner templates (roadmap 08) have no pace target at all: time ends, a `Z2 cap` HR target (walk steps too, so they count as easy) and an effort text with an RPE, which the pace column shows. The time trial's effort is open: no HR target.
 
 `load_templates` rejects, with a `TemplateError` naming the template and step: unknown keys, zones, kinds or levels, a ladder missing a variable, a ladder value used as a repeat count that is not a whole number (`n = 2.5`, also `n = 3.0`), a step without exactly one end, a time-ended step without an estimate, a lap step without `est_time` and `est_dist`, and a duplicate id.
 
@@ -99,7 +109,7 @@ Numbers are rounded only when rendering. Write the output as UTF-8: `↳` is not
 
 ## Manual schedule (`[week]`)
 
-Until the weekly skeleton (06) chooses sessions, `profile.toml` maps weekdays to `template:variant`:
+The [plan generator](plan-generator.md) plans every available day; `profile.toml` can pin any weekday to a `template:variant`:
 
 ```toml
 [week]
@@ -108,7 +118,7 @@ thu = "easy:3"
 sun = "steady_long:1"
 ```
 
-`make plan ARGS="--weeks 4"` (or `python -m garmin_plan plan --weeks 4`) plans 4 weeks starting on the Monday after today (`--today YYYY-MM-DD` to pretend otherwise). Every week repeats `[week]`, `target_km` is the sum of the week's sessions as `plan.md` shows them (each workout's km rounded to 0.1 first, so the week heading equals the sum of its day headings) and `slot` stays `null`. It writes `garmin_export/plan.json` and `garmin_export/plan.md`.
+Each listed day replaces the generated session of that weekday in every week (or adds one on a day the generator leaves free), with `slot` `null`. The fixer never changes these days, but the checks still count them and may warn. A week with `[week]` days has `target_km` = the sum of its sessions as `plan.md` shows them (each workout's km rounded to 0.1 first, so the week heading equals the sum of its day headings). `plan_io.build_plan` still builds a plan of the `[week]` days alone (the Garmin export's tests use it); without a `[week]` table its weeks have no sessions.
 
 An unknown template, a variant outside the ladder or a value not shaped `template:variant` stops with `error: …` and quotes the line as written in `profile.toml`. `tomllib` has no line numbers, so the profile keeps the raw line of each `[week]` key. Any line starting with `[` (another `[table]`, a dotted `[week.x]` or an `[[array]]` table) ends the `[week]` section.
 

@@ -51,7 +51,7 @@ When a real push fails, the command stops with `error: <message> (re-run to resu
 
 ## Payload
 
-`to_garmin(workout, name, description)` builds the dict that `garminconnect`'s `RunningWorkout.to_dict()` would give (sport `running`, one segment, `estimatedDurationInSecs` from the workout's total), with Garmin's ids inlined from `garminconnect.workout` 0.3.19. It is plain JSON uploaded with `upload_workout(dict)`: no `pydantic`, which `garminconnect` only has as an optional extra, and no new dependency. All steps come from one helper, `_step`; the library's `create_*_step` helpers don't cover every role, end and target combination.
+`to_garmin(workout, name, description, hr_guidance=False)` builds the dict that `garminconnect`'s `RunningWorkout.to_dict()` would give (sport `running`, one segment, `estimatedDurationInSecs` from the workout's total), with Garmin's ids inlined from `garminconnect.workout` 0.3.19. It is plain JSON uploaded with `upload_workout(dict)`: no `pydantic`, which `garminconnect` only has as an optional extra, and no new dependency. All steps come from one helper, `_step`; the library's `create_*_step` helpers don't cover every role, end and target combination.
 
 | plan.json | Garmin |
 |---|---|
@@ -62,9 +62,12 @@ When a real push fails, the command stops with `error: <message> (re-run to resu
 | `pace_s_per_km` `[fast, slow]` | primary `pace.zone (6)`: `targetValueOne` = slow m/s < `targetValueTwo` = fast m/s, from `PaceRange.to_speed()` |
 | `hr` `[lo, hi]` with a pace | secondary `heart.rate.zone (4)`: `secondaryTargetValueOne/Two` in bpm |
 | `hr` without a pace (hill reps, trail) | primary `heart.rate.zone`, bpm |
+| `hr` without a pace, in a beginner's plan | `no.target`; the effort and `HR under 148 bpm` (a cap) or `HR 134-148 bpm` go in the description |
 | neither | `no.target (1)` |
 | repeat of 2 or more | `RepeatGroupDTO`: `numberOfIterations`, `ITERATIONS (7)` end, `skipLastRestStep` from `skip_last_rest` |
 | repeat of 1 | its steps, without the last recovery (as `plan.md` and the totals) |
+
+**Beginners** (roadmap 08): when `plan.json`'s `levels` has `beginner` on either axis, the push sends HR as guidance only. A step without a pace target gets no target, so an optical sensor can't make the watch beep all run long, and its description carries the effort (with the RPE) and the HR limit: `Run; Easy, conversational (RPE 3-4); HR under 148 bpm`. A step with a pace keeps pace as the primary target and HR as the secondary. The beginner templates end on time, so the payload stays a plain time-ended step.
 
 `stepOrder` runs 1, 2, 3 … through the whole workout, repeat children included. The step's label and note go in its `description`; a repeat's note goes first in the description of its first step (inside the `RepeatGroupDTO`, or the first of the flattened steps of a repeat of 1), joined with `; `. The snapshots in `tests/fixtures/push/` (`cruise_tempo` 2, `hill_repeats` 1, `hm_long` 3, VDOT 40, HR 190/50) show complete payloads; regenerate them after a reviewed change with `UPDATE_SNAPSHOTS=1 python -m unittest tests.test_push`.
 
@@ -74,7 +77,7 @@ If the logged-in client lacks `upload_workout`, `schedule_workout`, `unschedule_
 
 ## Tests
 
-`tests/test_push.py` (TC-8) runs against `FakeGarmin`, never the real library: payload shape per role, end and target; step order; repeats; snapshots; names; future sessions and `--weeks`; re-push; resume after an interruption at every call of a first push and of a re-push; a lost answer (applied, then an error) at every upload, schedule, unschedule and delete; a resumed workout already gone or renamed; a listing with unexpected or unreadable field names; one workout on two dates; dry-run; the old-library message; `push --dry-run` through the CLI and the error and Ctrl-C messages of `cmd_push`.
+`tests/test_push.py` (TC-8) runs against `FakeGarmin`, never the real library: payload shape per role, end and target; step order; repeats; snapshots; names; future sessions and `--weeks`; HR guidance for beginners (no target, the description, pace steps unchanged, the plan's levels); re-push; resume after an interruption at every call of a first push and of a re-push; a lost answer (applied, then an error) at every upload, schedule, unschedule and delete; a resumed workout already gone or renamed; a listing with unexpected or unreadable field names; one workout on two dates; dry-run; the old-library message; `push --dry-run` through the CLI and the error and Ctrl-C messages of `cmd_push`.
 
 ## Open: manual acceptance on a real account
 

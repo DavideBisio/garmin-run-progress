@@ -1,16 +1,17 @@
-"""plan.json: build a plan from the [week] schedule, and read and write it (docs/plan-json-format.md).
+"""plan.json: the [week] schedule, workout <-> dict, and reading and writing it (docs/plan-json-format.md).
 
 The file holds resolved steps (pace and HR ranges, estimates), so the Garmin export (05) and the
 page (10) need neither the templates nor the profile.
 """
 import hashlib
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .config import WEEKDAYS
 from .model import HrRange, PaceRange, Repeat, Step, Workout
 from .physiology import pace_zones
+from .levels import unit
 from .profile import ProfileError
 from .templates import PACE_ZONES, hr_range, instantiate, jog_pace, pace_range
 
@@ -57,10 +58,12 @@ def workout_from_dict(d):
 
 
 def profile_hash(prof, rules):
-    """sha256 of what the resolved steps depend on: VDOT, HR max and rest, and the resolved zones
-    (pace ranges in s/km to 0.01, the jog pace, HR zone bpm). A changed hash means stale steps."""
+    """sha256 of what the resolved steps depend on: VDOT, HR max and rest, the resolved zones (pace
+    ranges in s/km to 0.01, the jog pace, HR zone bpm), the runner's levels, which pick the sessions,
+    and the volume unit. A changed hash means stale steps."""
     paces = pace_zones(prof.vdot, rules)
     key = {"vdot": prof.vdot, "hr_max": prof.hr_max, "hr_rest": prof.hr_rest,
+           "levels": [prof.volume_level, prof.quality_level], "unit": unit(prof),
            "paces": {z: [round(r.fast_s, 2), round(r.slow_s, 2)]
                      for z in PACE_ZONES for r in [pace_range(z, paces, rules)]},
            "jog": round(jog_pace(paces, rules), 2),
@@ -74,22 +77,19 @@ def shown_km(d):
     return float(f"{workout_from_dict(d).km:.1f}")
 
 
+def shown_min(seconds):
+    """Whole minutes, as a plan in minutes shows a session (render_md)."""
+    return int(seconds / 60 + 0.5)
+
+
 def first_monday_after(today):
     return today + timedelta(days=7 - today.weekday())
 
 
-def build_plan(prof, library, rules, today, weeks, generated=None):
-    """The plan dict for `weeks` weeks of profile.toml's [week] schedule, from the Monday after today.
-
-    Every week repeats [week]; target_km is the sum of that week's sessions as plan.md shows them
-    (each workout's km rounded to 0.1 first, so the week heading adds up its day headings) and slot
-    stays null (the weekly skeleton, 06, fills both in). An unknown template or variant raises
-    ProfileError quoting the [week] line.
-    """
-    if not prof.week:
-        raise ProfileError('profile.toml has no [week] table; add one such as [week] tue = "easy:1" '
-                           "(see docs/features/plan-workouts.md)")
-    week = {}
+def manual_days(prof, library, rules):
+    """{weekday: Workout} of profile.toml's [week] schedule, Monday first; {} without one. An unknown
+    template or variant raises ProfileError quoting the [week] line."""
+    out = {}
     for day, e in prof.week.items():
         t = library.get(e["id"])
         if t is None:
@@ -97,7 +97,19 @@ def build_plan(prof, library, rules, today, weeks, generated=None):
         n = len(t["ladder"])
         if not 1 <= e["variant"] <= n:
             raise ProfileError(f"[week]: {e['id']} has variants 1-{n}, got {e['variant']}, in line: {e['line']}")
-        week[day] = workout_to_dict(instantiate(t, e["variant"], prof, rules))
+        out[day] = instantiate(t, e["variant"], prof, rules)
+    return out
+
+
+def build_plan(prof, library, rules, today, weeks, generated=None):
+    """The plan dict for `weeks` weeks of profile.toml's [week] schedule alone, from the Monday after
+    today (the generator, planner.build_plan, fills in the other days).
+
+    Every week repeats [week]; target_km is the sum of that week's sessions as plan.md shows them
+    (each workout's km rounded to 0.1 first, so the week heading adds up its day headings) and slot
+    stays null. Without a [week] table the weeks have no sessions.
+    """
+    week = {d: workout_to_dict(w) for d, w in manual_days(prof, library, rules).items()}
     target = round(sum(shown_km(w) for w in week.values()), 1)
     start = first_monday_after(today)
     out = []
@@ -119,9 +131,34 @@ def write_plan(plan, path):
     tmp.replace(path)
 
 
+def _check_weeks(weeks):
+    """ValueError naming what is wrong when weeks isn't a list of {start, days: [{date, workout}]}
+    with ISO dates and each workout an object or null."""
+    if not isinstance(weeks, list):
+        raise ValueError("weeks is not a list")
+    for i, wk in enumerate(weeks):
+        days = wk.get("days") if isinstance(wk, dict) else None
+        if not isinstance(days, list):
+            raise ValueError(f"week {i + 1} has no list of days")
+        for d, what in [(wk.get("start"), "start")] + [((x or {}).get("date") if isinstance(x, dict) else None,
+                                                        "a day's date") for x in days]:
+            try:
+                date.fromisoformat(d)
+            except (TypeError, ValueError):
+                raise ValueError(f"week {i + 1}: {what} {d!r} is not a YYYY-MM-DD date") from None
+        for x in days:
+            if not isinstance(x.get("workout"), (dict, type(None))):
+                raise ValueError(f"week {i + 1}: day {x['date']}'s workout is not an object")
+
+
 def read_plan(path):
+    """The plan.json dict; ValueError for another version, or weeks and days without their dates."""
     plan = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(plan, dict) or plan.get("version") != VERSION:
         raise ValueError(f"{path}: not a version {VERSION} plan.json")
+    try:
+        _check_weeks(plan.get("weeks"))
+    except ValueError as e:
+        raise ValueError(f"{path}: not a plan.json the planner wrote ({e})") from None
     return plan
 

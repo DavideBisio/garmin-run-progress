@@ -1,0 +1,134 @@
+# Runner levels (roadmap 08, generic and committed): the planning numbers that depend on the
+# runner's level. levels.py lays them over rules.toml, which keeps what is the same at every level.
+#
+# Each key is a table of level = value, for beginner, novice, intermediate and advanced, after the
+# White, Red, Blue and Gold plans of Daniels' Running Formula as the roadmap 08 table sums them up
+# (typical km/week 0-15, 15-30, 30-60, 60+; runs/week 3, 3-4, 4-5, 6-10; Q per week 0 with
+# strides, 1, 1-2, 2-3; L cap 50 % / 60 min, 45 % / 90, 30-35 % / 120, 25 % / 150; ramp per block
+# +5-8 %, +10 %, +10 %, +5 %; a deload every 3rd week for beginners, every 4th above). Those
+# figures are the roadmap's summary, not checked against the book: verify against the book.
+#
+# The quality level sets [skeleton] q_from_days, the [rotation] phase tables and the time trial;
+# the volume level sets everything else. A level left out of a table keeps rules.toml's value.
+
+[volume]
+# Volume curve (volume.py). Each build week adds `ramp` of the block's base, and the next block
+# starts from week 2 (rules.toml), so a block adds `ramp`. Novice and intermediate keep 06's
+# x1.00, x1.08, x1.16 (+8 % a block, under the table's +10 % and 07's 10 % week-on-week check);
+# beginners take the table's +5-8 % (+6 %), advanced runners its +5 %.
+ramp = { beginner = 0.06, novice = 0.08, intermediate = 0.08, advanced = 0.05 }
+# A deload every this many weeks (the block length): every 3rd week for beginners, every 4th above
+# (the table; the advanced "or on fatigue" is 09's adaptation loop).
+deload_every = { beginner = 3, novice = 4, intermediate = 4, advanced = 4 }
+# A start volume under this (in the level's unit) is clamped up to it: about half the level's
+# lowest typical week (15, 30 and 60 km a week); for a beginner, Daniels' White plan start of 3
+# sessions of about 30 minutes.
+start_floor = { beginner = 90, novice = 10, intermediate = 20, advanced = 40 }
+# Volume unit: "km" or "min" (the table's volume unit, km for advanced runners; profile.toml's
+# unit overrides it). The planner works in km and converts minutes at the E pace.
+unit = { beginner = "min", novice = "km", intermediate = "km", advanced = "km" }
+
+[split]
+# Week split (split.py). Long run cap as a share of the week, from the table's L cap. Daniels
+# writes 25-30 % for 5+ runs a week; with fewer runs the share goes up so the long run stays the
+# longest: 45 % at 3-4 runs (06's value), 35 % (the top of 30-35 %) at 4-5.
+long_share_cap = { beginner = 0.5, novice = 0.45, intermediate = 0.35, advanced = 0.25 }
+# L no longer than this many minutes at E pace whatever the volume (the table's L cap; Daniels'
+# 150 min, 2.5 h, at the top).
+long_time_cap_min = { beginner = 60, novice = 90, intermediate = 120, advanced = 150 }
+# Shortest E run worth putting on: easy_min_km or easy_min_min at E pace, whichever is shorter.
+# 06's 5 km or 30 min from novice up; a beginner's runs start at 20 minutes (Daniels' White plan
+# opens with 30-minute sessions that are partly walking).
+easy_min_km = { beginner = 3, novice = 5, intermediate = 5, advanced = 5 }
+easy_min_min = { beginner = 20, novice = 30, intermediate = 30, advanced = 30 }
+
+[skeleton]
+# Weekly slots (skeleton.py). At most this many runs a week (the top of the table's runs/week;
+# advanced 7, one a day: doubles aren't planned). With more profile days the extra ones are rest.
+max_runs = { beginner = 3, novice = 4, intermediate = 5, advanced = 7 }
+# Q days: one more from each of these run counts. The table's Q per week: novice 1; intermediate 1,
+# 2 from 5 runs; advanced 2 from 4 runs. A beginner's Q day only ever holds strides, hills by
+# effort or the time trial: no Q session in Daniels' sense. Advanced runners' third Q is the long
+# run's quality (the rotation's marathon-pace long runs): a third Q day can't be placed, since Q x 3
+# and L are four hard days and a 7-day week holds at most 3 that aren't back to back. The checks
+# allow Q + 1 hard sessions a week (L counts as one).
+q_from_days = { beginner = [3], novice = [3], intermediate = [3, 5], advanced = [3, 4] }
+
+[rotation]
+# Template of the E and F runs, and of a Q day the week can't hold: sized to the split's km. A
+# beginner's runs are in time, under a Z2 HR cap, without a pace target.
+E = { beginner = "easy_time", novice = "easy", intermediate = "easy", advanced = "easy" }
+# Run/walk ladder (Daniels' White plan start): the E and L runs take its variants, one a build week,
+# until its last one (30 minutes continuous); then the E template and the rotation's L.
+run_walk = { beginner = "run_walk" }
+# A time trial in this week of the plan (Daniels: a test effort after the first 2-4 weeks) gives a
+# runner without a VDOT their first one: it takes the Q day, or an easy day in a week without Q.
+time_trial = { beginner = "time_trial" }
+time_trial_week = { beginner = 3 }
+
+# The beginner's phases (Daniels' White plan: E, strides, hills by effort), in 3-week blocks (two
+# build weeks, then the deload): strides by feel on the Q day, hills by effort on a hill day, and
+# the long run in time.
+[rotation.base.beginner]
+Q = [["strides_feel"], ["strides_feel"], ["strides_feel"]]
+Q_hill = [["hills_effort"], ["hills_effort"], []]
+L = [["long_time"], ["long_time"], ["long_time"]]
+
+[rotation.rt.beginner]
+Q = [["strides_feel"], ["strides_feel"], ["strides_feel"]]
+Q_hill = [["hills_effort"], ["hills_effort"], []]
+L = [["long_time"], ["long_time"], ["long_time"]]
+
+[rotation.it.beginner]
+Q = [["strides_feel"], ["strides_feel"], ["strides_feel"]]
+Q_hill = [["hills_effort"], ["hills_effort"], []]
+L = [["long_time"], ["long_time"], ["long_time"]]
+
+[rotation.tm.beginner]
+Q = [["strides_feel"], ["strides_feel"], ["strides_feel"]]
+L = [["long_time"], ["long_time"], ["long_time"]]
+
+[rotation.taper.beginner]
+Q = [["strides_feel"], ["strides_feel"]]
+L = [["long_time"], ["long_time"]]
+
+[detect]
+# Level detection (levels.detect): the highest level whose every minimum the history meets, from
+# the roadmap 08 table's boundaries. Volume: the 4-week average (km/week), as promotion counts the
+# next level's volume over 4 weeks.
+km = { novice = 15, intermediate = 30, advanced = 60 }
+# The 12-week average: at least half the level's volume, so one big month after a quiet quarter
+# doesn't count.
+km_12w = { novice = 7.5, intermediate = 15, advanced = 30 }
+# Runs per week over the last 4 weeks: one under the table's lowest run count for the level.
+runs_per_week = { novice = 2, intermediate = 3, advanced = 5 }
+# Consistency (roadmap 08: the share of the last 12 weeks with 2 or more runs), as weeks out of
+# 12: the level held for one block (novice), two (intermediate) or most of the quarter (advanced).
+consistency_weeks = { novice = 4, intermediate = 8, advanced = 10 }
+# Longest run of the last 8 weeks (km): what the level's long runs start from.
+longest = { novice = 5, intermediate = 10, advanced = 16 }
+# Weeks of history in runs.json: a level is held for a block or more before it counts.
+history_weeks = { novice = 4, intermediate = 8, advanced = 16 }
+# Quality: VDOT (set, from training efforts or a time trial) and Q sessions in the last 8 weeks
+# (runs with 10 minutes or more in Z4 and up, history.q_sessions). Below the novice VDOT, or with
+# no VDOT at all, the quality level is beginner.
+vdot = { novice = 30, intermediate = 38, advanced = 50 }
+q_8w = { novice = 0, intermediate = 2, advanced = 8 }
+# Promotion (levels.promote), at a block's start only, one level at a time (roadmap 08): the next
+# level's volume (its km plus `margin`, the hysteresis that keeps a runner at the boundary from
+# flapping) and runs a week in each of the last promote_weeks weeks; for quality, the next level by
+# detection with a VDOT vdot_margin points over its minimum; and at least `compliance` of the
+# planned Q sessions done, once the adaptation loop (roadmap 09) counts them. A level only drops
+# after a break (the layoff table).
+margin = 0.1
+promote_weeks = 4
+vdot_margin = 1
+compliance = 0.75
+
+[layoff]
+# Detraining after a break (levels.layoff): rows of [days off, VDOT factor, volume factor]. Up to
+# the first row's days nothing changes; past it the VDOT factor runs linearly to each row's value
+# and the volume factor is the row's (the first weeks' load). After Daniels' Running Formula,
+# returning from a break: up to 5 days no change; 6-28 days half the load and VDOT down to x0.935;
+# 4-8 weeks a third of the load; past about 10 weeks x0.80. Verify against the book.
+table = [[5, 1.0, 1.0], [28, 0.935, 0.5], [56, 0.86, 0.33], [72, 0.8, 0.33]]

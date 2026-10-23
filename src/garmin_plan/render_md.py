@@ -6,11 +6,13 @@ rounded here and only here. Write the output as UTF-8 (the arrows are not ASCII)
 """
 from datetime import date
 
+from .levels import describe
 from .model import Repeat
-from .plan_io import workout_from_dict
+from .plan_io import shown_min, workout_from_dict
 
 ZONE_NAMES = {"E": "Easy", "M": "Marathon", "T": "Threshold", "I": "Interval", "R": "Repetition"}
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+PHASE_NAMES = {"base": "Base", "rt": "R + T", "it": "I + T", "tm": "T + M", "taper": "Taper"}
 
 
 def fmt_pace(s):
@@ -83,9 +85,12 @@ def _step_row(s, nested=False, note=None):
     return _row([lap, _pace_cell(s), _hr_cell(s), _duration_cell(s), s.note if note is None else note])
 
 
-def render_workout(w, prefix=""):
-    """One workout as a markdown section (heading and table), ending with a newline."""
-    out = [f"### {esc(prefix + w.title)} - {w.km:.1f} km ({fmt_est(w.seconds)})", "",
+def render_workout(w, prefix="", unit="km"):
+    """One workout as a markdown section (heading and table), ending with a newline. In a plan in
+    minutes the heading gives the whole minutes first: '### Easy Run - 30 min (~4.2 km)'."""
+    size = (f"{shown_min(w.seconds)} min (~{w.km:.1f} km)" if unit == "min"
+            else f"{w.km:.1f} km ({fmt_est(w.seconds)})")
+    out = [f"### {esc(prefix + w.title)} - {size}", "",
            _row(["Lap", "Pace range", "FC range", "Duration", "Comment"]),
            "| :---- | :---- | :---- | :---- | :---- |"]
     for p in w.parts:
@@ -106,18 +111,52 @@ def render_workout(w, prefix=""):
     return "\n".join(out) + "\n"
 
 
+def fmt_warning(w):
+    """'- **rule**: detail. Planner: action.': which rule fired and what the planner did."""
+    return f"- **{esc(w['rule'])}**: {esc(w['detail'])}. Planner: {esc(w['action'])}."
+
+
+def _heading(wk):
+    """'## Week of 2024-06-10 - 30.0 km' ('- 95 min (~13.2 km)' in minutes), plus ' · Base' and
+    ', deload' for generated weeks."""
+    if wk.get("unit") == "min":
+        out = f"## Week of {wk['start']} - {wk['target_min']} min (~{wk['target_km']:.1f} km)"
+    else:
+        out = f"## Week of {wk['start']} - {wk['target_km']:.1f} km"
+    if wk.get("phase"):
+        out += f" · {PHASE_NAMES[wk['phase']]}" + (", deload" if wk.get("deload") else "")
+    return out
+
+
 def render_plan(plan):
-    """plan.md from a plan dict (plan_io's format): a section per week, a workout per day."""
+    """plan.md from a plan dict (plan_io's format): the plan's warnings, then a section per week
+    (its phase, its warnings), a workout per day. Without warnings or phases (the manual schedule)
+    nothing of them shows."""
     out = ["# Training plan", "",
            f"Generated {plan['generated']} from profile `{plan['profile_hash'][:12]}`. "
            "Durations are estimates at the middle of each pace range; recovery jogs at the slow end of "
            "Easy plus 30 s/km.", ""]
+    lv = plan.get("levels")
+    if lv:
+        out += [f"Runner levels: {describe(lv['volume'], lv['quality'], lv['reasons'])}.", ""]
+        if "advanced" in (lv["volume"], lv["quality"]):
+            out += ["This advanced plan is a starting point to edit: adjust the sessions to how you train, and "
+                    "put the ones to keep in profile.toml's [week] table, which every re-plan keeps.", ""]
+    flagged = [wk for wk in plan["weeks"] if wk.get("warnings")]
+    if plan.get("warnings") or flagged:
+        out += ["## Warnings", ""]
+        out += [fmt_warning(w) for w in plan.get("warnings", [])]
+        out += [f"- Week of {wk['start']}: {', '.join(dict.fromkeys(w['rule'] for w in wk['warnings']))} "
+                "(see the week)" for wk in flagged]
+        out.append("")
     for wk in plan["weeks"]:
-        out += [f"## Week of {wk['start']} - {wk['target_km']:.1f} km", ""]
+        out += [_heading(wk), ""]
+        if wk.get("warnings"):
+            out += [fmt_warning(w) for w in wk["warnings"]] + [""]
         if not wk["days"]:
             out += ["No sessions.", ""]
         for d in wk["days"]:
             w = workout_from_dict(d["workout"])
             day = DAY_NAMES[date.fromisoformat(d["date"]).weekday()]
-            out.append(render_workout(w, prefix=f"{day} {d['date']} · "))
+            out.append(render_workout(w, prefix=f"{day} {d['date']} · ", unit=wk.get("unit", "km")))
     return "\n".join(out).rstrip("\n") + "\n"

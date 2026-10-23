@@ -108,22 +108,36 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 
 ## Planner modules (`garmin_plan`)
 
-Runs from a clone (`make plan-profile`, `make plan`, `make push`) and is not part of the release bundle. It is standard library only, except a real `push`: that logs in through `garmin_grab.garmin.login` and so uses `garminconnect`, imported only then (`push --dry-run` needs neither). Personal files (`profile.toml`, `plan.json`, `plan.md`, `push_state.json`, `push/`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md), [plan workouts](features/plan-workouts.md), [plan push](features/plan-push.md) and the [plan.json format](plan-json-format.md).
+Runs from a clone (`make plan-profile`, `make plan`, `make push`) and is not part of the release bundle. It is standard library only, except a real `push`: that logs in through `garmin_grab.garmin.login` and so uses `garminconnect`, imported only then (`push --dry-run` needs neither). Personal files (`profile.toml`, `plan.json`, `plan.md`, `push_state.json`, `push/`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md), [plan workouts](features/plan-workouts.md), [plan generator](features/plan-generator.md), [plan push](features/plan-push.md) and the [plan.json format](plan-json-format.md).
 
 | Module | Responsibility |
 |---|---|
 | `config.py` | Paths (`garmin_export/`, `profile.toml`, `runs.json`, `plan.json`, `plan.md`, `push_state.json`, `push/`, `data/`), defaults, weekday names, the `[plan] ` name prefix and `NAME_MAX` |
 | `physiology.py` | `vo2`, `pct_max`, `vdot`, `race_time`, `pace_zones` (Daniels, fractions in `data/rules.toml`), `hr_zones` (Karvonen, as `hrrZones`) |
 | `metrics.py` | Ports of `metrics.js`: `gap_factor`, `day_index`, `week_of`, `week_start`, `best_effort`, `trimp`, and `prepare`'s `run_km`, `hr_ok`, `hr_peak` |
-| `history.py` | `weekly_km`, `recent_stats` (4/12-week volume, runs per week, longest run, recent VDOT), `resting_hr`, `hr_max` (the page's suggestions) |
-| `profile.py` | `load_profile` → `Profile` with a `set` / `derived` / `default` source per field, the `[week]` schedule, warnings, `ProfileError` |
+| `history.py` | `weekly_km`, `recent_stats` (4/12-week volume, runs per week, longest run, recent VDOT, consistency, days since the last run and the volume, consistency and longest run before it), `q_sessions` (runs with 10 min in Z4+), `time_trials` (the planned time trials' best 2 km, with the recorded ones), `resting_hr`, `hr_max` (the page's suggestions), `daily_load` and `acwr` (the page's daily TRIMP and 7:28-day load ratio) |
+| `profile.py` | `load_profile` → `Profile` with a `set` / `derived` / `default` source per field, the levels and their reasons, the layoff, the unit, the `[week]` schedule, warnings, `ProfileError` |
+| `levels.py` | `load_levels`, `params` (`levels.toml` laid over `rules.toml` for a volume and a quality level), `detect` (both levels from the history, with reasons), `describe`, `promote` (from the last plan's levels: at a block's start, with hysteresis; down only after a break), `block_start`, `layoff` (VDOT and volume factors after a break), `unit` |
+| `progress.py` | `carry` (what the last `plan.json`'s `progress` carries to a plan from a Monday: its block, the run/walk stage reached, the time trials run and planned), `trial_days` |
 | `model.py` | `PaceRange` (the only place pace order is handled; `to_speed`), `HrRange`, `Step`, `Repeat`, `Workout` with `km` / `seconds` / `hard_km` summed from the parts |
-| `templates.py` | `load_templates` (validates `workouts.toml`, `TemplateError`), `instantiate(template, variant, profile, rules)`, `pace_range`, `jog_pace`, `hr_range` |
-| `render_md.py` | `render_workout`, `render_plan` (markdown in the hand-written plan's format), `fmt_pace`, `fmt_time`, `fmt_est` |
-| `plan_io.py` | `build_plan` (the `[week]` schedule over N weeks), `profile_hash`, `write_plan` / `read_plan`, workout ↔ dict |
+| `templates.py` | `load_templates` (validates `workouts.toml`, `TemplateError`), `instantiate(template, variant, profile, rules, overrides)` (overrides: ladder values, warm-up and cool-down lengths), `pace_range`, `jog_pace`, `hr_range`, `zone_span` |
+| `render_md.py` | `render_workout`, `render_plan` (markdown in the hand-written plan's format; the warnings, each week's phase and deload), `fmt_pace`, `fmt_time`, `fmt_est`, `fmt_warning` |
+| `plan_io.py` | `manual_days` (the `[week]` schedule's workouts), `build_plan` (the `[week]` schedule alone over N weeks), `profile_hash`, `write_plan` / `read_plan` (rejects weeks and days without their dates), workout ↔ dict |
+| `skeleton.py` | `place_slots` (each available day → L / Q / E / F or rest: the run cap, one or more Q days, the 48 h rule, the Sat/Sun fallback), `q_count`, `gap`, `SkeletonError` |
+| `volume.py` | `block_curve` (4-week ramp and deload blocks, the start floor, unit-agnostic), `align_deloads` (deloads off phase starts), `settings` |
+| `phases.py` | `phase_calendar` (Monday-based weeks counted back from the race, shortened phases with warnings), `race_key`, `PhaseWeek`, `PhaseError` |
+| `split.py` | `split_week` (a week's km across its slots: the L caps, the E minimum, F on/off, Q dropped when the week can't hold it, with warnings) |
+| `select.py` | `block_week` (a week's place in its block, from a mid-block start too), `rotation` / `candidates` (the Q and L templates of a phase and block week: hill swaps, level fallback) |
+| `size.py` | `cap_km` (hard-portion caps), `pick_variant` (the largest ladder variant under the cap that fits the slot; the smallest, forced, when none does), `fit` (an easy or long run stretched to its km or time budget, a longer warm-up) |
+| `terrain.py` | `flat_equivalent_km`, `workout_flat_km` (hill and trail volume through Minetti's cost of running, as the page's grade-adjusted pace) |
+| `load.py` | `flat_steps`, `hr_mid`, `step_trimp`, `workout_trimp`, `projected_daily` (planned TRIMP at each step's HR-zone midpoint) |
+| `checks.py` | `Day`, `check_week` (easy share, hard days, volume rise, load ratio, L share → `Violation`s and notes), `easy_share`, `week_km`, `feasibility` |
+| `fix.py` | `fix_week` (shrink Q, trim L, drop F; bounded and deterministic), `Adjust`, `FixResult` |
+| `planner.py` | `build_plan` (the generator: phases, volume, slots, sessions, the split, checks and fixes, `[week]` overrides, warnings, the `progress` the next plan carries on) |
 | `push.py` | `to_garmin` (plan.json workout → `RunningWorkout`-shaped dict, Garmin ids inlined), `workout_name`, `sessions`, `local_today`, `check_library`, `push` (re-push, resume, `push_state.json`, dry-run) |
-| `cli.py` | `main`: the `profile`, `plan` and `push` subcommands (shared `--export`, `--today`) |
-| `data/rules.toml` | Daniels pace fractions, the R-pace offset, pace bands and the jog offset |
+| `cli.py` | `main`: the `profile`, `plan` (the generator) and `push` subcommands (shared `--export`, `--today`) |
+| `data/rules.toml` | What is the same at every level: Daniels pace fractions, the R-pace offset, pace bands and the jog offset; the F slot (`[skeleton]`), the deload, the next block's start and the taper (`[volume]`), L's growth (`[split]`), the phase calendar (`[phases]`, lengths per race distance in `[phases.*]`), the hard-portion caps (`[caps]`), the session rotations (`[rotation]`, per phase in `[rotation.*]`, with `Q2` rows), the week checks (`[checks]`), the fixer (`[fix]`) and goal feasibility (`[feasibility]`) |
+| `data/levels.toml` | What depends on the runner's level, each key a `level = value` table: the ramp, block length, start floor and unit (`[volume]`), the long run caps and the E minimum (`[split]`), the run cap and Q days (`[skeleton]`), the E template, run/walk ladder, time trial and the beginner's rotation (`[rotation]`); level detection and promotion (`[detect]`) and the layoff table (`[layoff]`) |
 | `data/workouts.toml` | The workout template library (stable ids) |
 
 Run objects keep the original fields from `runs.json`; derived values are stored on underscore-prefixed properties (`_x`, `_y`, `_m`, `_day`, `_g`, `_best`, `_hrOk`, `_hrPeak`, `_dec`, `_decMin`, `_km`, `_trail`).

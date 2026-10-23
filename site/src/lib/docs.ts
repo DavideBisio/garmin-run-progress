@@ -22,6 +22,7 @@ const FEATURES = [
   'training-load-zones-consistency',
   'plan-profile',
   'plan-workouts',
+  'plan-generator',
   'plan-push',
 ];
 

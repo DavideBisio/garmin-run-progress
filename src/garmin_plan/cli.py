@@ -10,11 +10,15 @@ from datetime import date
 from pathlib import Path
 
 from .config import EXPORT_DIR, PLAN_JSON, PLAN_MD, PROFILE, PUSH_STATE, RUNS
+from .levels import describe
 from .physiology import hr_zones, load_rules, pace_zones
 from . import push as garmin_push
-from .plan_io import build_plan, read_plan, write_plan
+from .phases import PhaseError
+from .plan_io import read_plan, write_plan
+from .planner import build_plan
 from .profile import ProfileError, load_profile
 from .render_md import fmt_pace, fmt_time, render_plan  # noqa: F401  (fmt_* used to live here)
+from .skeleton import SkeletonError
 from .templates import TemplateError, load_templates
 
 
@@ -35,7 +39,9 @@ def show_profile(p, path):
         src = p.sources[key]
         if key == "vdot" and src == "derived":
             k, day = p.vdot_from
-            src = f"derived (training efforts): best {k} on {day}"
+            src = f"derived: {k} on {day}" if "trial" in k else f"derived (training efforts): best {k} on {day}"
+            if p.layoff:
+                src += f", x{p.layoff['vdot_factor']:g} after {p.layoff['days_off']} days off"
         print(f"  {label:<18}{value:<24}{src}")
 
     print(f"Profile ({path})")
@@ -55,6 +61,10 @@ def show_profile(p, path):
     line("Days", ", ".join(p.days), "days")
     line("Long run day", p.long_run_day, "long_run_day")
     line("Hill days", ", ".join(p.hill_days) or "none", "hill_days")
+    line("Volume level", p.volume_level, "volume_level")
+    line("Quality level", p.quality_level, "quality_level")
+    line("Volume unit", p.unit or "the level's", "unit")
+    print(f"\nLevels: {describe(p.volume_level, p.quality_level, p.level_reasons)}")
 
     print(f"\nPace zones at VDOT {p.vdot:.1f} (min/km)")
     for k, s in pace_zones(p.vdot).items():
@@ -65,35 +75,46 @@ def show_profile(p, path):
 
 
 def resolve_profile(args):
-    """(export dir, Profile) for --export / --today; profile errors exit with 'error: ...'."""
+    """(export dir, Profile, runs) for --export / --today; profile errors exit with 'error: ...'."""
     out = Path(args.export)
     runs, rhr = load_runs(out / RUNS)
+    prev = None                         # the last plan: its levels, progress and time trials
+    if (out / PLAN_JSON).exists():
+        try:
+            prev = read_plan(out / PLAN_JSON)
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            print(f"warning: {out / PLAN_JSON}: can't read it, ignored as the last plan: the levels are "
+                  f"detected afresh and the block, run/walk ladder and time trials start over ({e})", file=sys.stderr)
     try:
-        p = load_profile(out / PROFILE, runs, rhr, args.today)
+        p = load_profile(out / PROFILE, runs, rhr, args.today, plan=prev)
     except ProfileError as e:
         sys.exit(f"error: {e}")
     for w in p.warnings:
         print(f"warning: {w}", file=sys.stderr)
-    return out, p
+    return out, p, runs
 
 
 def cmd_profile(args):
-    out, p = resolve_profile(args)
+    out, p, _ = resolve_profile(args)
     show_profile(p, out / PROFILE)
 
 
 def cmd_plan(args):
-    out, p = resolve_profile(args)
+    out, p, runs = resolve_profile(args)
     try:
         rules = load_rules()
-        plan = build_plan(p, load_templates(), rules, args.today or date.today(), args.weeks)
-    except (ProfileError, TemplateError) as e:
+        plan = build_plan(p, runs, load_templates(), rules, args.today or date.today(), args.weeks)
+    except (ProfileError, TemplateError, SkeletonError, PhaseError) as e:
         sys.exit(f"error: {e}")
     write_plan(plan, out / PLAN_JSON)
     (out / PLAN_MD).write_text(render_plan(plan), encoding="utf-8", newline="\n")
     km = sum(w["target_km"] for w in plan["weeks"])
-    print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {args.weeks} week(s) from "
-          f"{plan['weeks'][0]['start']}, {km:.1f} km")
+    total = f"{km:.1f} km"
+    if plan["weeks"] and all(w.get("unit") == "min" for w in plan["weeks"]):
+        total = f"{sum(w['target_min'] for w in plan['weeks'])} min (~{km:.1f} km)"
+    n = len(plan["warnings"]) + sum(len(w["warnings"]) for w in plan["weeks"])
+    print(f"Wrote {out / PLAN_JSON} and {out / PLAN_MD}: {len(plan['weeks'])} week(s) from "
+          f"{plan['weeks'][0]['start']}, {total}" + (f"; {n} warning(s), listed in plan.md" if n else ""))
 
 
 def cmd_push(args):
@@ -140,8 +161,11 @@ def main(argv=None):
                    help="print the resolved runner profile and where each value came from"
                    ).set_defaults(run=cmd_profile)
     pl = sub.add_parser("plan", parents=[shared],
-                        help="write plan.json and plan.md from the [week] table in profile.toml")
-    pl.add_argument("--weeks", type=positive_int, default=1, help="weeks to plan, from the Monday after today")
+                        help="generate plan.json and plan.md from profile.toml and runs.json "
+                             "([week] days override the generated ones)")
+    pl.add_argument("--weeks", type=positive_int, default=None,
+                    help="weeks to plan from the Monday after today (default: to the race week, or 8 "
+                         "without a race; with a race it only shortens the plan)")
     pl.set_defaults(run=cmd_plan)
     pu = sub.add_parser("push", parents=[shared],
                         help="upload plan.json's future sessions to Garmin Connect and schedule them")

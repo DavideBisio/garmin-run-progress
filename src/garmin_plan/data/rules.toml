@@ -27,3 +27,164 @@ R = [5, 5]
 # Recovery jog: the slow end of E plus this many s/km. Duration estimates only: jog steps carry
 # an HR target (Z2), not a pace target.
 jog_offset_s = 30
+
+[skeleton]
+# Weekly slots (skeleton.py); levels.toml sets how many Q days. From this many run days one non-hard day is F (flex): the first run dropped when the volume is
+# short, so at least one E always stays.
+f_min_days = 4
+
+[volume]
+# Volume curve (volume.py): blocks of build weeks, then a deload week at this share of the block's
+# base (levels.toml sets the ramp, the block length and the floor).
+deload = 0.85
+# The next block starts from this week of the previous block: week 2, so + ramp per block.
+next_block_from_week = 2
+# Taper weeks (the last 2, planner.py) as a share of the last build week that isn't a deload. The
+# taper meta-analysis of Bosquet et al. (2007) found a 41-60 % volume cut over about 2 weeks, with
+# the intensity kept, works best: 0.7, then 0.5 in the race week.
+taper = [0.7, 0.5]
+
+[split]
+# Week split (split.py; levels.toml sets the long run caps and the E minimum). L grows from the
+# longest run of the last 8 weeks by at most this many km.
+long_over_longest_km = 2
+
+[phases]
+# Phase calendar (phases.py): base (E + strides/hills), rt (R + T), it (I + T), tm (T + M) and the
+# taper. Daniels' Running Formula builds a 24-week season from four 6-week phases (I foundation,
+# II early quality with R, III transition quality with I, the hardest, IV final quality with T and
+# race pace); here the taper is the last 2 weeks of phase IV. With fewer weeks Daniels fills the
+# phases in the priority order I, IV, II, III, so they are shortened in the reverse order.
+shorten_order = ["it", "rt", "tm", "base"]
+# With no race the planner alternates these phases, no_race_weeks each (one 4-week block).
+no_race_cycle = ["base", "rt"]
+no_race_weeks = 4
+
+[phases.5k]
+# 5K: Daniels' 6/6/6/6 weeks, phase IV split into 4 weeks of T + race pace and a 2-week taper.
+distance_m = 5000
+base = 6
+rt = 6
+it = 6
+tm = 4
+taper = 2
+
+[phases.10k]
+# 10K: as 5K, one week of R moved to T + race pace (Daniels: R matters most up to 5K).
+distance_m = 10000
+base = 6
+rt = 5
+it = 6
+tm = 5
+taper = 2
+
+[phases.hm]
+# Half marathon: two more weeks from R to T + M, the paces closest to the race (Daniels).
+distance_m = 21097.5
+base = 6
+rt = 4
+it = 6
+tm = 6
+taper = 2
+
+[phases.m]
+# Marathon: Daniels' marathon plans put M and T work over the last ~8 weeks; R and I get less.
+distance_m = 42195
+base = 6
+rt = 3
+it = 5
+tm = 8
+taper = 2
+
+[caps]
+# Session sizing (size.py): the largest ladder variant whose hard portion fits under its cap and
+# whose total fits the slot. The hard portion is the reps at M, T, I or R pace and the hill reps,
+# never the warm-up, cool-down or recoveries. [share of the week, at most km], after Daniels'
+# Running Formula: R at most 5 % of the weekly volume and 8 km, I at most 8 % and 10 km, T at
+# most 10 %, M at most 20 % (his 29 km M limit is beyond every ladder here, so it's left out).
+R = [0.05, 8]
+I = [0.08, 10]
+T = [0.10]
+M = [0.20]
+# Kinds whose hard steps fall under another kind's cap: the long runs' marathon-pace blocks under
+# M, hill reps under R (they take the R session's place), an easy run's strides under R.
+L = "M"
+hill = "R"
+E = "R"
+
+[rotation]
+# Session choice (select.py). Each phase lists, per week of the 4-week block, the templates for Q
+# and L in order of preference. The planner takes the first one the runner's level allows and,
+# for L, the first one the slot's km can hold. Q alternates A (the phase's first quality type:
+# R, I or T) in weeks 1 and 3 and B (T or M) in week 2 and the deload week; L goes steady,
+# progression, longest (the block's biggest week), then short and easy in the deload.
+# Q_hill and L_hill replace Q and L when that day is one of the profile's hill_days. Q2 is the
+# second Q day of a week that has two (levels.toml q_from_days): the phase's other quality type
+# (strides again in the base phase), and none in the deload week or the taper (an easy run).
+# With 3-week blocks (a beginner's) the build weeks take the first two rows and the deload the last.
+# The level is the runner's quality level and the E template is in levels.toml.
+# The deload week's Q is this many ladder variants lighter than what its volume allows.
+deload_lighter = 1
+
+[rotation.base]
+# Daniels phase I: easy running plus strides, or short hill repeats on a hill day (his R
+# substitute), and one hilly long run per block.
+Q = [["strides"], ["strides"], ["strides"], ["strides"]]
+Q2 = [["strides"], ["strides"], ["strides"], []]
+Q_hill = [["hill_repeats"], [], ["hill_repeats"], []]
+L = [["steady_long"], ["steady_long"], ["steady_long"], ["steady_long"]]
+L_hill = [[], [], ["hilly_long"], []]
+
+[rotation.rt]
+# Daniels phase II: R for speed and economy (A), T (B). The progression long run is
+# intermediate-level and needs a long enough slot, else the steady one.
+Q = [["r_300", "r_220"], ["cruise_tempo"], ["r_ladder", "r_220"], ["cruise_tempo"]]
+Q2 = [["cruise_tempo"], ["r_300", "r_220"], ["cruise_tempo"], []]
+Q_hill = [["hill_repeats"], [], ["hill_repeats"], []]
+L = [["steady_long"], ["progression_long", "steady_long"], ["steady_long"], ["steady_long"]]
+L_hill = [[], [], ["hilly_long"], []]
+
+[rotation.it]
+# Daniels phase III, the hardest: I (A), T (B); the long hill session moves to the trail.
+Q = [["vo2_intervals", "cruise_tempo"], ["cruise_tempo"], ["vo2_intervals", "cruise_tempo"], ["cruise_tempo"]]
+Q2 = [["cruise_tempo"], ["vo2_intervals", "r_220"], ["cruise_tempo"], []]
+L = [["steady_long"], ["progression_long", "steady_long"], ["steady_long"], ["steady_long"]]
+L_hill = [[], [], ["trail_long"], []]
+
+[rotation.tm]
+# Daniels phase IV: T (A) and M (B), the race paces (M from the intermediate level; below it, T
+# again); the longest run is the half-marathon one when the slot holds it. No hill swaps: this
+# phase is race-specific.
+Q = [["cruise_tempo"], ["progression", "cruise_tempo"], ["cruise_tempo"], ["progression", "cruise_tempo"]]
+Q2 = [["progression"], ["cruise_tempo"], ["progression"], []]
+L = [["steady_long"], ["progression_long", "steady_long"], ["hm_long", "steady_long"], ["steady_long"]]
+
+[rotation.taper]
+# The 2 taper weeks: a short T session, then strides in the race week; steady long runs; one Q.
+Q = [["cruise_tempo"], ["strides"]]
+Q2 = [[], []]
+L = [["steady_long"], ["steady_long"]]
+
+[checks]
+# Checks on every generated week (checks.py). At least this share of the running time easy: Z1-2,
+# below 70 % of the heart-rate reserve, as the page's Easy share KPI (Seiler's ~80/20 distribution).
+# The most hard sessions a week is in levels.toml.
+easy_share = 0.8
+# Week-on-week volume rise (the usual 10 % rule of thumb). The deload week, the week after it and
+# the first planned week are exempt.
+max_rise = 0.10
+# Projected 7:28-day load ratio (TRIMP) range, as the page's Load ratio KPI (Gabbett's 0.8-1.3).
+acwr = [0.8, 1.3]
+
+[fix]
+# Auto-fix (fix.py): shrink Q one variant, trim L by trim_l_km, or drop F, in that order, for the
+# checks each can help; at most max_iter changes a week, then what still fails is a warning.
+max_iter = 12
+trim_l_km = 1.0
+
+[feasibility]
+# Goal feasibility: VDOT rises about 1 point per 4-6 weeks of training (rule of thumb, roadmap 07).
+# A gap of at most 1 point per realistic_weeks weeks gets no warning, up to 1 per ambitious_weeks
+# is "ambitious", more is "unrealistic". The planner only warns: paces stay at the current VDOT.
+realistic_weeks = 6
+ambitious_weeks = 4

@@ -3,7 +3,7 @@
 # Template ids are STABLE: they are written into plan.json and into the names of the workouts
 # pushed to Garmin, so renaming one orphans workouts already on the calendar. Add a new id instead.
 #
-# Each [[workout]]: id, title, kind (E, L, R, T, I, M, hill, trail), min_level (beginner, novice,
+# Each [[workout]]: id, title, kind (E, L, R, T, I, M, hill, trail, tt), min_level (beginner, novice,
 # intermediate, advanced), optional warmup and cooldown steps, main (steps and repeat blocks, run
 # in order: an inline array, or one [[workout.main]] table per block) and a ladder of size
 # variants, smallest first. Variants are 1-based; a ladder entry may override the title.
@@ -108,10 +108,26 @@ main = [ { label = "Run", pace = "E", dist = "d", note = "Continuous" } ]
 ladder = [ { d = 4000 }, { d = 5000 }, { d = 6000 }, { d = 7000 }, { d = 8000 }, { d = 10000 } ]
 
 [[workout]]
+id = "strides"
+title = "Easy Run with Strides"
+kind = "E"
+min_level = "beginner"
+# the base phase's quality session (Daniels phase I: E running plus strides); the easy run is the
+# warm-up, so a longer warm-up makes the whole session longer
+warmup = { label = "Easy run", pace = "E", dist = "d" }
+cooldown = { pace = "E", dist = 1000 }
+ladder = [ { d = 3000, n = 4 }, { d = 4000, n = 6 }, { d = 5000, n = 6 }, { d = 6000, n = 8 } ]
+[[workout.main]]
+repeat = "n"
+note = "Strides: quick and relaxed, never a sprint"
+rep = { label = "Stride", pace = "R", dist = 100, note = "Go by pace: HR reacts too slowly on short reps" }
+recovery = { dist = 100, note = "Walk or jog back, fully recovered" }
+
+[[workout]]
 id = "progression"
 title = "Progression Run"
 kind = "M"
-min_level = "novice"
+min_level = "intermediate"
 main = [ { label = "Easy", pace = "E", dist = "e" }, { label = "Marathon pace", pace = "M", dist = "m" } ]
 ladder = [ { e = 3000, m = 2000 }, { e = 3500, m = 3500 }, { e = 4000, m = 5000 } ]
 
@@ -229,3 +245,144 @@ hr = "Z3 cap"
 time = "t"
 est_pace = "E+90"
 note = "Hike the climbs once HR reaches the cap; light, quick feet on technical descents; recover on the flats"
+
+
+# ---------------------------------------------------------------- beginner (08)
+# Time ends, "Z2 cap" HR targets and an effort text with RPE instead of a pace: a beginner runs by
+# feel and time, the watch only says when HR goes over the cap (push.py sends caps as guidance).
+# est_pace only feeds the totals.
+
+[[workout]]
+id = "run_walk"
+title = "Run/Walk"
+kind = "E"
+min_level = "beginner"
+# Daniels' White plan start: run/walk sets from 8 x (2 min run + 1 min walk) to 30 minutes
+# continuous, one variant a build week (planner.py). The planner repeats the set to fill the slot
+# and the brisk walk takes what is left.
+ladder = [ { w = 300, n = 8, r = 120, c = 0 }, { w = 300, n = 6, r = 180, c = 0 }, { w = 300, n = 5, r = 240, c = 0 },
+           { w = 300, n = 4, r = 360, c = 0 }, { w = 300, n = 3, r = 480, c = 0 }, { w = 300, n = 2, r = 720, c = 0 },
+           { w = 300, n = 0, r = 0, c = 1800, title = "Continuous Easy Run" } ]
+[[workout.main]]
+label = "Brisk walk"
+effort = "Brisk walk (RPE 2-3)"
+hr = "Z2 cap"
+time = "w"
+est_pace = "10:00"
+note = "Warm-up"
+[[workout.main]]
+repeat = "n"
+steps = [
+    { label = "Run", effort = "Easy, conversational (RPE 3-4)", hr = "Z2 cap", time = "r", est_pace = "E" },
+    { label = "Walk", role = "recovery", effort = "Walk (RPE 2)", hr = "Z2 cap", time = 60, est_pace = "10:00" },
+]
+[[workout.main]]
+label = "Run"
+effort = "Easy, conversational (RPE 3-4)"
+hr = "Z2 cap"
+time = "c"
+est_pace = "E"
+note = "Walk a minute whenever HR reaches the cap"
+
+[[workout]]
+id = "easy_time"
+title = "Easy Run"
+kind = "E"
+min_level = "beginner"
+# the beginner's easy run once the run/walk ladder is done: sized in time
+ladder = [ { t = 1200 }, { t = 1800 }, { t = 2400 }, { t = 3000 } ]
+[[workout.main]]
+label = "Run"
+effort = "Easy, conversational (RPE 3-4)"
+hr = "Z2 cap"
+time = "t"
+est_pace = "E"
+note = "Walk a minute whenever HR reaches the cap"
+
+[[workout]]
+id = "long_time"
+title = "Long Easy Run"
+kind = "L"
+min_level = "beginner"
+# the beginner's long run, at most 60 minutes (levels.toml long_time_cap_min)
+ladder = [ { t = 1800 }, { t = 2700 }, { t = 3600 } ]
+[[workout.main]]
+label = "Long run"
+effort = "Easy, even effort (RPE 3-4)"
+hr = "Z2 cap"
+time = "t"
+est_pace = "E"
+note = "Walk breaks are fine; keep HR under the cap"
+
+[[workout]]
+id = "strides_feel"
+title = "Easy Run with Strides by Feel"
+kind = "E"
+min_level = "beginner"
+# the beginner's quality day: strides by effort, short enough that HR barely moves
+warmup = { label = "Easy run", effort = "Easy, conversational (RPE 3-4)", hr = "Z2 cap", time = "t", est_pace = "E" }
+cooldown = { effort = "Easy jog or walk (RPE 2-3)", hr = "Z2 cap", time = 300, est_pace = "E+60" }
+ladder = [ { t = 600, n = 4 }, { t = 900, n = 6 }, { t = 1200, n = 6 } ]
+[[workout.main]]
+repeat = "n"
+note = "Strides: quick and relaxed, never a sprint"
+rep = { label = "Stride", effort = "Quick and relaxed (RPE 7)", time = 20, est_pace = "R" }
+recovery = { label = "Walk back", effort = "Walk, fully recovered", hr = "Z2 cap", time = 60, est_pace = "12:00" }
+
+[[workout]]
+id = "hills_effort"
+title = "Easy Hills by Effort"
+kind = "hill"
+min_level = "beginner"
+climb_m_per_km = 15
+# the beginner's hills: steady climbs under the Z2 cap, walking as soon as HR reaches it
+warmup = { label = "Easy run", effort = "Easy (RPE 3-4)", hr = "Z2 cap", time = 600, est_pace = "E", note = "On flat ground" }
+cooldown = { effort = "Easy jog or walk (RPE 2-3)", hr = "Z2 cap", time = 300, est_pace = "E+60" }
+ladder = [ { n = 4, t = 45, rt = 90, rd = 100 }, { n = 6, t = 45, rt = 90, rd = 100 },
+           { n = 6, t = 60, rt = 120, rd = 130 } ]
+[[workout.main]]
+repeat = "n"
+note = "Gentle slope, about 3-5%"
+[workout.main.rep]
+label = "Uphill"
+effort = "Steady uphill effort (RPE 5-6)"
+hr = "Z2 cap"
+time = "t"
+est_pace = "E+60"
+note = "Walk as soon as HR reaches the cap"
+[workout.main.recovery]
+label = "Back down"
+effort = "Walk down"
+hr = "Z2 cap"
+lap = true
+est_time = "rt"
+est_dist = "rd"
+note = "Press lap at the bottom"
+
+[[workout]]
+id = "time_trial"
+title = "2 km Time Trial"
+kind = "tt"
+min_level = "beginner"
+# A first VDOT (08): the planner puts it in week 3 of a beginner's plan; the 2 km best effort of the
+# run recorded on that day sets VDOT (history.time_trial_vdot). The 20-minute variant is for a
+# runner without a measured 2 km route; its result isn't read yet.
+warmup = { label = "Warm-up", effort = "Easy run, walk breaks as needed (RPE 3)", hr = "Z2 cap", time = 600, est_pace = "E" }
+cooldown = { effort = "Easy jog or walk (RPE 2-3)", hr = "Z2 cap", time = 600, est_pace = "E+60" }
+ladder = [ { d = 2000, t = 0 }, { d = 0, t = 1200, title = "20-Minute Time Trial" } ]
+[[workout.main]]
+label = "Time trial"
+effort = "All-out, even effort: the fastest pace you can hold to the end (RPE 9)"
+hr = "open"
+dist = "d"
+est_pace = "I"
+hard = true
+note = "A flat route or a track; start no faster than you finish"
+[[workout.main]]
+label = "Time trial"
+effort = "All-out, even effort: the fastest pace you can hold to the end (RPE 9)"
+hr = "open"
+time = "t"
+est_pace = "I+15"
+hard = true
+note = "A flat route or a track; start no faster than you finish"

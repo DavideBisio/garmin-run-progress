@@ -2,11 +2,12 @@
 import re
 import tomllib
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
-from . import history
+from . import history, levels, progress
 from .config import DEFAULT_DAYS, DEFAULT_LONG_RUN_DAY, DEFAULTS, MIN_HISTORY_DAYS, WEEKDAYS
+from .templates import LEVELS
 
 RACE_DISTANCES = {"5k": 5000, "10k": 10000, "hm": 21097.5, "half": 21097.5, "m": 42195, "marathon": 42195}
 NUMBERS = ("hr_max", "hr_rest", "vdot", "km_4w", "km_12w", "runs_per_week", "longest_8w")
@@ -35,7 +36,13 @@ class Profile:
     long_run_day: str = DEFAULT_LONG_RUN_DAY
     hill_days: list = field(default_factory=list)
     week: dict = field(default_factory=dict)  # day -> {"id", "variant", "line"} from [week]
+    volume_level: str = levels.DEFAULT_LEVEL     # levels.toml levels (08)
+    quality_level: str = levels.DEFAULT_LEVEL
+    level_reasons: dict = field(default_factory=dict)   # "volume" / "quality" -> why (levels.detect)
+    layoff: dict | None = None           # {days_off, vdot_factor, volume_factor, km_before} after a break
+    unit: str | None = None              # "km" or "min"; None: the volume level's (levels.unit)
     vdot_from: tuple | None = None       # ("10k", "2024-05-01") when derived
+    progress: dict | None = None         # what the last plan carries over (progress.carry; time_trials: all run)
     sources: dict = field(default_factory=dict)   # field -> "set" | "derived" | "default"
     warnings: list = field(default_factory=list)
 
@@ -72,6 +79,14 @@ def _day_list(raw, key):
     if not isinstance(v, list):
         raise ProfileError(f"{key} must be a list of day names such as [\"tue\", \"sat\"]")
     return sorted({_day(d, key) for d in v}, key=WEEKDAYS.index)
+
+
+def _level(raw, key):
+    v = raw[key]
+    level = v.strip().lower() if isinstance(v, str) else None
+    if level not in LEVELS:
+        raise ProfileError(f"{key} must be one of {', '.join(LEVELS)}, got {v!r}")
+    return level
 
 
 def parse_goal(v):
@@ -133,15 +148,88 @@ def parse_week(raw, text=""):
     return {d: out[d] for d in WEEKDAYS if d in out}
 
 
-def load_profile(path, runs, rhr=(), today=None):
+def _layoff(stats, vals, sources, data):
+    """The break before today, if any (levels.layoff): derived km_4w restarts from the volume before
+    it and derived VDOT drops by the layoff factors. None without a break."""
+    if stats["days_off"] is None:
+        return None
+    vdot_f, vol_f = levels.layoff(stats["days_off"], data)
+    if vdot_f == 1 and vol_f == 1:
+        return None
+    lay = {"days_off": stats["days_off"], "vdot_factor": vdot_f, "volume_factor": vol_f,
+           "km_before": stats["km_before"]}
+    if sources["km_4w"] == "derived":
+        vals["km_4w"] = stats["km_before"] * vol_f
+        sources["km_4w"] = f"derived (after {stats['days_off']} days off: x{vol_f:g} of {stats['km_before']:.1f} km/wk)"
+    if sources["vdot"] == "derived":
+        vals["vdot"] *= vdot_f
+    return lay
+
+
+def _levels(raw, stats, vals, sources, lay, runs, today, data, plan, carried):
+    """(volume_level, quality_level, reasons): profile.toml's, else levels.detect on the resolved
+    numbers (after a break: the restart volume, and the runs a week, the consistency and the longest
+    run, at the VDOT factor, from before it), moved on from the last plan's levels by levels.promote
+    at the block's start that the last plan's progress counts (carried, progress.carry)."""
+    longest = vals["longest_8w"]
+    if lay and sources["longest_8w"] == "derived":      # the 8 weeks to today may hold no run at all
+        longest = stats["longest_before"] * lay["vdot_factor"]
+    dstats = {
+        "km_4w": vals["km_4w"] if stats["km_4w"] is not None else None,
+        "km_12w": vals["km_4w"] if lay else vals["km_12w"],      # a restart is judged on its volume
+        "runs_per_week": stats["runs_before"] if lay else vals["runs_per_week"],
+        "longest_8w": longest, "consistency": stats["consistency_before"] if lay else stats["consistency"],
+        "history_days": stats["history_days"],
+        "vdot": vals["vdot"] if sources["vdot"] != "default" else None,
+        "q_8w": history.q_sessions(runs, today, vals["hr_max"], vals["hr_rest"]),
+        "layoff": lay, "weeks": stats["weeks"]}
+    found = levels.detect(dstats, data)
+    prev = (plan or {}).get("levels")
+    if not (isinstance(prev, dict) and {prev.get("volume"), prev.get("quality")} <= set(LEVELS)):
+        prev = None                                   # no plan, a manual one, or one from before 08
+    if prev:
+        monday = today + timedelta(days=7 - today.weekday())        # the new plan's first week
+        got, notes = levels.promote({"volume": prev["volume"], "quality": prev["quality"]}, dstats, data,
+                                    block_start=carried is None or carried["block_start"] == monday)
+    out, reasons = [], {}
+    short = stats["history_days"] < MIN_HISTORY_DAYS
+    for key, level, why in zip(("volume_level", "quality_level"), found[:2], (found[2]["volume"], found[2]["quality"])):
+        axis = key.split("_")[0]
+        if prev and key not in raw:
+            note = next((n[len(axis) + 2:] for n in notes if n.startswith(f"{axis}: ")), None)
+            if note:
+                why = note
+            elif got[axis] != level:
+                why = f"kept from the last plan; detected {level}: {why}"
+            level = got[axis]
+        if key in raw:
+            level, why, sources[key] = _level(raw, key), "set in profile.toml", "set"
+        else:
+            sources[key] = "default" if short else "derived"
+        out.append(level)
+        reasons[axis] = why
+    return out[0], out[1], reasons
+
+
+def load_profile(path, runs, rhr=(), today=None, plan=None):
     """Resolve every field: profile.toml ("set"), else runs.json ("derived"), else a default.
 
     A missing file or a short history never raises; each default adds a warning. Values in the
-    file that can't be used raise ProfileError.
+    file that can't be used raise ProfileError. After a break the derived volume and VDOT drop by
+    the layoff table, and the levels are detected from what is left (roadmap 08). plan: the last
+    plan.json, whose progress the new plan carries on (progress.carry) and whose time trials, once
+    run, give the derived VDOT: the latest one.
     """
     raw = read_toml(path)
     today = today or date.today()
     stats = history.recent_stats(runs, today)
+    carried = progress.carry(plan, today + timedelta(days=7 - today.weekday()))
+    trials = history.time_trials(runs, progress.trial_days(plan, carried), today,
+                                 carried["time_trials"] if carried else ())
+    if carried:
+        carried["time_trials"] = trials
+    if trials:
+        stats["vdot"], stats["vdot_from"] = trials[-1]["vdot"], ("2 km time trial", trials[-1]["date"])
     derived = {"hr_max": history.hr_max(runs), "hr_rest": history.resting_hr(rhr),
                **{k: stats[k] for k in NUMBERS[2:]}}
     vals, sources, warnings = {}, {}, []
@@ -159,6 +247,9 @@ def load_profile(path, runs, rhr=(), today=None):
             warnings.append(f"{key}: {why}, using the default {DEFAULTS[key]} (set it in profile.toml)")
     if vals["hr_max"] <= vals["hr_rest"]:
         raise ProfileError(f"hr_max ({vals['hr_max']}) must be above hr_rest ({vals['hr_rest']})")
+    data = levels.load_levels()
+    lay = _layoff(stats, vals, sources, data)
+    vol, qual, reasons = _levels(raw, stats, vals, sources, lay, runs, today, data, plan, carried)
 
     if "days" in raw:
         days, sources["days"] = _day_list(raw, "days"), "set"
@@ -182,10 +273,17 @@ def load_profile(path, runs, rhr=(), today=None):
         hills, sources["hill_days"] = [], "default"
         warnings.append("hill_days: not set, using none (no hill sessions)")
     race, sources["race"] = (parse_race(raw["race"]), "set") if "race" in raw else (None, "default")
+    unit, sources["unit"] = None, "default"
+    if "unit" in raw:
+        unit = raw["unit"].strip().lower() if isinstance(raw["unit"], str) else None
+        if unit not in levels.UNITS:
+            raise ProfileError(f"unit must be km or min, got {raw['unit']!r}")
+        sources["unit"] = "set"
     week, sources["week"] = {}, "default"
     if "week" in raw:
         week, sources["week"] = parse_week(raw["week"], Path(path).read_text(encoding="utf-8")), "set"
 
     return Profile(**vals, race=race, days=days, long_run_day=long_day, hill_days=hills, week=week,
-                   vdot_from=stats["vdot_from"] if sources["vdot"] == "derived" else None,
+                   volume_level=vol, quality_level=qual, level_reasons=reasons, layoff=lay, unit=unit,
+                   vdot_from=stats["vdot_from"] if sources["vdot"] == "derived" else None, progress=carried,
                    sources=sources, warnings=warnings)

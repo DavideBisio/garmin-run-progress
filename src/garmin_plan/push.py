@@ -66,18 +66,26 @@ def _condition(ids, displayable=True):
             "displayable": displayable}
 
 
-def _step(s, order):
+def _hr_text(s):
+    """'HR under 154 bpm' for a cap, else 'HR 139-154 bpm'."""
+    return f"HR under {s.hr.hi} bpm" if (s.hr_zone or "").endswith("cap") else f"HR {s.hr.lo}-{s.hr.hi} bpm"
+
+
+def _step(s, order, guide=False):
     """One ExecutableStepDTO. Pace is the primary target (as a speed range, slow to fast m/s) and
-    HR the secondary; without pace, HR is the primary; with neither, no.target."""
+    HR the secondary; without pace, HR is the primary; with neither, no.target. guide (a beginner's
+    plan, 08): a step without pace gets no target, its effort and HR in the description instead, so
+    the watch doesn't beep all run long on an optical sensor."""
     out = {"type": "ExecutableStepDTO", "stepOrder": order,
            "stepType": _type(STEP_TYPES[s.role], "stepType", STEP_TYPES[s.role][0]),
            "endCondition": _condition(CONDITIONS[s.end])}
     if s.end != "lap":
         out["endConditionValue"] = float(s.value)
+    guided = guide and not s.pace
     targets = []
     if s.pace:
         targets.append((PACE_TARGET, *s.pace.to_speed()))
-    if s.hr:
+    if s.hr and not guided:
         targets.append((HR_TARGET, float(s.hr.lo), float(s.hr.hi)))
     if not targets:
         out["targetType"] = _type(NO_TARGET, "workoutTargetType", 1)
@@ -85,7 +93,8 @@ def _step(s, order):
         pre = ("target", "secondaryTarget")[i]
         out[f"{pre}Type"] = _type(ids, "workoutTargetType", i + 1)
         out[f"{pre}ValueOne"], out[f"{pre}ValueTwo"] = lo, hi
-    desc = "; ".join(x for x in (s.label, s.note) if x)
+    extra = (s.effort, _hr_text(s) if s.hr else None) if guided else ()
+    desc = "; ".join(x for x in (s.label, *extra, s.note) if x)
     if desc:
         out["description"] = desc
     return out
@@ -103,25 +112,25 @@ def _add_note(steps, note):
     return False
 
 
-def _steps(parts, order):
+def _steps(parts, order, guide=False):
     """(Garmin steps, next stepOrder). stepOrder runs 1, 2, ... through repeat children too. A
     repeat of 1 is its steps, without the last recovery when skip_last_rest (as in plan.md). A
     repeat's note goes first in its first step's description."""
     out = []
     for p in parts:
         if not isinstance(p, Repeat):
-            out.append(_step(p, order))
+            out.append(_step(p, order, guide))
             order += 1
         elif p.n == 1:
             steps = p.steps[:-1] if p.skip_last_rest and p.steps and p.steps[-1].role == "recovery" else p.steps
-            flat, order = _steps(steps, order)
+            flat, order = _steps(steps, order, guide)
             if p.note:
                 _add_note(flat, p.note)
             out += flat
         else:
             group = {"type": "RepeatGroupDTO", "stepOrder": order, "stepType": _type(REPEAT_TYPE, "stepType", 6),
                      "numberOfIterations": p.n}
-            children, order = _steps(p.steps, order + 1)
+            children, order = _steps(p.steps, order + 1, guide)
             if p.note:
                 _add_note(children, p.note)
             group.update(workoutSteps=children, endCondition=_condition(ITERATIONS, displayable=False),
@@ -130,10 +139,11 @@ def _steps(parts, order):
     return out, order
 
 
-def to_garmin(workout, name, description):
-    """A plan.json workout dict as a RunningWorkout payload (the dict upload_workout posts)."""
+def to_garmin(workout, name, description, hr_guidance=False):
+    """A plan.json workout dict as a RunningWorkout payload (the dict upload_workout posts).
+    hr_guidance: HR as guidance only on the steps without pace (_step)."""
     w = workout_from_dict(workout)
-    steps, _ = _steps(w.parts, 1)
+    steps, _ = _steps(w.parts, 1, hr_guidance)
     return {"workoutName": name, "description": description, "sportType": dict(SPORT_RUNNING),
             "estimatedDurationInSecs": int(round(w.seconds)), "author": {},
             "workoutSegments": [{"segmentOrder": 1, "sportType": dict(SPORT_RUNNING), "workoutSteps": steps}]}
@@ -266,7 +276,9 @@ def push(g, plan, today, export, dry_run=False, weeks=None, delay=1.0, sleep=tim
     retry(fn, *args) wraps every Garmin call (garmin_grab.garmin.with_retry); sleep(delay) follows
     every mutating call. Returns {"pushed", "removed"} counts.
     """
-    todo = [(day, wd, to_garmin(wd, workout_name(wd["title"], day), description(wd)))
+    lv = plan.get("levels") or {}
+    guide = "beginner" in (lv.get("volume"), lv.get("quality"))       # 08: HR caps as guidance only
+    todo = [(day, wd, to_garmin(wd, workout_name(wd["title"], day), description(wd), hr_guidance=guide))
             for day, wd in sessions(plan, today, weeks)]
     if dry_run:
         return dry_run_files(todo, export)
