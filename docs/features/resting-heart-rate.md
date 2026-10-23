@@ -20,6 +20,8 @@ save rhr.json
 - Ctrl-C during this step keeps everything already downloaded.
 - Days without a watch-worn night have no value and are simply missing.
 
+HRV status and training readiness are fetched right after, the same way: see [HRV status and training readiness](wellness.md).
+
 `build_runs` copies `rhr.json` into `runs.json` as a sorted `rhr` array of `[date, bpm]` pairs (see [runs.json format](../runs-json-format.md)). `--rebuild` uses the local file, so it needs no network.
 
 ## Page

@@ -25,13 +25,16 @@
       "te": 3.1,
       "teAn": 0.4,
       "hrz": [120, 840, 1510, 560, 20],
+      "event": "race",
       "t":  [0, 10, 20],
       "d":  [0, 31, 62],
       "hr": [118, 124, 129],
       "e":  [1203, 1204, 1206]
     }
   ],
-  "rhr": [["2024-04-30", 49], ["2024-05-01", 48]]
+  "rhr": [["2024-04-30", 49], ["2024-05-01", 48]],
+  "hrv": [["2024-04-30", "BALANCED"], ["2024-05-01", "LOW"]],
+  "readiness": [["2024-05-01", {"level": "LOW", "score": 22}]]
 }
 ```
 
@@ -57,6 +60,7 @@ From Garmin's activity list. Any of them can be `null`.
 | `stride` | cm per step | `avgStrideLength` |
 | `te`, `teAn` | 0–5 | `aerobicTrainingEffect`, `anaerobicTrainingEffect` |
 | `hrz` | s in zones 1–5 (Garmin's zones) | `hrTimeInZone_1` … `hrTimeInZone_5`; `null` when Garmin has none |
+| `event` | – | `eventType.typeKey` (`race`, `training`, `uncategorized`, …); `race` tags a race for the planner's VDOT update |
 
 Numbers are rounded to 2 decimals.
 
@@ -77,10 +81,14 @@ Integers keep the file small: about 6 MB per 1,000 runs.
 
 Top-level `rhr`: daily resting heart rate as `[date, bpm]` pairs, sorted by date, from Garmin's wellness data (see [resting heart rate](features/resting-heart-rate.md)). Days without a value are absent. About 15 bytes per day.
 
+## HRV status and training readiness
+
+Top-level `hrv`: daily HRV status as `[date, status]` pairs (`BALANCED`, `UNBALANCED`, `LOW`, … as Garmin names them). Top-level `readiness`: daily training readiness as `[date, {"level", "score"}]` pairs, either value possibly `null`. Both sorted by date, days without a value absent, both `[]` when the watch or the library doesn't provide them (see [HRV status and training readiness](features/wellness.md)). The planner reads them as fatigue signals; the page ignores them for now.
+
 ## Compatibility rules for the page
 
 - Required: a top-level `runs` array; each run needs `date`.
 - Runs without streams still count for volume, VO2max, cadence, stride, Training Effect and training load (from `avgHr`).
-- `rhr` and the summary fields added later (`stride`, `te`, `teAn`, `hrz`) are optional; panels without data are hidden. Run `garmin_grab.py --rebuild` to add them to an older export.
+- `rhr`, `hrv`, `readiness` and the summary fields added later (`stride`, `te`, `teAn`, `hrz`, `event`) are optional; panels without data are hidden. Run `garmin_grab.py --rebuild` to add them to an older export.
 - Unknown fields are ignored, so new fields can be added without breaking older pages.
 - A breaking change should bump `format` to `garmin-runs/2`.

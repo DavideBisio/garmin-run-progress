@@ -12,7 +12,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from garmin_grab import activities, export, garmin, gpx, rhr  # noqa: E402
+from garmin_grab import activities, export, garmin, gpx, rhr, wellness  # noqa: E402
 
 GPX = b"""<?xml version="1.0"?>
 <gpx xmlns="http://www.topografix.com/GPX/1/1"
@@ -81,6 +81,11 @@ class Export(unittest.TestCase):
         self.assertEqual(rec["hrz"], [0, 600, 0, 0, 0])
         self.assertIsNone(export.summary_fields(act(6, "2024-05-02"))["hrz"])
 
+    def test_event_type(self):
+        self.assertEqual(export.summary_fields(act(5, "2024-05-01", eventType={"typeKey": "race"}))["event"], "race")
+        self.assertIsNone(export.summary_fields(act(6, "2024-05-02"))["event"])
+        self.assertIsNone(export.summary_fields(act(7, "2024-05-02", eventType="race"))["event"])
+
     def test_build_runs(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
@@ -88,6 +93,8 @@ class Export(unittest.TestCase):
             (out / "gpx" / "2.gpx").write_bytes(GPX)
             (out / "gpx" / "3.gpx").write_bytes(b"")          # failed download
             (out / "rhr.json").write_text('{"2024-05-02": 48, "2024-05-01": 49}')
+            (out / "hrv.json").write_text('{"2024-05-02": "LOW", "2024-05-01": "BALANCED"}')
+            (out / "readiness.json").write_text('{"2024-05-02": {"level": "LOW", "score": 20}}')
             acts = {"2": act(2, "2024-05-01"), "1": act(1, "2023-01-01", "treadmill_running"),
                     "3": act(3, "2024-06-01")}
             with mock.patch("builtins.print"):
@@ -99,7 +106,19 @@ class Export(unittest.TestCase):
             self.assertNotIn("t", data["runs"][0])
             self.assertNotIn("t", data["runs"][2])
             self.assertEqual(data["rhr"], [["2024-05-01", 49], ["2024-05-02", 48]])
+            self.assertEqual(data["hrv"], [["2024-05-01", "BALANCED"], ["2024-05-02", "LOW"]])
+            self.assertEqual(data["readiness"], [["2024-05-02", {"level": "LOW", "score": 20}]])
+            self.assertIn("event", data["runs"][0])
             self.assertTrue((out / "cache" / "2.json").exists())
+
+    def test_build_runs_without_wellness(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            (out / "gpx").mkdir()
+            with mock.patch("builtins.print"):
+                export.build_runs(out, {"1": act(1, "2024-05-01")})
+            data = json.loads((out / "runs.json").read_text())
+            self.assertEqual((data["rhr"], data["hrv"], data["readiness"]), ([], [], []))
 
 
 class FakeGarmin:
@@ -169,6 +188,118 @@ class RestingHr(unittest.TestCase):
             self.assertFalse(path.exists())
 
 
+class FakeWellness:
+    """A client with the HRV range and the per-day readiness calls (shapes as parsed by wellness.py)."""
+
+    def __init__(self, hrv=None, ready=None):
+        self.hrv, self.ready, self.hrv_calls, self.ready_calls = hrv or {}, ready or {}, [], []
+
+    def get_hrv_data_range(self, start, end):
+        self.hrv_calls.append((start, end))
+        return {"hrvSummaries": [{"calendarDate": k, "status": v} for k, v in self.hrv.items() if start <= k <= end]}
+
+    def get_training_readiness(self, cdate):
+        self.ready_calls.append(cdate)
+        v = self.ready.get(cdate)
+        return [] if v is None else [{"calendarDate": cdate, "level": v[0], "score": v[1]}]
+
+
+class HrvOnly:
+    def __init__(self):
+        self.calls = []
+
+    def get_hrv_data_range(self, start, end):
+        self.calls.append((start, end))
+        return [{"calendarDate": start, "status": "UNBALANCED"}, {"calendarDate": end}, "junk"]
+
+
+@mock.patch("time.sleep")
+@mock.patch("builtins.print")
+class Wellness(unittest.TestCase):
+    def run_in(self, g, first, hrv=None, ready=None):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            if hrv is not None:
+                (out / "hrv.json").write_text(json.dumps(hrv))
+            if ready is not None:
+                (out / "readiness.json").write_text(json.dumps(ready))
+            wellness.update_wellness(g, out, first)
+            return {name: json.loads((out / name).read_text()) if (out / name).exists() else None
+                    for name in ("hrv.json", "readiness.json")}
+
+    def test_first_fetch(self, *_):
+        today = date.today()
+        first = (today - timedelta(days=100)).isoformat()
+        y = (today - timedelta(days=1)).isoformat()
+        g = FakeWellness(hrv={first: "BALANCED", y: "LOW"}, ready={y: ("LOW", 22)})
+        got = self.run_in(g, first)
+        self.assertEqual(got["hrv.json"], {first: "BALANCED", y: "LOW"})
+        self.assertEqual(got["readiness.json"], {y: {"level": "LOW", "score": 22}})
+        # HRV in chunks from the first day to today
+        self.assertEqual(g.hrv_calls[0][0], first)
+        self.assertEqual(g.hrv_calls[-1][1], today.isoformat())
+        self.assertGreater(len(g.hrv_calls), 1)
+        self.assertTrue(all(date.fromisoformat(b) - date.fromisoformat(a) < timedelta(days=wellness.HRV_CHUNK_DAYS)
+                            for a, b in g.hrv_calls))
+        # readiness: one request a day, at most the last READINESS_FIRST_DAYS days
+        self.assertEqual(len(g.ready_calls), wellness.READINESS_FIRST_DAYS)
+        self.assertEqual(g.ready_calls[-1], today.isoformat())
+
+    def test_refreshes_last_week(self, *_):
+        today = date.today()
+        last = today - timedelta(days=3)
+        g = FakeWellness()
+        self.run_in(g, "2010-01-01", hrv={last.isoformat(): "BALANCED"},
+                    ready={last.isoformat(): {"level": "HIGH", "score": 80}})
+        start = (last - timedelta(days=wellness.WELLNESS_REFRESH_DAYS)).isoformat()
+        self.assertEqual(g.hrv_calls, [(start, today.isoformat())])
+        self.assertEqual(g.ready_calls[0], start)
+        self.assertEqual(len(g.ready_calls), 11)
+
+    def test_long_gap_capped(self, *_):
+        old = (date.today() - timedelta(days=400)).isoformat()
+        g = FakeWellness()
+        self.run_in(g, "2010-01-01", ready={old: {"level": "HIGH", "score": 80}})
+        self.assertEqual(len(g.ready_calls), wellness.READINESS_FIRST_DAYS)
+
+    def test_missing_methods(self, *_):
+        got = self.run_in(object(), "2024-01-01")
+        self.assertEqual(got, {"hrv.json": None, "readiness.json": None})
+        g = HrvOnly()                                  # no readiness method: HRV still fetched
+        got = self.run_in(g, date.today().isoformat())
+        self.assertEqual(got["hrv.json"], {date.today().isoformat(): "UNBALANCED"})
+        self.assertIsNone(got["readiness.json"])
+
+    def test_no_first_day(self, *_):
+        g = FakeWellness()
+        self.assertEqual(self.run_in(g, None), {"hrv.json": None, "readiness.json": None})
+        self.assertEqual((g.hrv_calls, g.ready_calls), ([], []))
+
+    def test_errors_and_odd_shapes(self, *_):
+        class Broken(FakeWellness):
+            def get_hrv_data_range(self, start, end):
+                raise RuntimeError("boom")
+
+            def get_training_readiness(self, cdate):
+                return {"level": "MODERATE"}
+        today = date.today().isoformat()
+        got = self.run_in(Broken(), today)
+        self.assertEqual(got["hrv.json"], {})
+        self.assertEqual(got["readiness.json"], {today: {"level": "MODERATE", "score": None}})
+
+    def test_parsers(self, *_):
+        self.assertEqual(wellness.hrv_statuses({"hrvSummaries": [{"calendarDate": "2024-01-01", "status": "LOW"}]}),
+                         {"2024-01-01": "LOW"})
+        self.assertEqual(wellness.hrv_statuses({"hrvSummary": {"calendarDate": "2024-01-02", "status": "BALANCED"}}),
+                         {"2024-01-02": "BALANCED"})
+        self.assertEqual(wellness.hrv_statuses(None), {})
+        self.assertEqual(wellness.readiness_entry([{"level": "HIGH", "score": 81.4}]), {"level": "HIGH", "score": 81})
+        self.assertEqual(wellness.readiness_entry({"score": 40}), {"level": None, "score": 40})
+        self.assertIsNone(wellness.readiness_entry([]))
+        self.assertIsNone(wellness.readiness_entry("x"))
+        self.assertIsNone(wellness.readiness_entry({"unexpected": True}))
+
+
 def load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
@@ -191,11 +322,16 @@ class Bundle(unittest.TestCase):
 
     def test_bundle_has_the_package_functions(self):
         mod = load("bundled", self.path)
-        for m in (activities, export, garmin, gpx, rhr):
+        for m in (activities, export, garmin, gpx, rhr, wellness):
             for name in dir(m):
                 if callable(getattr(m, name)) and getattr(getattr(m, name), "__module__", "") == m.__name__:
                     self.assertTrue(hasattr(mod, name), name)
         self.assertEqual(mod.to_stream(mod.parse_gpx(GPX)), gpx.to_stream(gpx.parse_gpx(GPX)))
+
+    def test_module_order(self):
+        build = load("build", ROOT / "tools" / "build.py")
+        self.assertLess(build.MODULES.index("rhr"), build.MODULES.index("wellness"))
+        self.assertLess(build.MODULES.index("wellness"), build.MODULES.index("export"))
 
     def test_bundle_runs(self):
         r = subprocess.run([sys.executable, str(self.path), "--help"],

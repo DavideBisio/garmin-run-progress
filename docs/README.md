@@ -18,6 +18,7 @@
 | Login, incremental listing, GPX download, retries | [features/incremental-grabber.md](features/incremental-grabber.md) |
 | GPX parsing and 10-second streams | [features/gpx-to-stream.md](features/gpx-to-stream.md) |
 | Daily resting heart rate | [features/resting-heart-rate.md](features/resting-heart-rate.md) |
+| Daily HRV status and training readiness | [features/wellness.md](features/wellness.md) |
 
 **Analysis page (`index.html`)**
 

@@ -1,4 +1,4 @@
-"""Build runs.json from activities.json, the GPX files and rhr.json."""
+"""Build runs.json from activities.json, the GPX files, rhr.json, hrv.json and readiness.json."""
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
@@ -14,6 +14,7 @@ def summary_fields(act):
         return round(v, 2) if isinstance(v, (int, float)) else None
 
     zones = [round(act.get(f"hrTimeInZone_{z}") or 0) for z in range(1, 6)]
+    event = act.get("eventType")
     return {
         "id": act.get("activityId"),
         "date": act.get("startTimeLocal"),
@@ -31,6 +32,7 @@ def summary_fields(act):
         "te": num("aerobicTrainingEffect"),
         "teAn": num("anaerobicTrainingEffect"),
         "hrz": zones if any(zones) else None,
+        "event": event.get("typeKey") if isinstance(event, dict) else None,   # "race" tags a race
     }
 
 
@@ -61,9 +63,12 @@ def build_runs(out, acts):
         "sampleEvery": SAMPLE_EVERY_S,
         "runs": runs,
         "rhr": sorted(load_json(out / "rhr.json", {}).items()),
+        "hrv": sorted(load_json(out / "hrv.json", {}).items()),
+        "readiness": sorted(load_json(out / "readiness.json", {}).items()),
     }
     save_json(out / "runs.json", payload)
     with_stream = sum(1 for r in runs if "t" in r)
     size = (out / "runs.json").stat().st_size / 1e6
     print(f"runs.json: {len(runs)} runs ({with_stream} with GPS/HR stream), "
-          f"{len(payload['rhr'])} resting HR days, {size:.1f} MB")
+          f"{len(payload['rhr'])} resting HR days, {len(payload['hrv'])} HRV days, "
+          f"{len(payload['readiness'])} readiness days, {size:.1f} MB")
