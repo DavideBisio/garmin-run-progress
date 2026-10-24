@@ -14,7 +14,7 @@ function showTab(name, push){
   for (const t of TABS){ const on = t===name, b = $("tab-btn-"+t);
     $("tab-"+t).hidden = !on; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; }
   // charts drawn while their panel was hidden measured 0 x 0
-  if (name!==was && name==="analysis") Object.values(charts).forEach(c=>c?.resize?.());
+  if (name!==was && (name==="analysis" || name==="planning")) Object.values(charts).forEach(c=>c?.resize?.());
   try{ if (hash!==want && (push || hash)){ if (push===true) location.hash = want; else location.replace(want); } }catch(e){}
 }
 TABS.forEach((t,i)=>{ const b = $("tab-btn-"+t);

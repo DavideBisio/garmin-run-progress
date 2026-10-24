@@ -118,7 +118,7 @@ q_8w = { novice = 0, intermediate = 2, advanced = 8 }
 # level's volume (its km plus `margin`, the hysteresis that keeps a runner at the boundary from
 # flapping) and runs a week in each of the last promote_weeks weeks; for quality, the next level by
 # detection with a VDOT vdot_margin points over its minimum; and at least `compliance` of the
-# planned Q sessions done, once the adaptation loop (roadmap 09) counts them. A level only drops
+# planned Q sessions of the last block done (match.q_compliance, roadmap 09). A level only drops
 # after a break (the layoff table).
 margin = 0.1
 promote_weeks = 4

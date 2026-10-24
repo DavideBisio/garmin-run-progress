@@ -1,12 +1,15 @@
 "use strict";
 /* ---------------- state ---------------- */
-let DATA = null, RUNS = [], RHR = [];
+let DATA = null, RUNS = [], RHR = [], PLAN = null;
 // fromUser: a file the user just loaded, which opens Analysis (not the example data or a restore)
 function setData(payload, isExample, fromUser){
   DATA = payload;
   RUNS = (payload.runs||[]).map(r=>prepare({...r})).filter(Boolean).sort((a,b)=>a._x-b._x);
   RHR = (Array.isArray(payload.rhr) ? payload.rhr : []).map(([ds,v])=>{ const p=decYear(ds); return p && v>0 ? {x:p.x, y:p.y, day:p.day, v} : null; })
     .filter(Boolean).sort((a,b)=>a.day-b.day);
+  // runs.json's copy of plan.json (docs/plan-json-format.md), shown in Planning; anything else: no plan
+  const pl = payload.plan;
+  PLAN = pl && typeof pl==="object" && !Array.isArray(pl) && Array.isArray(pl.weeks) ? pl : null;
   const yrs = RUNS.length ? `${RUNS[0]._y}–${RUNS[RUNS.length-1]._y}` : "";
   $("status").classList.toggle("real", !isExample);
   $("status-t").textContent = isExample ? "Example data ·" : `Your data · ${nf.format(RUNS.length)} runs · ${yrs}`;

@@ -183,4 +183,5 @@ function render(){
   $("tbl").innerHTML = h + "</tbody>";
 
   renderTraining(c);
+  renderPlan(c);
 }

@@ -101,6 +101,13 @@ class Golden(unittest.TestCase):
         # race week: nothing from race day on
         self.assertTrue(all(d["date"] < RACE.isoformat() for d in weeks[-1]["days"]))
 
+    def test_profile(self):
+        self.assertEqual(build()["profile"], {"vdot": 40.0, "hr_max": 190, "hr_rest": 50,
+                                              "race": {"date": RACE.isoformat(), "distance_m": 21097.5,
+                                                       "goal_s": 6210}})
+        self.assertEqual(build(generic_profile(km_4w=25.0, longest_8w=10.0))["profile"],
+                         {"vdot": 40.0, "hr_max": 190, "hr_rest": 50, "race": None})
+
     def test_weeks_are_sane(self):
         plan = build()
         taper_from = None
@@ -371,6 +378,81 @@ class CliPlan(unittest.TestCase):
         self.assertTrue(res.stderr.strip().splitlines()[-1].startswith("error: "), res.stderr)
         self.assertIn("48 h", res.stderr)
         self.assertNotIn("Traceback", res.stderr)
+
+
+class CliReplan(unittest.TestCase):
+    """make replan: plan (matched and adapted), then push unless --no-push or auto_push = false."""
+    TEXT = 'vdot = 40\nhr_max = 190\nhr_rest = 50\nkm_4w = 30\nlongest_8w = 12\n'
+
+    def replan(self, d, *extra, today=TODAY, check=True):
+        env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+        return subprocess.run([sys.executable, "-m", "garmin_plan", "replan", "--export", d,
+                               "--today", today.isoformat(), *extra],
+                              capture_output=True, text=True, encoding="utf-8", env=env, check=check)
+
+    def test_dry_run_pushes_the_new_plan(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT, encoding="utf-8")
+            res = self.replan(d, "--dry-run", "--weeks", "2")
+            self.assertIn("Dry run", res.stdout)
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            files = sorted(p.name[:10] for p in (Path(d) / "push").glob("*.json"))
+            self.assertEqual(files, sorted(x["date"] for w in plan["weeks"] for x in w["days"] if x["workout"]))
+
+    def test_no_push(self):
+        for extra, text in ((["--no-push"], self.TEXT), ([], self.TEXT + "auto_push = false\n")):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as d:
+                (Path(d) / "profile.toml").write_text(text, encoding="utf-8")
+                res = self.replan(d, "--dry-run", *extra)
+                self.assertTrue((Path(d) / "plan.json").exists())
+                self.assertFalse((Path(d) / "push").exists())
+                self.assertIn("not pushed", res.stdout)
+
+    def test_bad_auto_push(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT + 'auto_push = "yes"\n', encoding="utf-8")
+            res = self.replan(d, "--dry-run", check=False)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("error: auto_push", res.stderr)
+
+    def test_dry_run_leaves_a_day_already_run(self):
+        # a run dated --today in runs.json: that day's session is not pushed again
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT, encoding="utf-8")
+            self.replan(d, "--no-push")
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            later = date.fromisoformat(next(x["date"] for w in plan["weeks"] for x in w["days"]
+                                            if x["workout"] and x["slot"] == "E"))
+            runs = {"format": "garmin-runs/1", "rhr": [], "hrv": [], "readiness": [],
+                    "runs": [{"id": 5, "date": f"{later} 07:00:00", "type": "running", "dist": 6000, "dur": 2160,
+                              "avgHr": 140}]}
+            (Path(d) / "runs.json").write_text(json.dumps(runs), encoding="utf-8")
+            res = self.replan(d, "--dry-run", "--weeks", "2", today=later)
+            self.assertIn("Dry run", res.stdout)
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            ran = next(x for w in plan["weeks"] for x in w["days"] if x["date"] == later.isoformat())
+            self.assertTrue(ran["workout"])
+            files = sorted(p.name[:10] for p in (Path(d) / "push").glob("*.json"))
+            self.assertTrue(files)
+            self.assertNotIn(later.isoformat(), files)
+            self.assertNotIn(later.isoformat(), res.stdout)
+            self.assertEqual(files, sorted(x["date"] for w in plan["weeks"] for x in w["days"]
+                                           if x["workout"] and x["date"] > later.isoformat()))
+
+    def test_wellness_from_runs_json(self):
+        # runs.json's HRV status reaches the adaptation: a low status today makes the next Q easy
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT, encoding="utf-8")
+            self.replan(d, "--no-push")
+            later = TODAY + timedelta(days=7)
+            runs = {"format": "garmin-runs/1", "runs": [], "rhr": [],
+                    "hrv": [[later.isoformat(), "LOW"]], "readiness": []}
+            (Path(d) / "runs.json").write_text(json.dumps(runs), encoding="utf-8")
+            self.replan(d, "--no-push", today=later)
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            self.assertEqual([(c["from"], c["to"], c["reason"]) for c in plan["changes"]],
+                             [("Q", "E", "HRV status low")])
+            self.assertIn("## What changed", (Path(d) / "plan.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

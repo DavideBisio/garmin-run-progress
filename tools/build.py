@@ -27,7 +27,7 @@ PAGE = ROOT / "src" / "page"
 DIST = ROOT / "dist"
 
 # dependency order: each module may only import from the ones before it
-MODULES = ["config", "storage", "activities", "garmin", "rhr", "gpx", "export", "cli"]
+MODULES = ["config", "storage", "activities", "garmin", "rhr", "wellness", "gpx", "export", "cli"]
 
 # Chart.js is vendored in src/page/vendor/; this is the one place its version is recorded
 # (the build checks it against the file's license header; docs/deploy.md points here).

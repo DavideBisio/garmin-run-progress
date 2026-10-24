@@ -1,4 +1,4 @@
-"""Command line: list, download, fetch resting HR, rebuild runs.json."""
+"""Command line: list, download, fetch resting HR, HRV status and readiness, rebuild runs.json."""
 import argparse
 import time
 from pathlib import Path
@@ -8,6 +8,7 @@ from .export import build_runs
 from .garmin import download_gpx, list_new_activities, login
 from .rhr import update_rhr
 from .storage import load_json, save_json
+from .wellness import update_wellness
 
 
 def main():
@@ -60,6 +61,11 @@ def main():
             update_rhr(g, out / "rhr.json", first_day)
         except KeyboardInterrupt:
             print("\nStopped. Resting HR will be fetched on the next run.")
+        print("Fetching HRV status and training readiness...")
+        try:
+            update_wellness(g, out, first_day)
+        except KeyboardInterrupt:
+            print("\nStopped. HRV status and readiness will be fetched on the next run.")
 
     build_runs(out, acts)
     print(f"Done. Upload {out / 'runs.json'} to the analysis page.")

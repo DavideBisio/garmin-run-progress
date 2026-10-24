@@ -25,7 +25,7 @@ ifneq ($(filter release,$(MAKECMDGOALS)),)
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help install upgrade grab rebuild plan-profile plan push build dev serve test test-py test-js site-install site-dev site-build site-test deploy release clean
+.PHONY: help install upgrade grab rebuild plan-profile plan push replan build dev serve test test-py test-js site-install site-dev site-build site-test deploy release clean
 
 help: ## list the targets
 	@$(PY) -c "import re; [print(f'  make {m[1]:<13} {m[2]}') for m in re.finditer(r'^([a-z-]+):.*?## (.*)$$', open('Makefile').read(), re.M)]"
@@ -51,11 +51,20 @@ rebuild: ## rebuild runs.json from local files, no network
 plan-profile: ## print the runner profile (garmin_export/profile.toml + runs.json)
 	$(PY) -m garmin_plan profile $(ARGS)
 
-plan: ## generate garmin_export/plan.json and plan.md from profile.toml and runs.json (ARGS="--weeks 4")
+# after plan and replan: copy the new plan.json into runs.json for the page's Planning tab (offline;
+# skipped without activities.json, so a runs.json from elsewhere is never rebuilt empty)
+EMBED_PLAN = $(if $(wildcard garmin_export/activities.json),$(PY) -m garmin_grab --rebuild)
+
+plan: ## generate garmin_export/plan.json and plan.md, then rebuild runs.json with it (ARGS="--weeks 4")
 	$(PY) -m garmin_plan plan $(ARGS)
+	$(EMBED_PLAN)
 
 push: $(VENV_PY) ## upload and schedule plan.json's future sessions on Garmin (ARGS="--weeks 2 --dry-run")
 	$(VENV_PY) -m garmin_plan push $(ARGS)
+
+replan: $(VENV_PY) ## re-plan from the runs (after make grab), push, rebuild runs.json (ARGS="--no-push" or "--dry-run")
+	$(VENV_PY) -m garmin_plan replan $(ARGS)
+	$(EMBED_PLAN)
 
 # ---------------------------------------------------------------- page
 build: ## build dist/garmin_grab.py and dist/index.html from src/

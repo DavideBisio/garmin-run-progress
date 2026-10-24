@@ -83,49 +83,54 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 | `zip.js` | Minimal ZIP writer for the grabber download |
 | `metrics.js` | `hav`, `minetti`, `gapFactor`, `vdot`, `decYear`, `weekOf`, `bestEffort`, `prepare`, `bandPace`, `decoupling`, `HRR_ZONES`, `hrrZones`, `zoneTime`, `trimp` |
 | `stats.js` | `median`, `theilSen`, pace and time formatters |
-| `example-data.js` | Seeded synthetic 10-year dataset shown before you load yours |
+| `example-data.js` | Seeded synthetic 10-year dataset shown before you load yours, with a synthetic plan around its last run (`examplePlan`) |
 | `gpx-import.js` | `parseGpxText` for loading raw GPX files |
 | `storage.js` | Remember loaded data in this browser (IndexedDB) |
-| `state.js` | `setData(payload, isExample, fromUser)` (runs and resting HR, status chip; a user load opens Analysis), heart-rate band and max/resting HR suggestions |
+| `state.js` | `setData(payload, isExample, fromUser)` (runs, resting HR and the plan (`PLAN`, or null), status chip; a user load opens Analysis), heart-rate band and max/resting HR suggestions |
 | `loading.js` | Drop zone, file input, JSON/GPX dispatch |
-| `render.js` | Filters → yearly aggregates → KPIs, fitness charts, year table |
+| `render.js` | Filters → yearly aggregates → KPIs, fitness charts, year table; then `renderTraining` and `renderPlan` |
 | `training.js` | `renderTraining`: last 52 weeks of all runs → load, load ratio, zones, weekly distance, consistency table |
-| `tabs.js` | Data, Analysis and Planning tabs: WAI-ARIA tabs (arrow keys, Home/End), `showTab` follows the URL hash (`#data`, `#analysis`, `#planning`; old `#s1`–`#s3` too) and resizes the Analysis charts on show |
+| `plan.js` | `renderPlan`: the Planning tab from `runs.json`'s `plan` (read-only): header line and warnings, the HR note, this week's 7 day cards with their status (stored, else matched to the runs by date), the step table of a picked day, compliance KPIs over the last 4 weeks and the planned-vs-actual km chart with phase bands and deloads; the empty state without a plan. Its top-level names start with `plan`/`PLAN_` |
+| `tabs.js` | Data, Analysis and Planning tabs: WAI-ARIA tabs (arrow keys, Home/End), `showTab` follows the URL hash (`#data`, `#analysis`, `#planning`; old `#s1`–`#s3` too) and resizes the charts when Analysis or Planning is shown |
 | `boot.js` | Re-render on theme change; load example data, then saved data if any (which opens Analysis unless the hash picked a tab) |
 
 ## Grabber modules
 
 | Module | Responsibility |
 |---|---|
-| `config.py` | Token folder, page size, sample interval, resting HR chunking |
+| `config.py` | Token folder, page size, sample interval, resting HR, HRV and readiness chunking and refresh |
 | `storage.py` | `load_json`, `save_json` (atomic write) |
 | `activities.py` | `is_run`, `type_key`, `has_gps` |
 | `garmin.py` | `login`, `with_retry`, `list_new_activities`, `download_gpx` |
 | `rhr.py` | `update_rhr` |
+| `wellness.py` | `update_wellness` (`update_hrv`, `update_readiness`; optional, skipped per source without the library method; `wellness_fetched.json` records how far each got), `wellness_start`, `hrv_statuses`, `readiness_entry` |
 | `gpx.py` | `parse_gpx`, `to_stream`, `haversine` |
 | `export.py` | `summary_fields`, `build_runs` |
 | `cli.py` | `main`: arguments and the overall flow |
 
 ## Planner modules (`garmin_plan`)
 
-Runs from a clone (`make plan-profile`, `make plan`, `make push`) and is not part of the release bundle. It is standard library only, except a real `push`: that logs in through `garmin_grab.garmin.login` and so uses `garminconnect`, imported only then (`push --dry-run` needs neither). Personal files (`profile.toml`, `plan.json`, `plan.md`, `push_state.json`, `push/`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md), [plan workouts](features/plan-workouts.md), [plan generator](features/plan-generator.md), [plan push](features/plan-push.md) and the [plan.json format](plan-json-format.md).
+Runs from a clone (`make plan-profile`, `make plan`, `make push`, `make replan`) and is not part of the release bundle. It is standard library only, except a real `push`: that logs in through `garmin_grab.garmin.login` and so uses `garminconnect`, imported only then (`push --dry-run` needs neither). Personal files (`profile.toml`, `plan.json`, `plan.md`, `push_state.json`, `push/`) stay in `garmin_export/`; generic data is committed in `src/garmin_plan/data/`. See [plan profile](features/plan-profile.md), [plan workouts](features/plan-workouts.md), [plan generator](features/plan-generator.md), [plan push](features/plan-push.md) and the [plan.json format](plan-json-format.md).
 
 | Module | Responsibility |
 |---|---|
 | `config.py` | Paths (`garmin_export/`, `profile.toml`, `runs.json`, `plan.json`, `plan.md`, `push_state.json`, `push/`, `data/`), defaults, weekday names, the `[plan] ` name prefix and `NAME_MAX` |
 | `physiology.py` | `vo2`, `pct_max`, `vdot`, `race_time`, `pace_zones` (Daniels, fractions in `data/rules.toml`), `hr_zones` (Karvonen, as `hrrZones`) |
 | `metrics.py` | Ports of `metrics.js`: `gap_factor`, `day_index`, `week_of`, `week_start`, `best_effort`, `trimp`, and `prepare`'s `run_km`, `hr_ok`, `hr_peak` |
-| `history.py` | `weekly_km`, `recent_stats` (4/12-week volume, runs per week, longest run, recent VDOT, consistency, days since the last run and the volume, consistency and longest run before it), `q_sessions` (runs with 10 min in Z4+), `time_trials` (the planned time trials' best 2 km, with the recorded ones), `resting_hr`, `hr_max` (the page's suggestions), `daily_load` and `acwr` (the page's daily TRIMP and 7:28-day load ratio) |
-| `profile.py` | `load_profile` → `Profile` with a `set` / `derived` / `default` source per field, the levels and their reasons, the layoff, the unit, the `[week]` schedule, warnings, `ProfileError` |
+| `history.py` | `weekly_km`, `recent_stats` (4/12-week volume, runs per week, longest run, recent VDOT, consistency, days since the last run and the volume, consistency and longest run before it), `q_sessions` (runs with 10 min in Z4+, `z4_seconds`), `time_trials` (the planned time trials' best 2 km, with the recorded ones), `resting_hr`, `hr_max` (the page's suggestions), `daily_load` and `acwr` (the page's daily TRIMP and 7:28-day load ratio) |
+| `profile.py` | `load_profile` → `Profile` with a `set` / `derived` / `default` source per field, the levels and their reasons, the layoff, the unit, the `[week]` schedule, the `[[override]]` days (`parse_overrides`), the VDOT estimate across re-plans (`reestimate_vdot`, `race_vdot`), warnings, `ProfileError` |
 | `levels.py` | `load_levels`, `params` (`levels.toml` laid over `rules.toml` for a volume and a quality level), `detect` (both levels from the history, with reasons), `describe`, `promote` (from the last plan's levels: at a block's start, with hysteresis; down only after a break), `block_start`, `layoff` (VDOT and volume factors after a break), `unit` |
-| `progress.py` | `carry` (what the last `plan.json`'s `progress` carries to a plan from a Monday: its block, the run/walk stage reached, the time trials run and planned), `trial_days` |
+| `match.py` | `match` (each planned session up to today → done, partial, missed, moved or swapped, with the run's id: same day first, then ±1 day, by kind), `q_compliance` (the last block's Q sessions done, for `levels.promote`), `last_block`, `hard_seconds` |
+| `progress.py` | `carry` (what the last `plan.json`'s `progress` carries to a plan from a Monday: its block, the no-race cycle's start, the run/walk stage reached in the plan's own weeks, the time trials run and planned), `trial_days` |
+| `adapt.py` | `adapt` (from today on: lock, skip and reduce overrides, a missed L moved or skipped, fatigue turning the next Q easy; the change log), `fatigue` (resting HR, HRV status, readiness) |
+| `replan.py` | `replan` (the generator's plan behind the last plan's past and current weeks, adapted), `keep_past` (the kept weeks, each day's `status` and `activity_id`), `record_history`, `changed_weeks`, `easy_maker` |
 | `model.py` | `PaceRange` (the only place pace order is handled; `to_speed`), `HrRange`, `Step`, `Repeat`, `Workout` with `km` / `seconds` / `hard_km` summed from the parts |
 | `templates.py` | `load_templates` (validates `workouts.toml`, `TemplateError`), `instantiate(template, variant, profile, rules, overrides)` (overrides: ladder values, warm-up and cool-down lengths), `pace_range`, `jog_pace`, `hr_range`, `zone_span` |
-| `render_md.py` | `render_workout`, `render_plan` (markdown in the hand-written plan's format; the warnings, each week's phase and deload), `fmt_pace`, `fmt_time`, `fmt_est`, `fmt_warning` |
+| `render_md.py` | `render_workout`, `render_plan` (markdown in the hand-written plan's format; "What changed", the warnings, each week's phase and deload, the kept days' status), `fmt_pace`, `fmt_time`, `fmt_est`, `fmt_warning` |
 | `plan_io.py` | `manual_days` (the `[week]` schedule's workouts), `build_plan` (the `[week]` schedule alone over N weeks), `profile_hash`, `write_plan` / `read_plan` (rejects weeks and days without their dates), workout ↔ dict |
 | `skeleton.py` | `place_slots` (each available day → L / Q / E / F or rest: the run cap, one or more Q days, the 48 h rule, the Sat/Sun fallback), `q_count`, `gap`, `SkeletonError` |
 | `volume.py` | `block_curve` (4-week ramp and deload blocks, the start floor, unit-agnostic), `align_deloads` (deloads off phase starts), `settings` |
-| `phases.py` | `phase_calendar` (Monday-based weeks counted back from the race, shortened phases with warnings), `race_key`, `PhaseWeek`, `PhaseError` |
+| `phases.py` | `phase_calendar` (Monday-based weeks counted back from the race, shortened phases with warnings; without a race the cycle from an offset), `race_key`, `PhaseWeek`, `PhaseError` |
 | `split.py` | `split_week` (a week's km across its slots: the L caps, the E minimum, F on/off, Q dropped when the week can't hold it, with warnings) |
 | `select.py` | `block_week` (a week's place in its block, from a mid-block start too), `rotation` / `candidates` (the Q and L templates of a phase and block week: hill swaps, level fallback) |
 | `size.py` | `cap_km` (hard-portion caps), `pick_variant` (the largest ladder variant under the cap that fits the slot; the smallest, forced, when none does), `fit` (an easy or long run stretched to its km or time budget, a longer warm-up) |
@@ -134,9 +139,9 @@ Runs from a clone (`make plan-profile`, `make plan`, `make push`) and is not par
 | `checks.py` | `Day`, `check_week` (easy share, hard days, volume rise, load ratio, L share → `Violation`s and notes), `easy_share`, `week_km`, `feasibility` |
 | `fix.py` | `fix_week` (shrink Q, trim L, drop F; bounded and deterministic), `Adjust`, `FixResult` |
 | `planner.py` | `build_plan` (the generator: phases, volume, slots, sessions, the split, checks and fixes, `[week]` overrides, warnings, the `progress` the next plan carries on) |
-| `push.py` | `to_garmin` (plan.json workout → `RunningWorkout`-shaped dict, Garmin ids inlined), `workout_name`, `sessions`, `local_today`, `check_library`, `push` (re-push, resume, `push_state.json`, dry-run) |
-| `cli.py` | `main`: the `profile`, `plan` (the generator) and `push` subcommands (shared `--export`, `--today`) |
-| `data/rules.toml` | What is the same at every level: Daniels pace fractions, the R-pace offset, pace bands and the jog offset; the F slot (`[skeleton]`), the deload, the next block's start and the taper (`[volume]`), L's growth (`[split]`), the phase calendar (`[phases]`, lengths per race distance in `[phases.*]`), the hard-portion caps (`[caps]`), the session rotations (`[rotation]`, per phase in `[rotation.*]`, with `Q2` rows), the week checks (`[checks]`), the fixer (`[fix]`) and goal feasibility (`[feasibility]`) |
+| `push.py` | `to_garmin` (plan.json workout → `RunningWorkout`-shaped dict, Garmin ids inlined), `workout_name`, `sessions`, `local_today`, `check_library`, `push` (re-push, resume, `push_state.json`, dry-run; a day already run left alone) |
+| `cli.py` | `main`: the `profile`, `plan` (the generator, through `replan`), `push` and `replan` (plan, then push unless `--no-push` or `auto_push = false`) subcommands (shared `--export`, `--today`); `load_runs` (runs and wellness), `ran_today` |
+| `data/rules.toml` | What is the same at every level: Daniels pace fractions, the R-pace offset, pace bands and the jog offset; the F slot (`[skeleton]`), the deload, the next block's start and the taper (`[volume]`), L's growth (`[split]`), the phase calendar (`[phases]`, lengths per race distance in `[phases.*]`), the hard-portion caps (`[caps]`), the session rotations (`[rotation]`, per phase in `[rotation.*]`, with `Q2` rows), the week checks (`[checks]`), the fixer (`[fix]`), goal feasibility (`[feasibility]`) and the adaptation loop (`[adapt]`) |
 | `data/levels.toml` | What depends on the runner's level, each key a `level = value` table: the ramp, block length, start floor and unit (`[volume]`), the long run caps and the E minimum (`[split]`), the run cap and Q days (`[skeleton]`), the E template, run/walk ladder, time trial and the beginner's rotation (`[rotation]`); level detection and promotion (`[detect]`) and the layoff table (`[layoff]`) |
 | `data/workouts.toml` | The workout template library (stable ids) |
 

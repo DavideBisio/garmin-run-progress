@@ -1,11 +1,13 @@
 """plan.json "progress": what one plan carries to the next (roadmap 08, docs/plan-json-format.md).
 
-Every plan starts on the Monday after today, so a re-plan restarts its weeks. progress keeps what
+Every plan starts on the Monday after today, so a re-plan restarts its weeks (plan.json keeps the
+weeks before, as the last plan wrote them: plan_start is the first of its own). progress keeps what
 that must not reset: the block the first week is in (levels move at a block's start only, and the
-deloads stay where they were), the run/walk stage reached, the time trials run and the one still
-to come. carry(plan, monday) reads it from the last plan.json for a plan from `monday`;
-planner.build_plan writes the new plan's. A plan without it (from before, or none) carries what
-its weeks say: its first week starts a block, the ladder starts over, no time trial is recorded.
+deloads stay where they were), the Monday the no-race phase cycle started, the run/walk stage
+reached, the time trials run and the one still to come. carry(plan, monday) reads it from the last
+plan.json for a plan from `monday`; planner.build_plan writes the new plan's. A plan without it
+(from before, or none) carries what its weeks say: its first week starts a block, the ladder starts
+over, no time trial is recorded.
 """
 from datetime import date
 
@@ -21,6 +23,22 @@ def _stage(v):
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
 
+def _vdot(v):
+    """progress.vdot if well formed ({value, date, from, from_date}, and after: the day running
+    resumed after the break that last lowered it, when one did), else None."""
+    if not isinstance(v, dict) or not isinstance(v.get("from"), str):
+        return None
+    value = v.get("value")
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+        return None
+    if not (_date(v.get("date")) and _date(v.get("from_date"))):
+        return None
+    out = {k: v[k] for k in ("value", "date", "from", "from_date")}
+    if _date(v.get("after")):
+        out["after"] = v["after"]
+    return out
+
+
 def carry(plan, monday):
     """Where a plan from `monday` stands after `plan` (the last plan.json dict), or None without a
     generated plan (none, or one of the [week] schedule alone, which has no levels):
@@ -28,8 +46,11 @@ def carry(plan, monday):
     block_start: the Monday its block started, monday itself when it starts one (the plan's
     progress.block_start, else its first week; the week after a deload; a week the plan doesn't
     reach); block_week: monday's week in that block, 1-based; deload: plan has a deload that week;
-    run_walk_stage: the stage reached before monday (None when plan had no ladder); time_trials:
-    the ones recorded; time_trial: the date of the one planned and not run yet, or None.
+    run_walk_stage: the stage reached before monday (None when plan had no ladder), counting only the
+    plan's own weeks (from progress.plan_start: the kept past weeks are in the stage already);
+    cycle_start: the Monday the no-race phase cycle started (None: unknown); vdot: the derived VDOT
+    estimate ({value, date, from, from_date}, profile.reestimate_vdot) or None; time_trials: the ones
+    recorded; time_trial: the date of the one planned and not run yet, or None.
     A progress value of the wrong type counts as missing.
     """
     weeks = (plan or {}).get("weeks") or []
@@ -37,22 +58,25 @@ def carry(plan, monday):
         return None
     p = plan.get("progress") if isinstance(plan.get("progress"), dict) else {}
     starts = [date.fromisoformat(wk["start"]) for wk in weeks]
+    own = _date(p.get("plan_start"))
+    k0 = next((k for k, s in enumerate(starts) if s >= own), len(starts) - 1) if own else 0
     first = _date(p.get("block_start"))
-    if first is None or first > starts[0]:
-        first = starts[0]
+    if first is None or first > starts[k0]:
+        first = starts[k0]
     trials = p.get("time_trials") if isinstance(p.get("time_trials"), list) else []
     out = {"time_trials": [t for t in trials if isinstance(t, dict) and _date(t.get("date"))
                            and isinstance(t.get("vdot"), (int, float))],
-           "time_trial": _date(p.get("time_trial"))}
+           "time_trial": _date(p.get("time_trial")), "cycle_start": _date(p.get("cycle_start")),
+           "vdot": _vdot(p.get("vdot"))}
     if monday in starts:
         i = starts.index(monday)
         block = max([first] + [starts[j] for j in range(1, i + 1) if weeks[j - 1].get("deload")])
         out.update(block_start=block, block_week=(monday - block).days // 7 + 1,
                    deload=bool(weeks[i].get("deload")))
-        done = weeks[:i]
+        done = weeks[k0:i]
     else:
         out.update(block_start=monday, block_week=1, deload=False)
-        done = weeks if monday > starts[-1] else []
+        done = weeks[k0:] if monday > starts[-1] else []
     stage = _stage(p.get("run_walk_stage"))
     out["run_walk_stage"] = None if stage is None else stage + sum(not wk.get("deload") for wk in done)
     return out

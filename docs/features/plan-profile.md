@@ -15,6 +15,7 @@ hill_days = ["sat"]       # days with hill access
 volume_level = "novice"   # beginner, novice, intermediate, advanced: wins over detection
 quality_level = "intermediate"
 unit = "min"              # km or min: the plan's volume unit (default: km, min for beginners)
+auto_push = true          # make replan pushes the new plan (default true)
 
 [race]
 date = 2027-04-11         # a TOML date, no quotes
@@ -24,11 +25,20 @@ goal = "1:35:00"          # optional, H:MM:SS or MM:SS
 [week]                    # optional: pin days of the generated plan, day = "template:variant"
 tue = "cruise_tempo:2"
 sun = "steady_long:1"
+
+[[override]]              # optional, repeatable: skip, reduce or lock days (plan adaptation)
+from = 2027-02-02
+to = 2027-02-05
+action = "skip"
 ```
 
 `make plan` generates the plan from these values ([plan generator](plan-generator.md)); `[week]` days override the generated ones (see [plan workouts](plan-workouts.md#manual-schedule-week)).
 
+The top-level keys (`auto_push` among them) go before the first `[table]`: in TOML a key after `[week]` belongs to `[week]`, which then stops with an unknown-day error. `tests/test_adapt.py` loads the example above as written.
+
 The derived numbers (`km_4w`, `km_12w`, `runs_per_week`, `longest_8w`) can be set too, for example after a break the data doesn't explain.
+
+`auto_push` (`Profile.auto_push`, true or false) says whether `make replan` pushes ([plan adaptation](plan-adaptation.md#command)). `[[override]]` tables (`parse_overrides`, `Profile.overrides`) skip, reduce or lock days from today on: see [plan adaptation](plan-adaptation.md#overrides). A missing `from`, a `to` before it or an unknown action is a `ProfileError`.
 
 ## Resolution order
 
@@ -51,6 +61,8 @@ Runs without a GPS stream (treadmill, indoor) count in the volume by their summa
 With less than 4 weeks between the first run and today, the volume fields and VDOT fall back to their defaults with a warning, rather than extrapolating from a few runs.
 
 **VDOT from training is a floor.** Efforts come from any run, so without races the value understates fitness. The output marks it `derived (training efforts)` and names the run it came from; a race or time-trial `vdot` in the profile wins.
+
+**The VDOT across re-plans** (roadmap 09, `reestimate_vdot`). The first derived VDOT is kept in `plan.json`'s `progress.vdot` (before any layoff factor). From then on it is the derived VDOT, re-estimated every 4 weeks (`[adapt] vdot_every_weeks`): a faster race (`event` `race` in `runs.json`) raises it (`derived: race 10 km on <date>`), a break since the last estimate lowers it by the layoff table as soon as running resumes, a time trial replaces it at once. A race counts only after the estimate's own effort and after the last break that lowered it (`progress.vdot.after`), so a race from before a break never raises it straight back. Training efforts never change it again. See [plan adaptation](plan-adaptation.md#rules).
 
 **The time trial.** A beginner's plan has a 2 km time trial in week 3 ([plan generator](plan-generator.md#runner-levels)). When `plan.json` plans one and `runs.json` has a GPS run on that date, its best 2 km (`metrics.best_effort`) gives the derived VDOT, shown as `derived: 2 km time trial on <date>`. 2 km is not one of the page's best-effort distances, so this is separate code (`history.time_trials`). The next plan records the result in `plan.json`'s `progress` ([format](../plan-json-format.md#progress)), so it keeps giving VDOT after any number of re-plans; with several, the latest counts.
 
@@ -88,7 +100,7 @@ and, when a level is held back, what by: `volume: novice (35 km/wk over 4 wk; no
 
 The factors follow Daniels' guidance on returning from a break as the roadmap summarises it; they are still to be checked against the book.
 
-**Promotion** (`levels.promote`): when `plan.json` already has levels, the new plan starts from them rather than from detection. A level moves up only at a block's start (counted from the last plan's `progress.block_start`, else its first week; the week after a deload; or past the plan's end), so re-planning twice in one week doesn't promote mid-block; one level at a time: volume when each of the last 4 weeks holds the next level's km plus 10 % (`margin`, the hysteresis that stops a runner at a boundary flapping between levels) and its runs a week; quality when detection finds the next level and VDOT is 1 point over its minimum. Mid-block the reason says `novice until the next block, then intermediate (…)`. Levels never drop, except after a break, when they drop at once to what detection finds. The roadmap's third condition, 75 % of the planned Q sessions done, takes a compliance share that the adaptation loop (09) will count; until then it is skipped with a note.
+**Promotion** (`levels.promote`): when `plan.json` already has levels, the new plan starts from them rather than from detection. A level moves up only at a block's start (counted from the last plan's `progress.block_start`, else its first week; the week after a deload; or past the plan's end), so re-planning twice in one week doesn't promote mid-block; one level at a time: volume when each of the last 4 weeks holds the next level's km plus 10 % (`margin`, the hysteresis that stops a runner at a boundary flapping between levels) and its runs a week; quality when detection finds the next level and VDOT is 1 point over its minimum. Mid-block the reason says `novice until the next block, then intermediate (…)`. Levels never drop, except after a break, when they drop at once to what detection finds. The roadmap's third condition holds both axes back: at least 75 % (`[detect] compliance`) of the last block's planned Q sessions done. `match.q_compliance` matches the runs to the last plan's sessions (`match.match`, roadmap 09) and counts the Q days done, moved or swapped over the Q days up to today in the block that ends before the new plan (the weeks back to the one after the last deload). A block with no Q session to count skips the check with a note.
 
 ## Pace zones (Daniels)
 

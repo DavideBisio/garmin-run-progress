@@ -5,7 +5,7 @@ Measure how your running fitness changed over the years using your own Garmin Co
 It has two parts:
 
 - **`garmin_grab.py`** is an incremental exporter. It logs into Garmin Connect, downloads the GPX of every run it hasn't seen before, fetches your daily resting heart rate, and writes one compact `runs.json`.
-- **`index.html`** is the analysis page. Open it in a browser, drop `runs.json` in the Data tab, and get the trends in Analysis. Everything runs locally, and nothing is uploaded.
+- **`index.html`** is the analysis page. Open it in a browser, drop `runs.json` in the Data tab, and get the trends in Analysis, and your training plan in Planning once you make one with the planner (`make plan`). Everything runs locally, and nothing is uploaded.
 
 ## What the analysis shows
 
@@ -84,6 +84,9 @@ The code lives in `src/`: the grabber package in `src/garmin_grab/` and the page
 make install   create .venv and install the Garmin library
 make grab      fetch new runs, running src/ directly (options: ARGS="--since 2016-01-01")
 make rebuild   rebuild runs.json from local files, no network
+make plan      generate garmin_export/plan.json and plan.md, then rebuild runs.json with it
+make push      upload and schedule the plan's future sessions on Garmin
+make replan    after make grab: re-plan from the runs, push again, rebuild runs.json
 make dev       serve the unbuilt page on localhost:8000
 make build     build dist/garmin_grab.py and dist/index.html
 make test      build, then run the grabber and page tests

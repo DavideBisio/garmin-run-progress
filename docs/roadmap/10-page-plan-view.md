@@ -70,8 +70,21 @@
 
 ## Completion checklist
 
-- [ ] Every new top-level name in `plan.js` is unique across all page scripts and doesn't clash with a browser global. The page files share one scope.
-- [ ] Plan dates are local calendar dates. Compare them with the page's own day index (`weekOf`, Monday-based), not with `new Date()` in UTC.
-- [ ] Data remembered in IndexedDB (`storage.js`) includes `plan`, and "Forget my data" clears it.
-- [ ] Charts are recreated when the theme changes, which `boot.js` already does for the other charts, and they're sized correctly when the tab is first opened (02).
-- [ ] Session HR targets use the zone names and bpm from 01, the same as the Analysis zones chart.
+- [x] Every new top-level name in `plan.js` is unique across all page scripts and doesn't clash with a browser global. The page files share one scope.
+- [x] Plan dates are local calendar dates. Compare them with the page's own day index (`weekOf`, Monday-based), not with `new Date()` in UTC.
+- [x] Data remembered in IndexedDB (`storage.js`) includes `plan`, and "Forget my data" clears it.
+- [x] Charts are recreated when the theme changes, which `boot.js` already does for the other charts, and they're sized correctly when the tab is first opened (02).
+- [x] Session HR targets use the zone names and bpm from 01, the same as the Analysis zones chart.
+
+## Shipped
+
+Plan view (#13): `build_runs` copies `plan.json` into `runs.json`'s `plan` key, and `make plan` and `make replan` rebuild `runs.json` afterwards (offline, skipped without `activities.json`); `plan.json` gains a top-level `profile` (VDOT, HR max and rest, race) that the header and the HR note read. On the page, `src/page/js/plan.js` (`renderPlan`), `PLAN` in `state.js`, the Planning markup and styles, the resize of the Planning chart in `tabs.js`, and `examplePlan` in `example-data.js`. Documented in [plan view](../features/plan-view.md), the [runs.json format](../runs-json-format.md#training-plan), the [plan.json format](../plan-json-format.md), [data loading and storage](../features/data-loading-and-storage.md) and the page code map in [architecture](../architecture.md); tested by `tests/page.test.mjs` (the Planning tests), `tests/test_grabber.py` (`Export`) and `tests/test_planner.py` (`test_profile`). Differences from the plan above:
+
+- The status set has two more than listed: `swapped` (09's match) and `skipped` (a day an override emptied). The page's own date matching, for days without a stored status, mirrors 09's: partial under 70 % of both km and time; moved only onto a day without a session of its own (today's run included, as in 09), each run moving one session. It doesn't judge a hard Q run easy (no HR check), which 09 does.
+- This week is the week holding today, else the first week to come. Today is the local calendar day, and for the example data the day after its last run.
+- The block in the heading counts from `progress.block_start` and the week after each deload; taper weeks count on their own.
+- The compliance KPIs cover the last 4 complete weeks before this one; moved and swapped count as done, partial doesn't.
+- The session detail is a panel under the cards, not a `<details>`; cards are `<button>`s, so they take keyboard focus and open with Enter or Space.
+- The empty state now says how to get a plan in (`make plan`, `make replan`, then load `runs.json`) and links this feature's page.
+
+Not covered by the automated tests, to check by hand: light and dark theme, the 360 px phone width (two columns of cards, no horizontal scroll) and the keyboard (focus a card, Enter opens the detail). IndexedDB persistence of the plan isn't tested either: the page stores the whole payload, so it keeps the plan and "Forget my data" clears it, but the Node tests run without IndexedDB.

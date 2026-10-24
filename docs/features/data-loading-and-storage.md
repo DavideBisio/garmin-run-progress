@@ -19,7 +19,7 @@ If both are selected, the JSON wins. The drop zone is keyboard-operable (Enter/S
 `setData(payload, isExample, fromUser)`:
 
 1. Shallow-copies each run and calls `prepare(run)`, which adds the derived fields below. Runs with an unparseable `date` are dropped.
-2. Sorts by date.
+2. Sorts by date, and reads the resting heart rate and the training plan (`plan`, into `PLAN`, or null: [plan view](plan-view.md)).
 3. Updates the status chip ("Example data · Load yours", linking to the Data tab, vs "Your data · N runs · 2016–2026").
 4. Suggests a heart-rate band.
 5. Calls `render()`.
@@ -50,7 +50,7 @@ With "Remember in this browser" ticked (default), the loaded payload is stored i
 - database `run-progress-lab`, object store `kv`, key `data`
 - IndexedDB rather than `localStorage` because a 10-year `runs.json` is 10–20 MB, beyond `localStorage` limits
 
-On boot the page renders example data immediately, then replaces it with the stored payload if one exists and opens the Analysis tab, unless the URL hash picked a tab or you already switched. Unticking the box or pressing "Forget my data" deletes the key. Every IndexedDB call is wrapped in try/catch, so private windows or blocked storage just mean nothing is remembered.
+On boot the page renders example data immediately, then replaces it with the stored payload if one exists and opens the Analysis tab, unless the URL hash picked a tab or you already switched. The payload is stored whole, so the plan in it is remembered too. Unticking the box or pressing "Forget my data" deletes the key, plan included. Every IndexedDB call is wrapped in try/catch, so private windows or blocked storage just mean nothing is remembered.
 
 Data never leaves the browser.
 
@@ -63,5 +63,6 @@ Data never leaves the browser.
 - +4 bpm heat drift in June–August, so the month filter visibly matters
 - 15% of runs at threshold heart rate
 - rolling terrain (±25 m)
+- a synthetic training plan (`examplePlan`) around the last run: 4 past weeks whose sessions are the example runs (and one missed session), this week and 7 to come, base then R + T, with deloads, one Q a week and a feasibility warning; no status fields, so the Planning tab matches the runs by date
 
 The status chip says "Example data · Load yours" until real data is loaded.

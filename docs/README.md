@@ -18,6 +18,7 @@
 | Login, incremental listing, GPX download, retries | [features/incremental-grabber.md](features/incremental-grabber.md) |
 | GPX parsing and 10-second streams | [features/gpx-to-stream.md](features/gpx-to-stream.md) |
 | Daily resting heart rate | [features/resting-heart-rate.md](features/resting-heart-rate.md) |
+| Daily HRV status and training readiness | [features/wellness.md](features/wellness.md) |
 
 **Analysis page (`index.html`)**
 
@@ -33,6 +34,7 @@
 | Aerobic decoupling | [features/aerobic-decoupling.md](features/aerobic-decoupling.md) |
 | Cadence, stride length, Training Effect | [features/form-and-training-effect.md](features/form-and-training-effect.md) |
 | Training load, load ratio, zones, consistency | [features/training-load-zones-consistency.md](features/training-load-zones-consistency.md) |
+| Planning tab: this week's sessions and status, compliance, planned vs actual km | [features/plan-view.md](features/plan-view.md) |
 
 **Planner (`garmin_plan`)**
 
@@ -42,3 +44,4 @@
 | Workout templates, markdown renderer, manual `[week]` schedule | [features/plan-workouts.md](features/plan-workouts.md) |
 | Plan generator: phases, volume, session choice and sizing, checks, fixes, warnings | [features/plan-generator.md](features/plan-generator.md) |
 | Push to Garmin Connect: upload, schedule, re-push, dry-run | [features/plan-push.md](features/plan-push.md) |
+| Plan adaptation: matching runs, missed sessions, fatigue, overrides, VDOT re-estimates, "What changed" | [features/plan-adaptation.md](features/plan-adaptation.md) |

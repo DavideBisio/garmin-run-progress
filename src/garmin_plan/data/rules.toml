@@ -188,3 +188,29 @@ trim_l_km = 1.0
 # is "ambitious", more is "unrealistic". The planner only warns: paces stay at the current VDOT.
 realistic_weeks = 6
 ambitious_weeks = 4
+
+[adapt]
+# The adaptation loop (roadmap 09, docs/features/plan-adaptation.md). Matching (match.py): a run
+# under this share of both the planned distance and the planned time makes the session partial.
+partial = 0.70
+# Fatigue (adapt.py), any of these turns the next Q into an easy run: the latest resting HR more
+# than rhr_bpm above the median of the rhr_days before it (with at least rhr_min_days values there);
+# an HRV status in hrv_low; a training readiness level in readiness_low_levels, or without a level
+# a score under readiness_low_score (Garmin: 0-24 poor, 25-49 low). Each value counts only when
+# dated today or up to fresh_days before: missing or stale data is never fatigue.
+rhr_bpm = 5
+rhr_days = 30
+rhr_min_days = 10
+hrv_low = ["LOW", "POOR"]
+readiness_low_levels = ["POOR", "LOW"]
+readiness_low_score = 50
+fresh_days = 1
+# A missed long run (in the last l_move_max_days days) moves to the next free day when the next Q is
+# at least l_move_min_days after it (the 48 hours between hard days); otherwise it is skipped.
+l_move_min_days = 2
+l_move_max_days = 3
+# A reduce override: each session in its range becomes an easy run of this share of its km.
+reduce = 0.5
+# VDOT is re-estimated this many weeks after the last estimate (or at once after a break): raised by
+# a race (runs.json event "race") or a time trial, lowered by the layoff table for a break since.
+vdot_every_weeks = 4
