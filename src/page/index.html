@@ -266,13 +266,14 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
 <section class="tabpanel" role="tabpanel" id="tab-planning" aria-labelledby="tab-btn-planning" hidden>
   <div class="panel empty" id="plan-empty">
     <h2>No plan in this file</h2>
-    <p class="muted">Plans will be made on your computer, next to the grabber. These commands come with the training plan generator:</p>
+    <p class="muted">Plans are made on your computer, next to the grabber, and travel to this page inside runs.json:</p>
     <ul class="cmds">
-      <li><span class="chip">make plan</span> write garmin_export/plan.md and plan.json</li>
+      <li><span class="chip">make plan</span> write garmin_export/plan.md and plan.json, and copy the plan into runs.json</li>
       <li><span class="chip">make push</span> put the workouts on your Garmin calendar</li>
-      <li><span class="chip">make grab</span> include the plan in runs.json, then load it in Data</li>
+      <li><span class="chip">make replan</span> after make grab: re-plan from your runs, push again and update runs.json</li>
     </ul>
-    <p><a class="btn" href="../docs/roadmap/readme/">See the roadmap</a></p>
+    <p class="muted">Then load garmin_export/runs.json in Data. The example data comes with a plan.</p>
+    <p><a class="btn" href="../docs/features/plan-view/">How the plan view works</a></p>
   </div>
   <div class="plan-view" id="plan-view" hidden>
     <div class="panel">

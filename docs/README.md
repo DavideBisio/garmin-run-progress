@@ -34,6 +34,7 @@
 | Aerobic decoupling | [features/aerobic-decoupling.md](features/aerobic-decoupling.md) |
 | Cadence, stride length, Training Effect | [features/form-and-training-effect.md](features/form-and-training-effect.md) |
 | Training load, load ratio, zones, consistency | [features/training-load-zones-consistency.md](features/training-load-zones-consistency.md) |
+| Planning tab: this week's sessions and status, compliance, planned vs actual km | [features/plan-view.md](features/plan-view.md) |
 
 **Planner (`garmin_plan`)**
 

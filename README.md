@@ -5,7 +5,7 @@ Measure how your running fitness changed over the years using your own Garmin Co
 It has two parts:
 
 - **`garmin_grab.py`** is an incremental exporter. It logs into Garmin Connect, downloads the GPX of every run it hasn't seen before, fetches your daily resting heart rate, and writes one compact `runs.json`.
-- **`index.html`** is the analysis page. Open it in a browser, drop `runs.json` in the Data tab, and get the trends in Analysis. Everything runs locally, and nothing is uploaded.
+- **`index.html`** is the analysis page. Open it in a browser, drop `runs.json` in the Data tab, and get the trends in Analysis, and your training plan in Planning once you make one with the planner (`make plan`). Everything runs locally, and nothing is uploaded.
 
 ## What the analysis shows
 

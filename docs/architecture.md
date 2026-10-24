@@ -83,7 +83,7 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 | `zip.js` | Minimal ZIP writer for the grabber download |
 | `metrics.js` | `hav`, `minetti`, `gapFactor`, `vdot`, `decYear`, `weekOf`, `bestEffort`, `prepare`, `bandPace`, `decoupling`, `HRR_ZONES`, `hrrZones`, `zoneTime`, `trimp` |
 | `stats.js` | `median`, `theilSen`, pace and time formatters |
-| `example-data.js` | Seeded synthetic 10-year dataset shown before you load yours |
+| `example-data.js` | Seeded synthetic 10-year dataset shown before you load yours, with a synthetic plan around its last run (`examplePlan`) |
 | `gpx-import.js` | `parseGpxText` for loading raw GPX files |
 | `storage.js` | Remember loaded data in this browser (IndexedDB) |
 | `state.js` | `setData(payload, isExample, fromUser)` (runs, resting HR and the plan (`PLAN`, or null), status chip; a user load opens Analysis), heart-rate band and max/resting HR suggestions |

@@ -89,7 +89,7 @@ Top-level `hrv`: daily HRV status as `[date, status]` pairs (`BALANCED`, `UNBALA
 
 ## Training plan
 
-Top-level `plan`: a copy of `garmin_export/plan.json`, the planner's output ([plan.json format](plan-json-format.md)), for the page's Planning tab. Every rebuild of `runs.json` (`make grab`, `make rebuild`) copies the `plan.json` on disk; `make plan` and `make replan` rebuild `runs.json` afterwards (offline, when `activities.json` is there), so the page sees the fresh plan. The key is absent when there is no `plan.json`, or when it isn't a JSON object.
+Top-level `plan`: a copy of `garmin_export/plan.json`, the planner's output ([plan.json format](plan-json-format.md)), for the page's Planning tab ([plan view](features/plan-view.md)). Every rebuild of `runs.json` (`make grab`, `make rebuild`) copies the `plan.json` on disk; `make plan` and `make replan` rebuild `runs.json` afterwards (offline, when `activities.json` is there), so the page sees the fresh plan. The key is absent when there is no `plan.json`, or when it isn't a JSON object.
 
 ## Compatibility rules for the page
 

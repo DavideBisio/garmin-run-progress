@@ -428,3 +428,42 @@ test("opening Planning after a user load resizes its chart", async () => {
   assert.deepEqual(visible(el), ["planning"]);
   assert.ok(resized.includes("c-plan"), `c-plan not resized: ${resized}`);
 });
+
+test("example data renders the Planning tab: 7 day cards, header, KPIs and the chart", () => {
+  const { el, charts, kpis } = runPage();
+  assert.equal(el("plan-empty").hidden, true);
+  assert.equal(el("plan-view").hidden, false);
+  assert.equal(cards(el).length, 7);
+  assert.ok(cardStatus(el).includes("next"), cardStatus(el).join(","));
+  assert.match(el("plan-week-h").textContent, /^This week \(block \d+, week \d+ · /);
+  assert.match(el("plan-head").innerHTML, /Half marathon in \d+ wk/);
+  assert.ok(el("plan-warn").innerHTML.includes("feasibility"));
+  assert.equal(kpis("plan-kpis"), 3);
+  const cfg = charts["c-plan"];
+  assert.ok(cfg && cfg.data.datasets.length === 2 && cfg.data.labels.length >= 8);
+  assert.ok(cfg.data.labels.some(l => l.endsWith("↓")), "no deload week");
+  const q = cards(el).findIndex(m => /Cruise Tempo/.test(m[2]));
+  assert.ok(q >= 0, "no Q session this week");
+  clickCard(el, q);
+  assert.match(el("plan-detail").innerHTML, /Repeat \dx/);
+});
+
+test("the example plan has no status fields: its past days are matched to the example runs by date", () => {
+  const p = runPage(undefined, devScripts.map(f => read(`src/page/js/${f}`)));
+  const ex = p.ctx.exampleData(), plan = ex.plan;
+  const days = plan.weeks.flatMap(w => w.days);
+  assert.ok(days.every(d => d.status === null), "the example plan sets statuses");
+  const last = p.ctx.decYear(ex.runs.at(-1).date).day;
+  const ctx = p.ctx.planContext(plan, last + 1);
+  const past = [...ctx.status].filter(([d]) => d <= last).map(([, s]) => s);
+  assert.ok(past.filter(s => s === "done").length >= 5, past.join(","));
+  assert.equal(past.filter(s => s === "missed").length, 1, past.join(","));
+  assert.ok(plan.weeks.some(w => w.phase === "base") && plan.weeks.some(w => w.phase === "rt"));
+  assert.deepEqual(Object.keys(plan.profile).sort(), ["hr_max", "hr_rest", "race", "vdot"]);
+});
+
+test("the empty Planning state says how to get a plan into runs.json", () => {
+  const empty = /<div class="panel empty" id="plan-empty">([\s\S]*?)<\/div>/.exec(html)[1];
+  for (const s of ["make plan", "make replan", "runs.json"]) assert.ok(empty.includes(s), `empty state lacks ${s}`);
+  assert.doesNotMatch(empty, /will be made/);
+});
