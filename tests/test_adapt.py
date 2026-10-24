@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from garmin_plan import adapt, levels, match, physiology, plan_io, profile, render_md, replan, templates  # noqa: E402,E501
+from garmin_plan import adapt, levels, match, physiology, plan_io, profile, progress, render_md, replan, templates  # noqa: E402,E501
 
 RULES = physiology.load_rules()
 LIB = templates.load_templates()
@@ -262,8 +262,26 @@ def rhr_rising(today, last=57, base=50, days=30):
     return [[(today - timedelta(days=k)).isoformat(), base] for k in range(days, 0, -1)] + [[today.isoformat(), last]]
 
 
-def run_adapt(plan, today, history=None, wellness=None, overrides=(), prev=None):
-    return adapt.adapt(plan, history or {}, wellness or {}, list(overrides), today, RULES, easy=EASY, prev=prev)
+def run_adapt(plan, today, history=None, wellness=None, overrides=(), prev=None, **kw):
+    return adapt.adapt(plan, history or {}, wellness or {}, list(overrides), today, RULES, easy=EASY, prev=prev, **kw)
+
+
+NOVICE_DAYS = ["tue", "thu", "sat", "sun"]
+MISSED = {"status": "missed", "activity_id": None}
+
+
+def sat_long():
+    """Tue Q, Thu E, Sat L; then Tue E, Wed Q, Sat E, Sun L: Sunday MON + 6 is free."""
+    return plan_of((1, "Q", "cruise_tempo"), (3, "E", "easy"), (5, "L", "steady_long"),
+                   (8, "E", "easy"), (9, "Q", "cruise_tempo"), (12, "E", "easy"), (13, "L", "steady_long"))
+
+
+def one_day(day_, action):
+    return [{"from": date.fromisoformat(day_), "to": date.fromisoformat(day_), "action": action}]
+
+
+def session(d):
+    return {"slot": d["slot"], "workout": d["workout"], "changed_by": d.get("changed_by"), "change": d.get("change")}
 
 
 class Adapt(unittest.TestCase):
@@ -276,20 +294,50 @@ class Adapt(unittest.TestCase):
         self.assertEqual((changes, plan), ([], before))
 
     def test_l_missed_moved(self):
-        # Sunday's L missed; Monday is free and the next Q is Wednesday, 2 days after: L moves to Monday
-        plan = two_weeks(q2=9)
-        today = MON + timedelta(days=7)
-        changes = run_adapt(plan, today, {day(6): {"status": "missed", "activity_id": None}})
-        moved = day_of(plan, day(7))
+        # Saturday's L missed; Sunday is free and a novice day, the last Q (Tue) 5 days before and the
+        # next (Wed) 3 days after, in the same week: L moves to Sunday
+        plan = sat_long()
+        today = MON + timedelta(days=6)
+        changes = run_adapt(plan, today, {day(5): MISSED}, days=NOVICE_DAYS)
+        moved = day_of(plan, day(6))
         self.assertEqual((moved["slot"], moved["changed_by"], moved["workout"]["id"]), ("L", "l_moved", "steady_long"))
         self.assertEqual([(c["date"], c["from"], c["to"], c["rule"]) for c in changes],
-                         [(day(7), "rest", "L", "l_moved")])
-        dates = [d["date"] for d in plan["weeks"][1]["days"]]
+                         [(day(6), "rest", "L", "l_moved")])
+        dates = [d["date"] for d in plan["weeks"][0]["days"]]
         self.assertEqual(dates, sorted(dates))
         # applied again (the next re-plan of the day): not moved twice
-        again = run_adapt(plan, today, {day(6): {"status": "missed", "activity_id": None}})
+        again = run_adapt(plan, today, {day(5): MISSED}, days=NOVICE_DAYS)
         self.assertEqual(again, changes)
-        self.assertEqual(sum(d["slot"] == "L" for d in plan["weeks"][1]["days"]), 2)
+        self.assertEqual(sum(d["slot"] == "L" for d in plan["weeks"][0]["days"]), 2)
+
+    def assert_l_skipped(self, plan, today, missed, why, **kw):
+        before = copy.deepcopy(plan)
+        changes = run_adapt(plan, today, {missed: MISSED}, **kw)
+        self.assertEqual(plan, before)
+        self.assertEqual([(c["date"], c["from"], c["to"], c["rule"]) for c in changes],
+                         [(missed, "L", "skipped", "l_skipped")])
+        self.assertIn(why, changes[0]["reason"])
+
+    def test_l_missed_only_on_the_runners_days(self):
+        # Sunday's L missed, today Monday: not a novice day; Thursday, the next free one, is the day
+        # after Wednesday's Q
+        self.assert_l_skipped(two_weeks(q2=9), MON + timedelta(days=7), day(6), "after the last Q", days=NOVICE_DAYS)
+
+    def test_l_missed_not_onto_a_day_already_run(self):
+        # as test_l_missed_moved, but a run today matched no session: Sunday is taken
+        self.assert_l_skipped(sat_long(), MON + timedelta(days=6), day(5), "after the last Q", days=NOVICE_DAYS,
+                              ran_today=True)
+
+    def test_l_missed_two_days_after_a_q(self):
+        # Friday's L missed, Saturday's Q run: Sunday is one day after it
+        plan = plan_of((1, "E", "easy"), (4, "L", "steady_long"), (5, "Q", "cruise_tempo"),
+                       (9, "Q", "cruise_tempo"), (13, "L", "steady_long"))
+        self.assert_l_skipped(plan, MON + timedelta(days=6), day(4), "1 day after the last Q, under 2")
+
+    def test_l_missed_volume(self):
+        # Sunday's L missed, Monday free on any day: but the new week has its own L, a second one would
+        # put it over its sessions' km by more than the 10 % rise
+        self.assert_l_skipped(two_weeks(q2=9), MON + timedelta(days=7), day(6), "over the week's")
 
     def test_l_missed_no_room(self):
         plan = two_weeks(q2=8)                       # the next Q on Tuesday, one day after Monday
@@ -375,6 +423,51 @@ class Adapt(unittest.TestCase):
         md = render_md.render_plan(plan)
         self.assertRegex(md, rf"(?m)^- Tue {day(8)} · skipped$")
 
+    def test_override_beats_an_earlier_rule(self):
+        # fatigue eased Tuesday's Q; the next re-plan (the current week kept) has an illness skip on it
+        plan = two_weeks()
+        run_adapt(plan, MON, wellness={"hrv": [[MON.isoformat(), "LOW"]]})
+        eased = session(day_of(plan, day(1)))
+        self.assertEqual(eased["changed_by"], "fatigue")
+        ov = one_day(day(1), "skip")
+        changes = run_adapt(plan, MON, overrides=ov)
+        d = day_of(plan, day(1))
+        self.assertEqual((d["workout"], d["changed_by"]), (None, "override_skip"))
+        self.assertEqual([(c["date"], c["to"], c["rule"]) for c in changes], [(day(1), "rest", "override_skip")])
+        again = copy.deepcopy(plan)
+        self.assertEqual(run_adapt(again, MON, overrides=ov), changes)              # not applied twice
+        self.assertEqual(again, plan)
+        # the override removed: the day is back as it was before it
+        run_adapt(plan, MON)
+        self.assertEqual(session(day_of(plan, day(1))), eased)
+        # a reduce override on a day a missed L moved to
+        plan = sat_long()
+        run_adapt(plan, MON + timedelta(days=6), {day(5): MISSED})
+        run_adapt(plan, MON + timedelta(days=6), {day(5): MISSED}, overrides=one_day(day(6), "reduce"))
+        d = day_of(plan, day(6))
+        self.assertEqual((d["slot"], d["changed_by"]), ("E", "override_reduce"))
+        self.assertAlmostEqual(d["workout"]["km"], workout("steady_long")["km"] * RULES["adapt"]["reduce"], delta=0.2)
+
+    def test_override_removed_restores_the_day(self):
+        plan = two_weeks()
+        thu = session(day_of(plan, day(3)))
+        run_adapt(plan, MON, overrides=one_day(day(3), "skip"))
+        self.assertIsNone(day_of(plan, day(3))["workout"])
+        changes = run_adapt(plan, MON)                     # the next re-plan, the override gone
+        self.assertEqual(session(day_of(plan, day(3))), thu)
+        self.assertEqual(changes, [])
+        self.assertEqual(plan["weeks"][0]["target_km"], round(sum(plan_io.shown_km(d["workout"])
+                                                                  for d in plan["weeks"][0]["days"]), 1))
+
+    def test_locked_day_run_today_keeps_its_match(self):
+        prev, plan = two_weeks(), two_weeks()
+        today = MON + timedelta(days=1)
+        run_adapt(plan, today, {day(1): {"status": "done", "activity_id": 7}}, overrides=one_day(day(1), "lock"),
+                  prev=prev)
+        d = day_of(plan, day(1))
+        self.assertEqual((d["status"], d["activity_id"]), ("done", 7))
+        self.assertEqual(session(d), session(day_of(prev, day(1))))
+
     def test_override_lock(self):
         prev = two_weeks()
         day_of(prev, day(9))["workout"] = workout("vo2_intervals")               # edited by hand in plan.json
@@ -399,6 +492,15 @@ class ProfileOverrides(unittest.TestCase):
         self.assertEqual(p.overrides, [{"from": date(2024, 6, 11), "to": date(2024, 6, 13), "action": "skip"},
                                        {"from": date(2024, 6, 20), "to": date(2024, 6, 20), "action": "lock"}])
         self.assertEqual(self.load("").overrides, [])
+
+    def test_documented_example(self):
+        # docs/features/plan-profile.md's profile.toml loads as written: auto_push is a top-level key
+        doc = (ROOT / "docs" / "features" / "plan-profile.md").read_text(encoding="utf-8")
+        text = doc.split("```toml\n", 1)[1].split("```", 1)[0]
+        self.assertIn("auto_push", text)
+        p = self.load(text)
+        self.assertIs(p.auto_push, True)
+        self.assertEqual([o["action"] for o in p.overrides], ["skip"])
 
     def test_rejected(self):
         for text, msg in (('[[override]]\nfrom = 2024-06-11\naction = "rest"\n', "skip, reduce or lock"),
@@ -444,6 +546,13 @@ class Invariants(unittest.TestCase):
                 if wk["start"] < new["progress"]["plan_start"] and ended:
                     self.assertEqual(strip_status(next(w for w in new["weeks"] if w["start"] == wk["start"])),
                                      strip_status(wk))
+            monday = (today - timedelta(days=today.weekday())).isoformat()       # the current week, partly kept
+            old_wk = next(w for w in plan["weeks"] if w["start"] == monday)
+            new_wk = next(w for w in new["weeks"] if w["start"] == monday)
+            before = [d for d in old_wk["days"] if d["date"] < today.isoformat()]
+            self.assertTrue(before)
+            self.assertEqual([strip_status({"days": [d]}) for d in new_wk["days"] if d["date"] < today.isoformat()],
+                             [strip_status({"days": [d]}) for d in before])
             got = [d for wk in new["weeks"] for d in wk["days"] if "2024-07-02" <= d["date"] <= "2024-07-04"]
             self.assertEqual([strip_status({"days": [d]}) for d in got], [strip_status({"days": [d]}) for d in locked])
             plan = new
@@ -523,6 +632,31 @@ class Vdot(unittest.TestCase):
         slow = self.load(runs + fill + [race_run(self.d0 + timedelta(days=10), 10, 3300)], self.d0 + timedelta(weeks=4),
                          plan)
         self.assertAlmostEqual(slow.vdot, physiology.vdot(10000, 3000), places=1)        # a slow race: kept
+
+    def test_race_before_a_break_never_raises_it_back(self):
+        # a 10 km race, then 40 days off: lowered; four weeks on, that race doesn't raise it back
+        data, d0 = levels.load_levels(), self.d0
+        race = race_run(d0, 10, 2700)
+        resume = d0 + timedelta(days=46)
+        runs = sorted(self.base + [race] + easy_runs(d0 + timedelta(days=1), d0 + timedelta(days=5), rid=300)
+                      + easy_runs(resume, resume + timedelta(days=40), rid=400), key=lambda r: r["date"])
+        v = physiology.vdot(10000, 2700)
+        est = {"value": v, "date": (d0 + timedelta(days=5)).isoformat(), "from": "race 10 km",
+               "from_date": d0.isoformat()}
+        low = profile.reestimate_vdot(est, runs, [], resume + timedelta(days=1), data, RULES)
+        factor = levels.layoff(40, data)[0]
+        self.assertLess(factor, 1)
+        self.assertAlmostEqual(low["value"], v * factor, places=6)
+        self.assertEqual(progress._vdot(low), low)                                   # plan.json carries it whole
+        later = resume + timedelta(days=29)
+        self.assertAlmostEqual(profile.reestimate_vdot(low, runs, [], later, data, RULES)["value"], v * factor,
+                               places=6)
+        # a race after the break still raises it
+        mid = physiology.vdot(10000, 2900)
+        self.assertGreater(mid, v * factor)
+        after = sorted(runs + [race_run(resume + timedelta(days=20), 10, 2900, rid=901)], key=lambda r: r["date"])
+        up = profile.reestimate_vdot(low, after, [], later, data, RULES)
+        self.assertAlmostEqual(up["value"], mid, places=6)
 
     def test_detraining_lowers_it(self):
         runs = self.base + [self.first]

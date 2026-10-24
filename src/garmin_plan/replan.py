@@ -85,6 +85,7 @@ def replan(prev, prof, runs, library, rules, today, weeks=None, generated=None, 
     plan = build_plan(prof, runs, library, rules, today, weeks, generated=generated, level_data=level_data)
     statuses = match(prev, runs, today, rules, prof.hr_max, prof.hr_rest) if prev else {}
     keep_past(prev, plan, statuses)
+    ran = any(str(r.get("date") or "")[:10] == today.isoformat() for r in runs or ())
     plan["changes"] = adapt(plan, statuses, wellness, prof.overrides, today, rules,
-                            easy_maker(prof, library, rules, level_data), prev=prev)
+                            easy_maker(prof, library, rules, level_data), prev=prev, days=prof.days, ran_today=ran)
     return record_history(prev, plan, today)

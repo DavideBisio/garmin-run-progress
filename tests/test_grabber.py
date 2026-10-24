@@ -262,6 +262,38 @@ class Wellness(unittest.TestCase):
         self.run_in(g, "2010-01-01", ready={old: {"level": "HIGH", "score": 80}})
         self.assertEqual(len(g.ready_calls), wellness.READINESS_FIRST_DAYS)
 
+    def test_nothing_returned_still_moves_on(self, *_):
+        # a watch without HRV or readiness: the next grab asks for the refresh window only, not from first_day
+        today = date.today()
+        first = (today - timedelta(days=100)).isoformat()
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            wellness.update_wellness(FakeWellness(), out, first)
+            g = FakeWellness()
+            wellness.update_wellness(g, out, first)
+            start = (today - timedelta(days=wellness.WELLNESS_REFRESH_DAYS)).isoformat()
+            self.assertEqual(g.hrv_calls, [(start, today.isoformat())])
+            self.assertEqual((g.ready_calls[0], len(g.ready_calls)), (start, wellness.WELLNESS_REFRESH_DAYS + 1))
+            self.assertEqual((json.loads((out / "hrv.json").read_text()),
+                              json.loads((out / "readiness.json").read_text())), ({}, {}))
+            (out / "gpx").mkdir()
+            with mock.patch("builtins.print"):
+                export.build_runs(out, {})
+            data = json.loads((out / "runs.json").read_text())
+            self.assertEqual((data["hrv"], data["readiness"]), ([], []))
+            self.assertEqual(sorted(data), sorted(["format", "generated", "sampleEvery", "runs", "rhr", "hrv",
+                                                   "readiness"]))
+        # a failed request isn't counted as fetched: the next grab asks for it again
+        class Broken(FakeWellness):
+            def get_hrv_data_range(self, start, end):
+                raise RuntimeError("boom")
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            wellness.update_wellness(Broken(), out, first)
+            g = FakeWellness()
+            wellness.update_wellness(g, out, first)
+            self.assertEqual(g.hrv_calls[0][0], first)
+
     def test_missing_methods(self, *_):
         got = self.run_in(object(), "2024-01-01")
         self.assertEqual(got, {"hrv.json": None, "readiness.json": None})

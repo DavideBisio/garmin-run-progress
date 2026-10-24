@@ -15,6 +15,7 @@ hill_days = ["sat"]       # days with hill access
 volume_level = "novice"   # beginner, novice, intermediate, advanced: wins over detection
 quality_level = "intermediate"
 unit = "min"              # km or min: the plan's volume unit (default: km, min for beginners)
+auto_push = true          # make replan pushes the new plan (default true)
 
 [race]
 date = 2027-04-11         # a TOML date, no quotes
@@ -25,8 +26,6 @@ goal = "1:35:00"          # optional, H:MM:SS or MM:SS
 tue = "cruise_tempo:2"
 sun = "steady_long:1"
 
-auto_push = true          # make replan pushes the new plan (default true)
-
 [[override]]              # optional, repeatable: skip, reduce or lock days (plan adaptation)
 from = 2027-02-02
 to = 2027-02-05
@@ -34,6 +33,8 @@ action = "skip"
 ```
 
 `make plan` generates the plan from these values ([plan generator](plan-generator.md)); `[week]` days override the generated ones (see [plan workouts](plan-workouts.md#manual-schedule-week)).
+
+The top-level keys (`auto_push` among them) go before the first `[table]`: in TOML a key after `[week]` belongs to `[week]`, which then stops with an unknown-day error. `tests/test_adapt.py` loads the example above as written.
 
 The derived numbers (`km_4w`, `km_12w`, `runs_per_week`, `longest_8w`) can be set too, for example after a break the data doesn't explain.
 
@@ -61,7 +62,7 @@ With less than 4 weeks between the first run and today, the volume fields and VD
 
 **VDOT from training is a floor.** Efforts come from any run, so without races the value understates fitness. The output marks it `derived (training efforts)` and names the run it came from; a race or time-trial `vdot` in the profile wins.
 
-**The VDOT across re-plans** (roadmap 09, `reestimate_vdot`). The first derived VDOT is kept in `plan.json`'s `progress.vdot` (before any layoff factor). From then on it is the derived VDOT, re-estimated every 4 weeks (`[adapt] vdot_every_weeks`): a faster race (`event` `race` in `runs.json`) raises it (`derived: race 10 km on <date>`), a break since the last estimate lowers it by the layoff table as soon as running resumes, a time trial replaces it at once. Training efforts never change it again. See [plan adaptation](plan-adaptation.md#rules).
+**The VDOT across re-plans** (roadmap 09, `reestimate_vdot`). The first derived VDOT is kept in `plan.json`'s `progress.vdot` (before any layoff factor). From then on it is the derived VDOT, re-estimated every 4 weeks (`[adapt] vdot_every_weeks`): a faster race (`event` `race` in `runs.json`) raises it (`derived: race 10 km on <date>`), a break since the last estimate lowers it by the layoff table as soon as running resumes, a time trial replaces it at once. A race counts only after the estimate's own effort and after the last break that lowered it (`progress.vdot.after`), so a race from before a break never raises it straight back. Training efforts never change it again. See [plan adaptation](plan-adaptation.md#rules).
 
 **The time trial.** A beginner's plan has a 2 km time trial in week 3 ([plan generator](plan-generator.md#runner-levels)). When `plan.json` plans one and `runs.json` has a GPS run on that date, its best 2 km (`metrics.best_effort`) gives the derived VDOT, shown as `derived: 2 km time trial on <date>`. 2 km is not one of the page's best-effort distances, so this is separate code (`history.time_trials`). The next plan records the result in `plan.json`'s `progress` ([format](../plan-json-format.md#progress)), so it keeps giving VDOT after any number of re-plans; with several, the latest counts.
 

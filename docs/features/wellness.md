@@ -8,7 +8,7 @@ Runs after `update_rhr`, skipped with `--rebuild`. Each source is skipped on its
 
 ```text
 hrv = garmin_export/hrv.json                    # {"YYYY-MM-DD": "BALANCED" | "UNBALANCED" | "LOW" | ...}
-start = (latest known day − 7 days)  if hrv exists
+start = (latest known or fetched day − 7 days)  if either exists
         else --since, else the first run's date
 for each chunk of 28 days from start to today:
     get_hrv_data_range(chunk_start, chunk_end)  # one request per chunk
@@ -25,5 +25,6 @@ for each day from start to today:
 - Parsing is defensive (`hrv_statuses`, `readiness_entry`): an HRV response may be `{"hrvSummaries": [...]}`, `{"hrvSummary": {...}}` or a list; a summary without a date or a status is skipped; a readiness reading without a level keeps `level: null`, one without a score `score: null`, and one with neither is skipped.
 - The response shapes are not yet confirmed on a real account. If a field name differs, the day is simply missing.
 - A failed request is logged and skipped. Ctrl-C keeps what was already saved by the step before.
+- `garmin_export/wellness_fetched.json` (`WELLNESS_FETCHED` in `config.py`), `{"hrv": "YYYY-MM-DD", "readiness": "YYYY-MM-DD"}`, records the day each source was fetched up to with no failed request on the way. The next start is the later of it and the latest known day, minus the refresh window, so a watch or account that returns no HRV or readiness doesn't send every grab back to the first run (a full HRV re-fetch and 60 readiness requests each time). A failed request stops the marker there, so the next grab asks for it again. `build_runs` never reads this file.
 
 `build_runs` copies both files into `runs.json` as sorted `hrv` and `readiness` arrays (see [runs.json format](../runs-json-format.md)). `--rebuild` uses the local files, so it needs no network.

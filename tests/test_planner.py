@@ -408,6 +408,30 @@ class CliReplan(unittest.TestCase):
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("error: auto_push", res.stderr)
 
+    def test_dry_run_leaves_a_day_already_run(self):
+        # a run dated --today in runs.json: that day's session is not pushed again
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "profile.toml").write_text(self.TEXT, encoding="utf-8")
+            self.replan(d, "--no-push")
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            later = date.fromisoformat(next(x["date"] for w in plan["weeks"] for x in w["days"]
+                                            if x["workout"] and x["slot"] == "E"))
+            runs = {"format": "garmin-runs/1", "rhr": [], "hrv": [], "readiness": [],
+                    "runs": [{"id": 5, "date": f"{later} 07:00:00", "type": "running", "dist": 6000, "dur": 2160,
+                              "avgHr": 140}]}
+            (Path(d) / "runs.json").write_text(json.dumps(runs), encoding="utf-8")
+            res = self.replan(d, "--dry-run", "--weeks", "2", today=later)
+            self.assertIn("Dry run", res.stdout)
+            plan = json.loads((Path(d) / "plan.json").read_text(encoding="utf-8"))
+            ran = next(x for w in plan["weeks"] for x in w["days"] if x["date"] == later.isoformat())
+            self.assertTrue(ran["workout"])
+            files = sorted(p.name[:10] for p in (Path(d) / "push").glob("*.json"))
+            self.assertTrue(files)
+            self.assertNotIn(later.isoformat(), files)
+            self.assertNotIn(later.isoformat(), res.stdout)
+            self.assertEqual(files, sorted(x["date"] for w in plan["weeks"] for x in w["days"]
+                                           if x["workout"] and x["date"] > later.isoformat()))
+
     def test_wellness_from_runs_json(self):
         # runs.json's HRV status reaches the adaptation: a low status today makes the next Q easy
         with tempfile.TemporaryDirectory() as d:

@@ -163,7 +163,10 @@ def reestimate_vdot(est, runs, trials, today, data, rules):
     """The carried VDOT estimate ({value, date, from, from_date}) moved on (roadmap 09): a time trial
     run since the estimate's source replaces it at once (the planned test); otherwise, every
     [adapt] vdot_every_weeks weeks, or as soon as a break has ended since the last estimate, a break
-    lowers it by the layoff table and a better race raises it. Training efforts never change it."""
+    lowers it by the layoff table and a better race raises it. Training efforts never change it.
+    A race counts only when dated after the estimate's source (from_date) and after the break that
+    last lowered it (`after`, the day running resumed, kept in the estimate), so a race from before
+    a break never raises the VDOT straight back."""
     t = today.isoformat()
     if trials and trials[-1]["date"] > est["from_date"]:
         return {"value": trials[-1]["vdot"], "date": t, "from": "2 km time trial", "from_date": trials[-1]["date"]}
@@ -174,8 +177,10 @@ def reestimate_vdot(est, runs, trials, today, data, rules):
         return est
     out = {**est, "date": t}
     if factor < 1:
-        out.update(value=est["value"] * factor, **{"from": f"{est['from']}, x{factor:g} after {gap[0]} days off"})
-    since = gap[1] if factor < 1 else (date.fromisoformat(t) - timedelta(days=84)).isoformat()
+        out.update(value=est["value"] * factor, after=gap[1],
+                   **{"from": f"{est['from']}, x{factor:g} after {gap[0]} days off"})
+    since = max(d for d in ((date.fromisoformat(t) - timedelta(days=84)).isoformat(), est["from_date"],
+                            out.get("after")) if d)
     race = race_vdot(runs, since, t)
     if race and race[0] > out["value"]:
         out.update(value=race[0], **{"from": race[1], "from_date": race[2]})

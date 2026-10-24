@@ -102,7 +102,7 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 | `activities.py` | `is_run`, `type_key`, `has_gps` |
 | `garmin.py` | `login`, `with_retry`, `list_new_activities`, `download_gpx` |
 | `rhr.py` | `update_rhr` |
-| `wellness.py` | `update_wellness` (`update_hrv`, `update_readiness`; optional, skipped per source without the library method), `hrv_statuses`, `readiness_entry` |
+| `wellness.py` | `update_wellness` (`update_hrv`, `update_readiness`; optional, skipped per source without the library method; `wellness_fetched.json` records how far each got), `wellness_start`, `hrv_statuses`, `readiness_entry` |
 | `gpx.py` | `parse_gpx`, `to_stream`, `haversine` |
 | `export.py` | `summary_fields`, `build_runs` |
 | `cli.py` | `main`: arguments and the overall flow |

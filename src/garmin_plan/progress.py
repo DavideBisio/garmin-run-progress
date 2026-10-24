@@ -24,7 +24,8 @@ def _stage(v):
 
 
 def _vdot(v):
-    """progress.vdot if well formed ({value, date, from, from_date}), else None."""
+    """progress.vdot if well formed ({value, date, from, from_date}, and after: the day running
+    resumed after the break that last lowered it, when one did), else None."""
     if not isinstance(v, dict) or not isinstance(v.get("from"), str):
         return None
     value = v.get("value")
@@ -32,7 +33,10 @@ def _vdot(v):
         return None
     if not (_date(v.get("date")) and _date(v.get("from_date"))):
         return None
-    return {k: v[k] for k in ("value", "date", "from", "from_date")}
+    out = {k: v[k] for k in ("value", "date", "from", "from_date")}
+    if _date(v.get("after")):
+        out["after"] = v["after"]
+    return out
 
 
 def carry(plan, monday):
