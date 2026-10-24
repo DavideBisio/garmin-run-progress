@@ -266,3 +266,125 @@ test("arrow keys replace the hash, clicks add a history entry", () => {
   el("tab-btn-data").listeners.click[0]({});
   assert.deepEqual(hashes.at(-1), ["push", "#data"]);
 });
+
+// ---------------------------------------------------------------- Planning tab (roadmap 10)
+const planStep = (label, role, zone, pace, hrZone, hr, end, value, meters, seconds, note = "") =>
+  ({ type: "step", role, label, end, value, zone, pace_s_per_km: pace, hr_zone: hrZone, hr, est_pace_s_per_km: null,
+     est_dist: null, est_time: null, effort: null, note, hard: role === "rep", meters, seconds });
+const easyRun = km => ({ id: "easy", variant: 1, title: "Easy Run", kind: "E", km, seconds: km * 380, hard_km: 0, climb_m_per_km: null,
+  steps: [planStep("Run", "rep", "E", [369, 391], "Z2", [134, 148], "dist", km * 1000, km * 1000, km * 380)] });
+const tempoRun = () => ({ id: "cruise_tempo", variant: 2, title: "Cruise Tempo", kind: "T", km: 7.03, seconds: 2427, hard_km: 3.6, climb_m_per_km: null,
+  steps: [planStep("Warmup", "warmup", "E", [369, 391], "Z2", [134, 148], "dist", 2000, 2000, 760),
+    { type: "repeat", n: 3, skip_last_rest: false, note: "", meters: 4027.6, seconds: 1287.2, steps: [
+      planStep("Tempo", "rep", "T", [300, 310], "Z4", [162, 176], "dist", 1200, 1200, 366),
+      planStep("Recovery", "recovery", "jog", null, "Z2", [134, 148], "time", 60, 142.5, 60)] },
+    planStep("Cooldown", "cooldown", "E", [369, 391], "Z2", [134, 148], "lap", null, 1000, 380)] });
+const planDayOf = (date, slot, workout, extra = {}) => ({ date, slot, status: null, activity_id: null, changed_by: null, workout, ...extra });
+const planRun = (date, km, min = km * 6.3) => ({ id: date, date: `${date} 07:00:00`, type: "running", dist: km * 1000, dur: min * 60, avgHr: 140, maxHr: 170 });
+
+// example: true pins the runner's today to the day after the last run: Sat 2024-06-15. No day has a
+// status field (a plan from before 09), so the page matches the runs by date.
+function planData() {
+  const runs = [planRun("2024-05-20", 8), planRun("2024-06-04", 7), planRun("2024-06-07", 6), planRun("2024-06-09", 5, 30),
+    planRun("2024-06-11", 7), planRun("2024-06-12", 2, 12), planRun("2024-06-14", 5)];
+  const plan = { version: 1, generated: "2024-06-10T08:00:00",
+    profile: { vdot: 40.0, hr_max: 185, hr_rest: 50, race: { date: "2024-09-29", distance_m: 21097.5, goal_s: 6210 } },
+    levels: { volume: "novice", quality: "intermediate", reasons: {} },
+    progress: { plan_start: "2024-06-10", block_start: "2024-05-13", vdot: null },
+    warnings: [{ rule: "feasibility", detail: "the goal needs <b>VDOT 43.4</b>", action: "kept the paces" }],
+    weeks: [
+      { start: "2024-05-20", target_km: 15, unit: "km", phase: "base", deload: true, warnings: [], days: [planDayOf("2024-05-20", "E", easyRun(8))] },
+      { start: "2024-05-27", target_km: 20, unit: "km", phase: "base", deload: false, warnings: [], days: [planDayOf("2024-05-28", "E", easyRun(6))] },
+      { start: "2024-06-03", target_km: 30, unit: "km", phase: "base", deload: false, warnings: [], days: [
+        planDayOf("2024-06-04", "Q", tempoRun()),
+        planDayOf("2024-06-06", "E", easyRun(6)),
+        planDayOf("2024-06-08", "E", easyRun(5)),
+        planDayOf("2024-06-09", "L", easyRun(12)),
+      ] },
+      { start: "2024-06-10", target_km: 40, unit: "km", phase: "rt", deload: false, warnings: [], days: [
+        planDayOf("2024-06-10", "E", easyRun(6)),      // no run Sun-Tue but on days with their own session: missed
+        planDayOf("2024-06-11", "Q", tempoRun()),      // 7 km that day: done
+        planDayOf("2024-06-12", "E", easyRun(5)),      // 2 km in 12 min: partial
+        planDayOf("2024-06-13", "E", easyRun(5)),      // the run is on Fri, a rest day: moved
+        planDayOf("2024-06-15", "E", easyRun(5)),      // today: next
+        planDayOf("2024-06-16", "L", easyRun(12)),
+      ] },
+      { start: "2024-06-17", target_km: 32, unit: "km", phase: "rt", deload: true, warnings: [], days: [planDayOf("2024-06-18", "Q", tempoRun())] },
+    ] };
+  return { format: "garmin-runs/1", example: true, runs, plan };
+}
+const cards = el => [...el("plan-days").innerHTML.matchAll(/<button[^>]*data-i="(\d)"[^>]*>([\s\S]*?)<\/button>/g)];
+const cardStatus = el => cards(el).map(m => (/class="pst (\w+)"/.exec(m[2]) || [])[1] || "");
+const clickCard = (el, i) => el("plan-days").listeners.click[0]({ target: { closest: () => ({ getAttribute: () => String(i) }) } });
+
+test("plan.js loads exactly once, after training.js and before tabs.js and boot.js", () => {
+  assert.equal(devScripts.filter(f => f === "plan.js").length, 1);
+  const at = f => devScripts.indexOf(f);
+  assert.ok(at("training.js") >= 0 && at("training.js") < at("plan.js") && at("plan.js") < at("tabs.js") && at("tabs.js") < at("boot.js"), devScripts.join(" "));
+});
+
+test("a runs.json without a plan shows the empty Planning state and still renders the other tabs", () => {
+  for (const data of [oldFormatData(), { ...oldFormatData(), plan: { version: 1 } }, { ...oldFormatData(), plan: [1] }]) {
+    const { el, kpis, charts } = runPage(data);
+    assert.equal(el("plan-empty").hidden, false);
+    assert.equal(el("plan-view").hidden, true);
+    assert.equal(kpis("kpis2"), 5);
+    assert.ok(charts["c-load"] && charts["c-eff"]);
+  }
+});
+
+test("a plan shows this week as 7 day cards, a header line and the HR note", () => {
+  const { el } = runPage(planData());
+  assert.equal(el("plan-empty").hidden, true);
+  assert.equal(el("plan-view").hidden, false);
+  const c = cards(el);
+  assert.equal(c.length, 7);
+  assert.deepEqual(c.map(m => +m[1]), [0, 1, 2, 3, 4, 5, 6]);
+  assert.match(c[1][2], /Cruise Tempo/);
+  assert.match(c[1][2], /7\.0 km/);
+  assert.match(c[1][2], /5:00–5:10/);                          // the main step: the tempo reps
+  assert.match(c[1][2], /Z4 162–176/);
+  assert.match(c[1][2], /--z4/);
+  assert.match(c[4][2], /Rest/);
+  assert.match(el("plan-week-h").textContent, /^This week \(block 2, week 3 · R \+ T\)/);
+  const head = el("plan-head").innerHTML;
+  for (const s of ["Novice volume", "intermediate quality", "VDOT 40", "Half marathon", "in 15 wk"]) assert.ok(head.includes(s), `header lacks ${s}: ${head}`);
+  assert.ok(el("plan-warn").innerHTML.includes("&lt;b&gt;VDOT 43.4&lt;/b&gt;"), "warnings not escaped");
+  assert.equal(el("plan-note").hidden, false);                 // plan 185/50, page 170/50
+  assert.match(el("plan-note").textContent, /185/);
+  el("hr-max").value = "185";
+  for (const fn of el("hr-max").listeners.change ?? []) fn({});
+  assert.equal(el("plan-note").hidden, true);
+});
+
+test("a plan without status fields falls back to matching the runs by date; stored statuses win", () => {
+  assert.deepEqual(cardStatus(runPage(planData()).el), ["missed", "done", "partial", "moved", "rest", "next", ""]);
+  const d = planData(), wk = d.plan.weeks[3].days;
+  wk[0] = { ...wk[0], workout: null, changed_by: "override_skip" };
+  wk[2] = { ...wk[2], status: "swapped" };
+  assert.deepEqual(cardStatus(runPage(d).el), ["skipped", "done", "swapped", "moved", "rest", "next", ""]);
+  const early = planData();
+  early.runs = early.runs.slice(0, 4);                         // today Mon 2024-06-10
+  const { el } = runPage(early);
+  assert.match(el("plan-week-h").textContent, /^This week/);
+  assert.deepEqual(cardStatus(el), ["next", "", "", "", "rest", "", ""]);
+});
+
+test("clicking a day card opens its step table, as plan.md shows it", () => {
+  const { el } = runPage(planData());
+  assert.equal(el("plan-detail").hidden, true);
+  clickCard(el, 1);
+  const t = el("plan-detail").innerHTML;
+  assert.equal(el("plan-detail").hidden, false);
+  assert.match(t, /<table/);
+  for (const s of ["Lap", "Pace range", "HR", "Duration", "Comment", "Warmup", "Repeat 3x", "↳ <b>Tempo</b>", "Threshold 5:00–5:10 /km",
+    "Zone 4 162–176 bpm", "1.2 km (~6:06)", "1:00 (~143 m)", "Jog", "Lap button (~6:20, ~1.0 km)", "4.0 km (~21 min)", "2.0 km (~13 min)"])
+    assert.ok(t.includes(s), `detail lacks ${s}`);
+  clickCard(el, 4);
+  assert.match(el("plan-detail").innerHTML, /Rest day/);
+});
+
+test("the unbuilt src/page/js files render a plan too (make dev)", () => {
+  const { el } = runPage(planData(), devScripts.map(f => read(`src/page/js/${f}`)));
+  assert.equal(cards(el).length, 7);
+});

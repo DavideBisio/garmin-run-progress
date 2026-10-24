@@ -105,6 +105,21 @@ td.best{color:var(--accent);font-weight:600}
 .method b{color:var(--ink)}
 .group{display:flex;flex-direction:column;gap:6px;margin-top:14px}
 .group h3{font-size:26px}
+.plan-view{display:flex;flex-direction:column;gap:28px;min-width:0}
+.plan-head{font:600 17px/1.4 var(--f-display)}
+.plan-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+.pday{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0;text-align:left;font-weight:400;padding:12px;border-radius:var(--r)}
+.pday.rest{background:var(--soft);color:var(--muted)}
+.pday.today{border-color:var(--accent)}
+.pd-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px;font:600 12px var(--f-mono);color:var(--muted);text-transform:uppercase}
+.pd-t{font-weight:600;overflow-wrap:anywhere}
+.pd-s{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pst{font:600 11px var(--f-mono);padding:1px 6px;border-radius:5px;background:var(--soft);color:var(--muted);text-transform:none}
+.pst.done{color:var(--good)} .pst.missed{color:var(--bad)}
+.pst.partial,.pst.moved,.pst.swapped,.pst.skipped{color:var(--accent-3)} .pst.next{color:var(--accent)}
+.pz::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--c,var(--muted))}
+table.plan-steps td{text-align:left}
+@media (max-width:560px){.plan-days{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .progress{height:4px;background:var(--soft);border-radius:4px;overflow:hidden}
 .progress>div{height:100%;width:0;background:var(--accent);transition:width .2s}
 @media (max-width:560px){section.step{grid-template-columns:1fr}.num{font-size:40px;grid-row:auto}

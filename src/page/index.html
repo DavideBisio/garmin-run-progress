@@ -264,7 +264,7 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
 </section>
 
 <section class="tabpanel" role="tabpanel" id="tab-planning" aria-labelledby="tab-btn-planning" hidden>
-  <div class="panel empty">
+  <div class="panel empty" id="plan-empty">
     <h2>No plan in this file</h2>
     <p class="muted">Plans will be made on your computer, next to the grabber. These commands come with the training plan generator:</p>
     <ul class="cmds">
@@ -273,6 +273,20 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
       <li><span class="chip">make grab</span> include the plan in runs.json, then load it in Data</li>
     </ul>
     <p><a class="btn" href="../docs/roadmap/readme/">See the roadmap</a></p>
+  </div>
+  <div class="plan-view" id="plan-view" hidden>
+    <div class="panel">
+      <h2>Plan</h2>
+      <p class="plan-head" id="plan-head"></p>
+      <ul class="notes" id="plan-warn" hidden></ul>
+      <p class="muted small-t" id="plan-note" hidden></p>
+    </div>
+    <div class="group">
+      <h3 id="plan-week-h">This week</h3>
+      <p class="muted small-t">Read-only: plans are made and changed with make plan and make replan. Pick a day for its laps.</p>
+    </div>
+    <div class="plan-days" id="plan-days"></div>
+    <div class="panel" id="plan-detail" aria-live="polite" hidden></div>
   </div>
 </section>
 </div>
@@ -292,6 +306,7 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
 <script src="js/loading.js"></script>
 <script src="js/render.js"></script>
 <script src="js/training.js"></script>
+<script src="js/plan.js"></script>
 <script src="js/tabs.js"></script>
 <script src="js/boot.js"></script>
 
