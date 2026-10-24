@@ -101,6 +101,13 @@ class Golden(unittest.TestCase):
         # race week: nothing from race day on
         self.assertTrue(all(d["date"] < RACE.isoformat() for d in weeks[-1]["days"]))
 
+    def test_profile(self):
+        self.assertEqual(build()["profile"], {"vdot": 40.0, "hr_max": 190, "hr_rest": 50,
+                                              "race": {"date": RACE.isoformat(), "distance_m": 21097.5,
+                                                       "goal_s": 6210}})
+        self.assertEqual(build(generic_profile(km_4w=25.0, longest_8w=10.0))["profile"],
+                         {"vdot": 40.0, "hr_max": 190, "hr_rest": 50, "race": None})
+
     def test_weeks_are_sane(self):
         plan = build()
         taper_from = None

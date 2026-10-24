@@ -101,6 +101,14 @@ def manual_days(prof, library, rules):
     return out
 
 
+def plan_profile(prof):
+    """plan.json's profile: what the plan was made for, for the Planning tab (roadmap 10)."""
+    race = prof.race
+    return {"vdot": round(prof.vdot, 1), "hr_max": prof.hr_max, "hr_rest": prof.hr_rest,
+            "race": {"date": race["date"].isoformat(), "distance_m": race["distance_m"], "goal_s": race["goal_s"]}
+            if race else None}
+
+
 def build_plan(prof, library, rules, today, weeks, generated=None):
     """The plan dict for `weeks` weeks of profile.toml's [week] schedule alone, from the Monday after
     today (the generator, planner.build_plan, fills in the other days).
@@ -120,7 +128,7 @@ def build_plan(prof, library, rules, today, weeks, generated=None):
         out.append({"start": mon.isoformat(), "target_km": target, "days": days})
     return {"version": VERSION,
             "generated": generated or datetime.now().isoformat(timespec="seconds"),
-            "profile_hash": profile_hash(prof, rules), "weeks": out}
+            "profile_hash": profile_hash(prof, rules), "profile": plan_profile(prof), "weeks": out}
 
 
 def write_plan(plan, path):

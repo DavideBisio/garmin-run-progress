@@ -84,9 +84,9 @@ The code lives in `src/`: the grabber package in `src/garmin_grab/` and the page
 make install   create .venv and install the Garmin library
 make grab      fetch new runs, running src/ directly (options: ARGS="--since 2016-01-01")
 make rebuild   rebuild runs.json from local files, no network
-make plan      generate garmin_export/plan.json and plan.md (training planner)
+make plan      generate garmin_export/plan.json and plan.md, then rebuild runs.json with it
 make push      upload and schedule the plan's future sessions on Garmin
-make replan    after make grab: re-plan from the runs, then push again
+make replan    after make grab: re-plan from the runs, push again, rebuild runs.json
 make dev       serve the unbuilt page on localhost:8000
 make build     build dist/garmin_grab.py and dist/index.html
 make test      build, then run the grabber and page tests

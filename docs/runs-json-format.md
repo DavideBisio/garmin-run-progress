@@ -34,7 +34,9 @@
   ],
   "rhr": [["2024-04-30", 49], ["2024-05-01", 48]],
   "hrv": [["2024-04-30", "BALANCED"], ["2024-05-01", "LOW"]],
-  "readiness": [["2024-05-01", {"level": "LOW", "score": 22}]]
+  "readiness": [["2024-05-01", {"level": "LOW", "score": 22}]],
+  "plan": { "version": 1, "profile": { "vdot": 40.0, "hr_max": 190, "hr_rest": 50, "race": null },
+            "weeks": [ "…" ] }
 }
 ```
 
@@ -85,10 +87,14 @@ Top-level `rhr`: daily resting heart rate as `[date, bpm]` pairs, sorted by date
 
 Top-level `hrv`: daily HRV status as `[date, status]` pairs (`BALANCED`, `UNBALANCED`, `LOW`, … as Garmin names them). Top-level `readiness`: daily training readiness as `[date, {"level", "score"}]` pairs, either value possibly `null`. Both sorted by date, days without a value absent, both `[]` when the watch or the library doesn't provide them (see [HRV status and training readiness](features/wellness.md)). The planner reads them as fatigue signals; the page ignores them for now.
 
+## Training plan
+
+Top-level `plan`: a copy of `garmin_export/plan.json`, the planner's output ([plan.json format](plan-json-format.md)), for the page's Planning tab. Every rebuild of `runs.json` (`make grab`, `make rebuild`) copies the `plan.json` on disk; `make plan` and `make replan` rebuild `runs.json` afterwards (offline, when `activities.json` is there), so the page sees the fresh plan. The key is absent when there is no `plan.json`, or when it isn't a JSON object.
+
 ## Compatibility rules for the page
 
 - Required: a top-level `runs` array; each run needs `date`.
 - Runs without streams still count for volume, VO2max, cadence, stride, Training Effect and training load (from `avgHr`).
-- `rhr`, `hrv`, `readiness` and the summary fields added later (`stride`, `te`, `teAn`, `hrz`, `event`) are optional; panels without data are hidden. Run `garmin_grab.py --rebuild` to add them to an older export.
+- `rhr`, `hrv`, `readiness`, `plan` and the summary fields added later (`stride`, `te`, `teAn`, `hrz`, `event`) are optional; panels without data are hidden. Run `garmin_grab.py --rebuild` to add them to an older export.
 - Unknown fields are ignored, so new fields can be added without breaking older pages.
 - A breaking change should bump `format` to `garmin-runs/2`.

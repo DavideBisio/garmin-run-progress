@@ -119,6 +119,21 @@ class Export(unittest.TestCase):
                 export.build_runs(out, {"1": act(1, "2024-05-01")})
             data = json.loads((out / "runs.json").read_text())
             self.assertEqual((data["rhr"], data["hrv"], data["readiness"]), ([], [], []))
+            self.assertNotIn("plan", data)                    # no plan.json: no plan key
+
+    def test_build_runs_embeds_the_plan(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            (out / "gpx").mkdir()
+            plan = {"version": 1, "weeks": [], "profile": {"vdot": 40.0, "hr_max": 190, "hr_rest": 50, "race": None}}
+            (out / "plan.json").write_text(json.dumps(plan))
+            with mock.patch("builtins.print"):
+                export.build_runs(out, {"1": act(1, "2024-05-01")})
+            self.assertEqual(json.loads((out / "runs.json").read_text())["plan"], plan)
+            (out / "plan.json").write_text("[1, 2]")            # not a plan: left out
+            with mock.patch("builtins.print"):
+                export.build_runs(out, {"1": act(1, "2024-05-01")})
+            self.assertNotIn("plan", json.loads((out / "runs.json").read_text()))
 
 
 class FakeGarmin:

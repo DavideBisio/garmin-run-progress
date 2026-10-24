@@ -66,9 +66,12 @@ def build_runs(out, acts):
         "hrv": sorted(load_json(out / "hrv.json", {}).items()),
         "readiness": sorted(load_json(out / "readiness.json", {}).items()),
     }
+    plan = load_json(out / "plan.json", None)       # the planner's output (docs/plan-json-format.md)
+    if isinstance(plan, dict):
+        payload["plan"] = plan
     save_json(out / "runs.json", payload)
     with_stream = sum(1 for r in runs if "t" in r)
     size = (out / "runs.json").stat().st_size / 1e6
     print(f"runs.json: {len(runs)} runs ({with_stream} with GPS/HR stream), "
           f"{len(payload['rhr'])} resting HR days, {len(payload['hrv'])} HRV days, "
-          f"{len(payload['readiness'])} readiness days, {size:.1f} MB")
+          f"{len(payload['readiness'])} readiness days{', the plan' if 'plan' in payload else ''}, {size:.1f} MB")

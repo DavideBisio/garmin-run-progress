@@ -26,7 +26,7 @@ from .load import projected_daily
 from .model import Repeat
 from .phases import PhaseError, phase_calendar
 from .physiology import pace_zones, vdot
-from .plan_io import VERSION, first_monday_after, manual_days, profile_hash, shown_km, shown_min, workout_to_dict
+from .plan_io import VERSION, first_monday_after, manual_days, plan_profile, profile_hash, shown_km, shown_min, workout_to_dict
 from .skeleton import place_slots
 from .split import split_week
 from .templates import instantiate, pace_range
@@ -441,7 +441,7 @@ def build_plan(prof, runs, library, rules, today, weeks=None, generated=None, le
     if weeks:
         out = out[:weeks]
     return {"version": VERSION, "generated": generated or datetime.now().isoformat(timespec="seconds"),
-            "profile_hash": profile_hash(prof, rules),
+            "profile_hash": profile_hash(prof, rules), "profile": plan_profile(prof),
             "levels": {"volume": prof.volume_level, "quality": prof.quality_level,
                        "reasons": {axis: prof.level_reasons.get(axis, "") for axis in ("volume", "quality")}},
             "progress": {"plan_start": start.isoformat(), "block_start": block.isoformat(),

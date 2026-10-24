@@ -1,6 +1,6 @@
 # plan.json format
 
-`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`. The generator (07) added `warnings` and each week's `phase`, `deload` and `warnings`, the runner levels (08) `levels`, `progress` and each week's `unit` and `target_min`, and the adaptation loop (09) the kept past weeks, `history` and each day's `status`, `activity_id` and `changed_by`; readers that don't know them ignore them, so the version stays `1`.
+`garmin_export/plan.json` is the planner's output and the contract with what comes after it: the Garmin export (roadmap 05) and the Planning tab (10), which reads it from `runs.json`'s `plan` key ([runs.json format](runs-json-format.md#training-plan)). `python -m garmin_plan plan` (or `make plan`) writes it next to `plan.md`, its markdown rendering. Both are personal and gitignored with the rest of `garmin_export/`. Format version: `1`. The generator (07) added `warnings` and each week's `phase`, `deload` and `warnings`, the runner levels (08) `levels`, `progress` and each week's `unit` and `target_min`, the adaptation loop (09) the kept past weeks, `history` and each day's `status`, `activity_id` and `changed_by`, and the plan view (10) `profile`; readers that don't know them ignore them, so the version stays `1`.
 
 The file holds **resolved** workouts: every step carries its pace and HR ranges in numbers, so readers need neither the templates (`src/garmin_plan/data/workouts.toml`) nor the profile.
 
@@ -9,6 +9,8 @@ The file holds **resolved** workouts: every step carries its pace and HR ranges 
   "version": 1,
   "generated": "2026-10-23T11:00:00",
   "profile_hash": "b924fafb9b64…",
+  "profile": { "vdot": 40.0, "hr_max": 190, "hr_rest": 50,
+               "race": { "date": "2024-09-29", "distance_m": 21097.5, "goal_s": 6210 } },
   "levels": { "volume": "novice", "quality": "intermediate",
               "reasons": { "volume": "18 km/wk over 4 wk", "quality": "VDOT 39, 7 Q sessions in 8 wk" } },
   "progress": { "plan_start": "2024-06-10", "block_start": "2024-06-03", "cycle_start": "2024-06-03",
@@ -66,6 +68,7 @@ The file is UTF-8, indented by one space. Numbers are rounded to 2 decimals (ste
 | `version` | `1`. A breaking change bumps it; readers reject versions they don't know |
 | `generated` | Local time the plan was written, `YYYY-MM-DDTHH:MM:SS` |
 | `profile_hash` | sha256 (hex) of what the resolved steps depend on: VDOT, HR max and rest, the resolved zones (each pace zone's range to 0.01 s/km, the jog pace, the bpm of Z1–Z5), the runner's two levels and the volume unit. A different hash for today's profile means the steps are stale |
+| `profile` | What the plan was made for, for the page's Planning tab: `vdot` (the VDOT its paces come from, to 0.1), `hr_max` and `hr_rest` (the bpm its HR targets come from) and `race`, `{date, distance_m, goal_s}` (`goal_s` `null` without a goal) or `null` without a race. Plans written before it have none |
 | `levels` | The runner's levels (roadmap 08, [plan profile](features/plan-profile.md#runner-levels)): `volume` and `quality`, each `"beginner"`, `"novice"`, `"intermediate"` or `"advanced"`, and `reasons`, why each axis is at its level (`""` when not known). The next plan starts from them (promotion); a beginner level on either axis makes the push send HR as guidance only. Absent in a plan of the `[week]` schedule alone |
 | `progress` | What the next plan carries on from this one ([Progress](#progress)). Absent in a plan of the `[week]` schedule alone and in plans written before it: the next plan then starts afresh |
 | `warnings` | Plan-wide warnings: phases shortened for a near race, goal feasibility, no load-ratio check for want of history, the time trial's day. Absent in a plan of the `[week]` schedule alone |
