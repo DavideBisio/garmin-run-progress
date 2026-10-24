@@ -153,6 +153,8 @@ function renderPlan(c){
 
   // this week: the one holding today, else the first to come, else the last
   const tw = weekOf(ctx.today), W = ctx.weeks;
+  planKpis(ctx, tw);
+  planChart(c, ctx, tw);
   let i = W.findIndex(x => x.w===tw);
   if (i < 0) i = W.findIndex(x => x.w > tw);
   if (i < 0) i = W.length-1;
@@ -181,6 +183,72 @@ function renderPlan(c){
   $("plan-days").innerHTML = h;
   const sel = planCells.findIndex(x => x.day===planSel);
   if (sel >= 0) planShow(sel); else { planSel = null; $("plan-detail").hidden = true; $("plan-detail").innerHTML = ""; }
+}
+
+// km run in each week, by week index
+function planWeekKm(ctx){
+  const km = new Map();
+  for (const [d, x] of ctx.runs) km.set(weekOf(d), (km.get(weekOf(d))||0) + x.km);
+  return km;
+}
+const planR1 = x => Math.round(x*10)/10;
+// compliance over the last 4 complete weeks before this one: sessions done (moved and swapped
+// count), km run against the weeks' targets, Q sessions done
+function planKpis(ctx, tw){
+  const weeks = ctx.weeks.filter(x => x.w >= tw-4 && x.w < tw), km = planWeekKm(ctx);
+  let n = 0, ok = 0, q = 0, qOk = 0, kmRun = 0, kmPlan = 0;
+  for (const {wk, w, start} of weeks){
+    kmPlan += +wk.target_km || 0; kmRun += km.get(w) || 0;
+    for (const [d, e] of ctx.days){
+      if (d < start || d > start+6 || !e.workout) continue;
+      const good = ["done","moved","swapped"].includes(ctx.status.get(d));
+      n++; ok += good;
+      if (e.slot==="Q"){ q++; qOk += good; }
+    }
+  }
+  const pct = (a, b) => b ? Math.round(a/b*100)+"%" : "–";
+  const none = "No plan weeks in the last 4 weeks yet";
+  const kpi = (lab, val, sub) => `<div class="kpi"><span class="lab">${lab}</span><span class="val">${val}</span><span class="sub">${sub}</span></div>`;
+  $("plan-kpis").innerHTML = [
+    kpi("Sessions done, 4 weeks", pct(ok, n), weeks.length ? `${ok} of ${n} sessions (moved and swapped count, partial doesn't)` : none),
+    kpi("Km done, 4 weeks", pct(kmRun, kmPlan), weeks.length ? `${nf.format(kmRun)} of ${nf.format(kmPlan)} km planned` : none),
+    kpi("Quality done, 4 weeks", q ? `${qOk}/${q}` : "–", weeks.length ? (q ? "Q sessions done" : "no Q sessions planned") : none),
+  ].join("");
+}
+// planned against actual km per plan week, over shaded phase bands; deload weeks lighter and marked ↓
+function planChart(c, ctx, tw){
+  const W = ctx.weeks, km = planWeekKm(ctx);
+  const labels = W.map(x => planDate(x.start, {day:"numeric", month:"short"}) + (x.wk.deload ? " ↓" : ""));
+  const runs = [];                                             // [first, last, phase] of each phase band
+  W.forEach((x, i) => { const ph = x.wk.phase || ""; const r = runs[runs.length-1];
+    if (r && r[2]===ph) r[1] = i; else runs.push([i, i, ph]); });
+  const bands = {id:"planPhases", beforeDatasetsDraw(ch){
+    const {ctx:g, chartArea:a, scales:{x}} = ch;
+    if (!a || !x || W.length < 1) return;
+    const step = W.length > 1 ? x.getPixelForValue(1) - x.getPixelForValue(0) : a.right - a.left;
+    g.save();
+    runs.forEach(([i, j, ph], k) => {
+      if (!ph) return;
+      const l = Math.max(a.left, x.getPixelForValue(i) - step/2), r = Math.min(a.right, x.getPixelForValue(j) + step/2);
+      g.globalAlpha = k%2 ? .05 : .11; g.fillStyle = c.muted; g.fillRect(l, a.top, r-l, a.bottom-a.top);
+      g.globalAlpha = 1; g.fillStyle = c.muted; g.font = `12px ${c.mono}`; g.textAlign = "left"; g.textBaseline = "top";
+      g.fillText(PLAN_PHASES[ph] || ph, l+4, a.top+4);
+    });
+    g.restore();
+  }};
+  const o = baseOpts(c);
+  o.scales.x = {...o.scales.x, ticks:{...o.scales.x.ticks, maxRotation:0, autoSkip:true, maxTicksLimit:9}};
+  o.scales.y = {...o.scales.y, beginAtZero:true, title:{display:true, text:"km", color:c.muted}};
+  o.layout = {padding:{top:18}};
+  o.interaction = {mode:"index", intersect:false};
+  o.plugins.tooltip.callbacks = {
+    title: items => { const x = items.length && W[items[0].dataIndex]; return x ? `Week of ${planDate(x.start, {day:"numeric", month:"short", year:"numeric"})}`
+      + (x.wk.phase ? ` · ${PLAN_PHASES[x.wk.phase] || x.wk.phase}` : "") + (x.wk.deload ? ", deload" : "") : ""; },
+    label: ctx2 => `${ctx2.dataset.label}: ${nf.format(ctx2.parsed.y)} km`};
+  chart("c-plan", {type:"bar", data:{labels, datasets:[
+    {label:"Planned", data:W.map(x => planR1(+x.wk.target_km || 0)), backgroundColor:W.map(x => alpha(c.a2, x.wk.deload ? .22 : .5)), borderRadius:3},
+    {label:"Actual", data:W.map(x => x.w <= tw ? planR1(km.get(x.w) || 0) : null), backgroundColor:alpha(c.a1, .85), borderRadius:3},
+  ]}, options:o, plugins:[bands]});
 }
 
 // a day card's session detail: the step table of plan.md

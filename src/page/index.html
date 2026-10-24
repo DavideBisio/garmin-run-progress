@@ -287,6 +287,15 @@ pip install --upgrade garminconnect curl_cffi ua-generator</div>
     </div>
     <div class="plan-days" id="plan-days"></div>
     <div class="panel" id="plan-detail" aria-live="polite" hidden></div>
+    <div class="kpis" id="plan-kpis"></div>
+    <div class="panel">
+      <div class="chart-head">
+        <h3>Planned vs actual km</h3>
+        <p class="muted small-t">Each plan week's target against the km you ran, over the plan's phases. Deload weeks (↓) are the block's lighter week.</p>
+        <div class="legend"><span style="--c:var(--accent-2)">Planned</span><span style="--c:color-mix(in srgb, var(--accent-2) 40%, transparent)">Deload</span><span style="--c:var(--accent-1)">Actual</span></div>
+      </div>
+      <div class="chart-box"><canvas id="c-plan" aria-label="Planned against actual km per plan week"></canvas></div>
+    </div>
   </div>
 </section>
 </div>

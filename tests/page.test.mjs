@@ -388,3 +388,43 @@ test("the unbuilt src/page/js files render a plan too (make dev)", () => {
   const { el } = runPage(planData(), devScripts.map(f => read(`src/page/js/${f}`)));
   assert.equal(cards(el).length, 7);
 });
+
+test("plan compliance KPIs cover the 4 complete weeks before this one", () => {
+  const { el, kpis } = runPage(planData());
+  assert.equal(kpis("plan-kpis"), 3);
+  const k = el("plan-kpis").innerHTML;
+  // weeks of 05-20, 05-27, 06-03: 6 sessions, done 05-20, Q 06-04 and moved 06-06; missed 05-28 and 06-08, partial 06-09
+  assert.match(k, /50%[\s\S]*3 of 6 sessions/);
+  assert.match(k, /40%[\s\S]*26 of 65 km/);                   // 8 + 7 + 6 + 5 km run against 15 + 20 + 30 planned
+  assert.match(k, /1\/1/);
+});
+
+test("the block chart: planned against actual km per plan week, phase bands and deloads", () => {
+  const { charts } = runPage(planData());
+  const cfg = charts["c-plan"];
+  assert.ok(cfg, "no c-plan chart");
+  const [planned, actual] = cfg.data.datasets;
+  assert.equal(cfg.data.datasets.length, 2);
+  assert.deepEqual([...planned.data], [15, 20, 30, 40, 32]);
+  assert.deepEqual([...actual.data], [8, 0, 18, 14, null]);       // nothing yet for the week to come
+  assert.notEqual(planned.backgroundColor[0], planned.backgroundColor[1], "deload weeks not marked");
+  const bands = cfg.plugins.find(p => p.beforeDatasetsDraw);
+  const rects = [], texts = [];
+  bands.beforeDatasetsDraw({ ctx: { save() {}, restore() {}, fillRect(...a) { rects.push(a); }, fillText(t) { texts.push(t); } },
+    chartArea: { top: 0, bottom: 100, left: 0, right: 500 }, scales: { x: { getPixelForValue: i => i * 100 + 50 } } });
+  assert.equal(rects.length, 2);                               // base (3 weeks), then R + T (2)
+  assert.deepEqual(texts, ["Base", "R + T"]);
+});
+
+test("opening Planning after a user load resizes its chart", async () => {
+  const { el, resized } = runPage(undefined, [pageScript], { hash: "" });
+  await tick();
+  el("file").files = [{ name: "runs.json", text: async () => JSON.stringify(planData()) }];
+  el("file").listeners.change[0]();
+  await tick(); await tick();
+  assert.deepEqual(visible(el), ["analysis"]);
+  resized.length = 0;
+  el("tab-btn-planning").listeners.click[0]({});
+  assert.deepEqual(visible(el), ["planning"]);
+  assert.ok(resized.includes("c-plan"), `c-plan not resized: ${resized}`);
+});

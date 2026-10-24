@@ -90,8 +90,8 @@ The page script is split into `src/page/js/`, one file per section, loaded in th
 | `loading.js` | Drop zone, file input, JSON/GPX dispatch |
 | `render.js` | Filters → yearly aggregates → KPIs, fitness charts, year table; then `renderTraining` and `renderPlan` |
 | `training.js` | `renderTraining`: last 52 weeks of all runs → load, load ratio, zones, weekly distance, consistency table |
-| `plan.js` | `renderPlan`: the Planning tab from `runs.json`'s `plan` (read-only): header line and warnings, the HR note, this week's 7 day cards with their status (stored, else matched to the runs by date), the step table of a picked day; the empty state without a plan. Its top-level names start with `plan`/`PLAN_` |
-| `tabs.js` | Data, Analysis and Planning tabs: WAI-ARIA tabs (arrow keys, Home/End), `showTab` follows the URL hash (`#data`, `#analysis`, `#planning`; old `#s1`–`#s3` too) and resizes the Analysis charts on show |
+| `plan.js` | `renderPlan`: the Planning tab from `runs.json`'s `plan` (read-only): header line and warnings, the HR note, this week's 7 day cards with their status (stored, else matched to the runs by date), the step table of a picked day, compliance KPIs over the last 4 weeks and the planned-vs-actual km chart with phase bands and deloads; the empty state without a plan. Its top-level names start with `plan`/`PLAN_` |
+| `tabs.js` | Data, Analysis and Planning tabs: WAI-ARIA tabs (arrow keys, Home/End), `showTab` follows the URL hash (`#data`, `#analysis`, `#planning`; old `#s1`–`#s3` too) and resizes the charts when Analysis or Planning is shown |
 | `boot.js` | Re-render on theme change; load example data, then saved data if any (which opens Analysis unless the hash picked a tab) |
 
 ## Grabber modules
