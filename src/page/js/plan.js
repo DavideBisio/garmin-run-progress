@@ -70,7 +70,7 @@ function planTable(w){
       continue;
     }
     const note = [p.note, p.skip_last_rest && last?.role==="recovery" ? "no recovery after the last rep" : ""].filter(Boolean).join("; ");
-    h += `<tr><td><b>Repeat ${p.n}x</b></td><td></td><td></td><td>${planEsc(`${planDist(p.meters)} (~${planDur(p.seconds)})`)}</td><td>${planEsc(note)}</td></tr>`;
+    h += `<tr><td><b>Repeat ${+p.n || 0}x</b></td><td></td><td></td><td>${planEsc(`${planDist(p.meters)} (~${planDur(p.seconds)})`)}</td><td>${planEsc(note)}</td></tr>`;
     h += st.map(s => planRow(s, true)).join("");
   }
   return `<div class="tbl-wrap"><table class="plan-steps"><thead><tr><th>Lap</th><th>Pace range</th><th>HR</th><th>Duration</th><th>Comment</th></tr></thead><tbody>${h}</tbody></table></div>`;
@@ -78,7 +78,7 @@ function planTable(w){
 
 // What the page knows of each plan day: runs by day, plan days by day, and each day's status: the
 // stored one (09's match), else matched by date like match.py (same day: done or partial; none,
-// but a run on a free day before or after: moved; else missed). Future days: "next" for the first.
+// but a run on a free day before or after, today's included: moved; else missed). Future days: "next" for the first.
 function planContext(plan, today){
   const runs = new Map();
   for (const r of RUNS){ const x = runs.get(r._day) || {km:0, s:0}; x.km += r._km||0; x.s += r.moving || r.dur || 0; runs.set(r._day, x); }
@@ -100,7 +100,7 @@ function planContext(plan, today){
     else if (run && d <= today)
       st = run.km < PLAN_PARTIAL*(w.km||0) && run.s < PLAN_PARTIAL*(w.seconds||0) ? "partial" : "done";
     else if (d < today){
-      const free = [d-1, d+1].find(x => x < today && runs.has(x) && !days.get(x)?.workout && !claimed.has(x));
+      const free = [d-1, d+1].find(x => x <= today && runs.has(x) && !days.get(x)?.workout && !claimed.has(x));
       if (free!=null){ claimed.add(free); st = "moved"; } else st = "missed";
     } else if (next==null){ next = d; st = "next"; }
     status.set(d, st);
@@ -143,7 +143,7 @@ function renderPlan(c){
   const plan = PLAN;
   $("plan-empty").hidden = !!plan; $("plan-view").hidden = !plan;
   planCells = [];
-  if (!plan) return;
+  if (!plan){ if (charts["c-plan"]){ charts["c-plan"].destroy(); delete charts["c-plan"]; } return; }
   const ctx = planContext(plan, planToday());
   $("plan-head").innerHTML = planHeader(plan, ctx);
   const hm = +$("hr-max").value || 190, hr = Math.min(+$("hr-rest").value || 50, hm-20), pp = plan.profile;
@@ -261,7 +261,7 @@ function planShow(k){
   const ch = e?.change && typeof e.change==="object" ? `<p class="muted small-t">Changed: ${planEsc(e.change.from)} → ${planEsc(e.change.to)}${e.change.reason ? `: ${planEsc(e.change.reason)}` : ""}</p>` : "";
   $("plan-detail").innerHTML = w
     ? `<h3>${planEsc(w.title)}</h3><p class="muted small-t">${when} · ${planSize(w, cell.unit)}${st}</p>${ch}${planTable(w)}`
-    : `<h3>${e ? "Skipped" : "Rest day"}</h3><p class="muted small-t">${when}${e ? st : ""}</p>${ch}`;
+    : `<h3>${cell.status==="skipped" ? "Skipped" : "Rest day"}</h3><p class="muted small-t">${when}${e ? st : ""}</p>${ch}`;
   $("plan-detail").hidden = false;
 }
 $("plan-days").addEventListener("click", ev => {

@@ -34,7 +34,7 @@ Seven cards, Monday to Sunday, one per day (days without a session are rest days
 | done, partial, missed, moved, swapped | The day's stored `status` (roadmap 09's match), when there is one |
 | skipped | `workout` is null and `changed_by` is set (an override) |
 | done / partial | No stored status, a run that day (today included): partial under 70 % of both the planned km and time |
-| moved | No stored status, a past day without a run, but a run the day before or after on a day without a session of its own (each such run moves one session) |
+| moved | No stored status, a past day without a run, but a run the day before or after (today included) on a day without a session of its own (each such run moves one session) |
 | missed | No stored status, a past day with no run that could be it |
 | next | The first session still to come |
 | rest | A day without a session |

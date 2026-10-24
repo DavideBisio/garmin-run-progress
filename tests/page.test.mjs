@@ -28,7 +28,7 @@ function runPage(data, scripts = [pageScript], opts = {}) {
     attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k] ?? null; },
     tabIndex: 0, focus() { focused.push(id); },
   };
-  const focused = [], resized = [], hashes = [], winListeners = {};
+  const focused = [], resized = [], destroyed = [], hashes = [], winListeners = {};
   const defined = [];
   const ctx = {
     console, Intl, Math, Date, JSON, Map, Set, Float32Array, Uint32Array, Uint8Array, DataView, ArrayBuffer,
@@ -36,7 +36,7 @@ function runPage(data, scripts = [pageScript], opts = {}) {
     document: { getElementById: el, querySelectorAll: () => [], documentElement: { dataset: {} }, body: {}, createElement: () => ({}) },
     getComputedStyle: () => ({ getPropertyValue: () => "#2347C5" }),
     matchMedia: () => ({ matches: false, addEventListener() {} }), MutationObserver: class { observe() {} },
-    Chart: class { constructor(canvas, cfg) { charts[canvas.id] = cfg; this.id = canvas.id; } destroy() {} resize() { resized.push(this.id); } },
+    Chart: class { constructor(canvas, cfg) { charts[canvas.id] = cfg; this.id = canvas.id; } destroy() { destroyed.push(this.id); } resize() { resized.push(this.id); } },
     // just enough for site-bar.js to register itself
     HTMLElement: class {},
     customElements: { define(name) { defined.push(name); }, get: name => defined.includes(name) ? class {} : undefined },
@@ -56,7 +56,7 @@ function runPage(data, scripts = [pageScript], opts = {}) {
   vm.createContext(ctx);
   for (const code of scripts) vm.runInContext(code, ctx);
   const kpis = id => el(id).innerHTML.split('<div class="kpi">').length - 1;
-  return { el, charts, kpis, defined, focused, resized, hashes, winListeners, ctx };
+  return { el, charts, kpis, defined, focused, resized, destroyed, hashes, winListeners, ctx };
 }
 
 // steady 60-minute runs at 3 m/s and ~145 bpm, two a week, in the old runs.json format
@@ -334,7 +334,9 @@ test("a runs.json without a plan shows the empty Planning state and still render
 });
 
 test("a plan shows this week as 7 day cards, a header line and the HR note", () => {
-  const { el } = runPage(planData());
+  const data = planData();
+  data.plan.weeks[3].days[1].workout.steps[1].n = '3x<img src=x onerror="alert(1)">';
+  const { el } = runPage(data);
   assert.equal(el("plan-empty").hidden, true);
   assert.equal(el("plan-view").hidden, false);
   const c = cards(el);
@@ -350,6 +352,9 @@ test("a plan shows this week as 7 day cards, a header line and the HR note", () 
   const head = el("plan-head").innerHTML;
   for (const s of ["Novice volume", "intermediate quality", "VDOT 40", "Half marathon", "in 15 wk"]) assert.ok(head.includes(s), `header lacks ${s}: ${head}`);
   assert.ok(el("plan-warn").innerHTML.includes("&lt;b&gt;VDOT 43.4&lt;/b&gt;"), "warnings not escaped");
+  clickCard(el, 1);
+  assert.match(el("plan-detail").innerHTML, /Cruise Tempo/);
+  assert.doesNotMatch(el("plan-detail").innerHTML, /<img|onerror/, "repeat count not escaped");
   assert.equal(el("plan-note").hidden, false);                 // plan 185/50, page 170/50
   assert.match(el("plan-note").textContent, /185/);
   el("hr-max").value = "185";
@@ -466,4 +471,79 @@ test("the empty Planning state says how to get a plan into runs.json", () => {
   const empty = /<div class="panel empty" id="plan-empty">([\s\S]*?)<\/div>/.exec(html)[1];
   for (const s of ["make plan", "make replan", "runs.json"]) assert.ok(empty.includes(s), `empty state lacks ${s}`);
   assert.doesNotMatch(empty, /will be made/);
+});
+
+test("a week in minutes shows the whole minutes first on the card and in the detail", () => {
+  const d = planData();
+  d.plan.weeks[3].unit = "min";
+  const { el } = runPage(d);
+  assert.match(cards(el)[1][2], /40 min · ~7\.0 km/);          // 2427 s
+  assert.doesNotMatch(cards(el)[1][2], /7\.0 km · ~/);
+  clickCard(el, 1);
+  assert.ok(el("plan-detail").innerHTML.includes("40 min · ~7.0 km"), el("plan-detail").innerHTML);
+});
+
+test("a repeat of 1 is its steps, its note first; a skipped last rest drops or notes the last recovery", () => {
+  const d = planData(), w = d.plan.weeks[3].days[1].workout, rep = w.steps[1];
+  w.steps[1] = { ...rep, n: 1, skip_last_rest: true, note: "steady", steps: [{ ...rep.steps[0], note: "relax" }, rep.steps[1]] };
+  let p = runPage(d);
+  clickCard(p.el, 1);
+  let t = p.el("plan-detail").innerHTML;
+  assert.doesNotMatch(t, /Repeat/);
+  assert.doesNotMatch(t, /↳/);
+  assert.ok(t.includes("<td><b>Tempo</b></td>"), t);
+  assert.ok(t.includes("<td>steady; relax</td>"), t);
+  assert.doesNotMatch(t, /Recovery/);                          // the skipped last rest is left out
+  const d3 = planData();
+  d3.plan.weeks[3].days[1].workout.steps[1].skip_last_rest = true;
+  p = runPage(d3);
+  clickCard(p.el, 1);
+  t = p.el("plan-detail").innerHTML;
+  assert.match(t, /Repeat 3x[\s\S]*no recovery after the last rep/);
+  assert.ok(t.includes("↳ <b>Recovery</b>"), "the nested recovery stays listed");
+});
+
+test("stored statuses done, partial, missed and moved win over the date fallback", () => {
+  const d = planData(), wk = d.plan.weeks[3].days;
+  // the fallback would say missed, done, partial, moved
+  wk[0].status = "done"; wk[1].status = "missed"; wk[2].status = "moved"; wk[3].status = "partial";
+  assert.deepEqual(cardStatus(runPage(d).el), ["done", "missed", "moved", "partial", "rest", "next", ""]);
+});
+
+test("a run today on a free day explains yesterday's session as moved, like match.py", () => {
+  const d = planData(), p = runPage(d, devScripts.map(f => read(`src/page/js/${f}`)));
+  const day = s => p.ctx.decYear(s).day;
+  const ctx = p.ctx.planContext(d.plan, day("2024-06-14"));   // today Fri, run that day
+  assert.equal(ctx.status.get(day("2024-06-13")), "moved");
+  assert.equal(ctx.status.get(day("2024-06-15")), "next");
+});
+
+test("a day without a session and no override reads Rest day in the detail; an override's reads Skipped", () => {
+  const d = planData(), wk = d.plan.weeks[3].days;
+  wk[3] = { ...wk[3], workout: null };
+  wk[0] = { ...wk[0], workout: null, changed_by: "override_skip" };
+  const { el } = runPage(d);
+  assert.deepEqual(cardStatus(el).slice(0, 4), ["skipped", "done", "partial", "rest"]);
+  clickCard(el, 3);
+  assert.match(el("plan-detail").innerHTML, /<h3>Rest day<\/h3>/);
+  clickCard(el, 0);
+  assert.match(el("plan-detail").innerHTML, /<h3>Skipped<\/h3>[\s\S]*skipped/);
+});
+
+test("a plan whose weeks are all to come shows '–' KPIs", () => {
+  const d = planData();
+  d.runs = [planRun("2024-05-01", 5)];                         // today Thu 2024-05-02
+  const { el, kpis } = runPage(d);
+  assert.equal(kpis("plan-kpis"), 3);
+  assert.equal(el("plan-kpis").innerHTML.split('<span class="val">–</span>').length - 1, 3, el("plan-kpis").innerHTML);
+  assert.doesNotMatch(el("plan-kpis").innerHTML, /NaN|Infinity/);
+  assert.match(el("plan-week-h").textContent, /^Week of /);
+});
+
+test("loading data without a plan drops the old plan chart", () => {
+  const { ctx, destroyed } = runPage(planData(), devScripts.map(f => read(`src/page/js/${f}`)));
+  assert.ok(vm.runInContext('charts["c-plan"]', ctx), "no c-plan chart to start with");
+  ctx.setData(oldFormatData(), false);
+  assert.equal(vm.runInContext('"c-plan" in charts', ctx), false, "c-plan left in charts");
+  assert.ok(destroyed.includes("c-plan"), "c-plan not destroyed");
 });
